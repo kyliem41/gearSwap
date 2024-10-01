@@ -30,7 +30,7 @@ Resources:
             Path: /hello
             Method: get
 
-  #users
+  # users
   createUser:
     Type: AWS::Serverless::Function
     Properties:
@@ -39,8 +39,10 @@ Resources:
       Runtime: python3.12
       Architectures:
       - x86_64
+      Layers:
+      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
       Events:
-        HelloWorld:
+        CreateUserApi:
           Type: Api
           Properties:
             Path: /users
@@ -50,76 +52,87 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: users/
-      Handler: createUser.lambda_handler
+      Handler: putUser.lambda_handler
       Runtime: python3.12
       Architectures:
       - x86_64
+      Layers:
+      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
       Events:
-        HelloWorld:
+        PutUserApi:
           Type: Api
           Properties:
             Path: /users/{userId}
             Method: put
 
-    getUser:
+  getUser:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: users/
-      Handler: createUser.lambda_handler
+      Handler: getUser.lambda_handler
       Runtime: python3.12
       Architectures:
       - x86_64
+      Layers:
+      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
       Events:
-        HelloWorld:
+        GetUserApi:
           Type: Api
           Properties:
             Path: /users/{userId}
             Method: get
 
-    getUserFollowers:
+  getUserFollowers:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: users/
-      Handler: createUser.lambda_handler
+      Handler: getUserFollowers.lambda_handler
       Runtime: python3.12
       Architectures:
       - x86_64
+      Layers:
+      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
       Events:
-        HelloWorld:
+        GetUserFollowersApi:
           Type: Api
           Properties:
             Path: /users/followers/{userId}
             Method: get
 
-    getUserFollowing:
+  getUserFollowing:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: users/
-      Handler: createUser.lambda_handler
+      Handler: getUserFollowing.lambda_handler
       Runtime: python3.12
       Architectures:
       - x86_64
+      Layers:
+      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
       Events:
-        HelloWorld:
+        GetUserFollowingApi:
           Type: Api
           Properties:
             Path: /users/following/{userId}
             Method: get
 
-    deleteUser:
+  deleteUser:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: users/
-      Handler: createUser.lambda_handler
+      Handler: deleteUser.lambda_handler
       Runtime: python3.12
       Architectures:
       - x86_64
+      Layers:
+      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
       Events:
-        HelloWorld:
+        DeleteUserApi:
           Type: Api
           Properties:
             Path: /users/{userId}
             Method: delete
+
   #login
 
   #posts

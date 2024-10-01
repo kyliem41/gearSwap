@@ -17,6 +17,6 @@ architecture = "x86_64"
 handler = "createUser.lambda_handler"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["createUser"]
+functions = ["createUser", "putUser", "getUser", "getUserFollowers", "getUserFollowing", "deleteUser"]
 
 [layer_build_definitions]
