@@ -30,6 +30,112 @@ Resources:
             Path: /hello
             Method: get
 
+  #users
+  createUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: createUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /users
+            Method: post
+
+  putUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: createUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /users/{userId}
+            Method: put
+
+    getUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: createUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /users/{userId}
+            Method: get
+
+    getUserFollowers:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: createUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /users/followers/{userId}
+            Method: get
+
+    getUserFollowing:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: createUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /users/following/{userId}
+            Method: get
+
+    deleteUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: createUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /users/{userId}
+            Method: delete
+  #login
+
+  #posts
+
+  #profile
+
+  #cart
+
+  #outfit
+
+  #search
+
+  #styler
+
+  #interests
+
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
