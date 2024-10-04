@@ -14,7 +14,7 @@ Globals:
     Environment:
       Variables:
         DB_HOST: "gearswapdb.cfs4ukyuq1o9.us-east-2.rds.amazonaws.com"
-        DB_NAME: "gearSwap"
+        # DB_NAME: "gearSwap"
         DB_USER: "postgres"
         DB_PASSWORD: "postgres"
         DB_PORT: "5432"
