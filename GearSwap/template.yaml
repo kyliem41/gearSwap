@@ -5,149 +5,414 @@ Description: >
 
   Sample SAM Template for GearSwap
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 10
     MemorySize: 128
-
-    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
     LoggingConfig:
       LogFormat: JSON
+    Environment:
+      Variables:
+        DB_HOST: "gearswap.cfs4ukyuq1o9.us-east-2.rds.amazonaws.com"
+        DB_NAME: "gearSwap"
+        DB_USER: "postgres"
+        DB_PASSWORD: "postgres"
+
 Resources:
+  PsycopgLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: psycopg2-layer
+      Description: Layer for psycopg2
+      ContentUri: psycopg2-layer/python/
+      CompatibleRuntimes:
+        - python3.12
+
   HelloWorldFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Type: AWS::Serverless::Function
     Properties:
       CodeUri: hello_world/
       Handler: app.lambda_handler
       Runtime: python3.12
       Architectures:
-      - x86_64
+        - x86_64
       Events:
         HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: Api
           Properties:
             Path: /hello
             Method: get
 
   # users
-  createUser:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: users/
-      Handler: createUser.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-      Layers:
-      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
-      Events:
-        CreateUserApi:
-          Type: Api
-          Properties:
-            Path: /users
-            Method: post
-
-  putUser:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: users/
-      Handler: putUser.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-      Layers:
-      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
-      Events:
-        PutUserApi:
-          Type: Api
-          Properties:
-            Path: /users/{userId}
-            Method: put
-
   getUser:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: users/
-      Handler: getUser.lambda_handler
+      Handler: getUserById.lambda_handler
       Runtime: python3.12
       Architectures:
-      - x86_64
-      Layers:
-      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
+        - x86_64
       Events:
-        GetUserApi:
+        getUser:
           Type: Api
           Properties:
-            Path: /users/{userId}
+            Path: /users
             Method: get
-
-  getUserFollowers:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: users/
-      Handler: getUserFollowers.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
       Layers:
-      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
-      Events:
-        GetUserFollowersApi:
-          Type: Api
-          Properties:
-            Path: /users/followers/{userId}
-            Method: get
+        - !Ref PsycopgLayer
 
-  getUserFollowing:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: users/
-      Handler: getUserFollowing.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-      Layers:
-      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
-      Events:
-        GetUserFollowingApi:
-          Type: Api
-          Properties:
-            Path: /users/following/{userId}
-            Method: get
+  # users:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: users.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: users/
+  #     Events:
+  #       getUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: get
+  #       createUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users
+  #           Method: post
+  #       updateUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: put
+  #       deleteUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: delete
+  #       getUserFollowers:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/followers/{userId}
+  #           Method: get
+  #       getUserFollowing:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/following/{userId}
+  #           Method: get
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
-  deleteUser:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: users/
-      Handler: deleteUser.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-      Layers:
-      - arn:aws:lambda:us-east-2:637423330894:layer:psycopg2-layer:1
-      Events:
-        DeleteUserApi:
-          Type: Api
-          Properties:
-            Path: /users/{userId}
-            Method: delete
+  #auth
+  # auth:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     CodeUri: auth/
+  #     Handler: auth.lambda_handler
+  #     Runtime: python3.12
+  #     Policies:
+  #       - AWSLambdaBasicExecutionRole
 
-  #login
+  # #login
+  # loginFunc:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: login.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: auth/
+  #     Events:
+  #       login:
+  #         Type: Api
+  #         Properties:
+  #           Path: /login/{email}
+  #           Method: post
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
-  #posts
+  # #posts
+  # posts:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: posts.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: posts/
+  #     Events:
+  #       getPost:
+  #         Type: Api
+  #         Properties:
+  #           Path: /posts/{id}
+  #           Method: get
+  #       createPost:
+  #         Type: Api
+  #         Properties:
+  #           Path: /posts
+  #           Method: post
+  #       updateUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: put
+  #       deleteUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: delete
+  #       getUserFollowers:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/followers/{userId}
+  #           Method: get
+  #       getUserFollowing:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/following/{userId}
+  #           Method: get
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
-  #profile
+  # #profile
+  # users:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: users.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: users/
+  #     Events:
+  #       getUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: get
+  #       createUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users
+  #           Method: post
+  #       updateUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: put
+  #       deleteUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: delete
+  #       getUserFollowers:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/followers/{userId}
+  #           Method: get
+  #       getUserFollowing:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/following/{userId}
+  #           Method: get
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
-  #cart
+  # #cart
+  # users:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: users.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: users/
+  #     Events:
+  #       getUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: get
+  #       createUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users
+  #           Method: post
+  #       updateUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: put
+  #       deleteUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: delete
+  #       getUserFollowers:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/followers/{userId}
+  #           Method: get
+  #       getUserFollowing:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/following/{userId}
+  #           Method: get
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
-  #outfit
+  # #outfit
+  # users:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: users.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: users/
+  #     Events:
+  #       getUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: get
+  #       createUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users
+  #           Method: post
+  #       updateUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: put
+  #       deleteUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: delete
+  #       getUserFollowers:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/followers/{userId}
+  #           Method: get
+  #       getUserFollowing:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/following/{userId}
+  #           Method: get
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
-  #search
+  # #search
+  # users:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: users.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: users/
+  #     Events:
+  #       getUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: get
+  #       createUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users
+  #           Method: post
+  #       updateUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: put
+  #       deleteUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: delete
+  #       getUserFollowers:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/followers/{userId}
+  #           Method: get
+  #       getUserFollowing:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/following/{userId}
+  #           Method: get
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
-  #styler
+  # #styler
+  # users:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: users.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: users/
+  #     Events:
+  #       getUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: get
+  #       createUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users
+  #           Method: post
+  #       updateUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: put
+  #       deleteUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: delete
+  #       getUserFollowers:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/followers/{userId}
+  #           Method: get
+  #       getUserFollowing:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/following/{userId}
+  #           Method: get
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
-  #interests
+  # #interests
+  # users:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Handler: users.lambda_handler
+  #     Runtime: python3.12
+  #     CodeUri: users/
+  #     Events:
+  #       getUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: get
+  #       createUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users
+  #           Method: post
+  #       updateUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: put
+  #       deleteUser:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/{id}
+  #           Method: delete
+  #       getUserFollowers:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/followers/{userId}
+  #           Method: get
+  #       getUserFollowing:
+  #         Type: Api
+  #         Properties:
+  #           Path: /users/following/{userId}
+  #           Method: get
+  #     Layers:
+  #       - !Ref PsycopgLayer
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
