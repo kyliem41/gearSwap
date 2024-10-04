@@ -6,6 +6,7 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\GearSwap\\hello_world"
 runtime = "python3.12"
 architecture = "x86_64"
 handler = "app.lambda_handler"
+source_hash = "86b5fd62394f96f8d83d2810745c076e6dd7baca777f3927bfc1d25c7b74ed83"
 manifest_hash = "3298f13049d19cffaa37ca931dd4d421"
 packagetype = "Zip"
 functions = ["HelloWorldFunction"]
@@ -15,8 +16,17 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\GearSwap\\users"
 runtime = "python3.12"
 architecture = "x86_64"
 handler = "createUser.lambda_handler"
+source_hash = "31aa01c2c8a8a06bd78dd28512c20a8f335902a00e4faa7fecf2b607b482de09"
 manifest_hash = ""
 packagetype = "Zip"
 functions = ["getUser"]
 
-[layer_build_definitions]
+[layer_build_definitions.2034d49f-350a-4ca9-b679-1480fc5eb961]
+layer_name = "DependenciesLayer"
+codeuri = "C:\\y3\\capstone\\gearSwap\\GearSwap"
+build_method = "python3.12"
+compatible_runtimes = ["python3.12"]
+architecture = "x86_64"
+source_hash = "69c12b1e0a99fdad2e8cd0cef00b6b81e8eb713ff58194af98196977d51179e6"
+manifest_hash = ""
+layer = "DependenciesLayer"
