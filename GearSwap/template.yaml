@@ -19,14 +19,43 @@ Globals:
         DB_PASSWORD: "postgres"
         DB_PORT: "5432"
 
+Parameters:
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets where the Lambda function will be deployed (minimum of 2 subnets required)
 
 Resources:
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda function
+      VpcId: vpc-05b31ac071b580a8c
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
   DependenciesLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
       LayerName: dependencies-layer
       Description: Dependencies for the Lambda function
-      ContentUri: ./
+      ContentUri: ./ 
       CompatibleRuntimes:
         - python3.12
     Metadata:
@@ -47,7 +76,6 @@ Resources:
             Path: /hello
             Method: get
 
-  # users
   getUser:
     Type: AWS::Serverless::Function
     Properties:
@@ -56,6 +84,12 @@ Resources:
       Runtime: python3.12
       Architectures:
         - x86_64
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds: 
+        - sg-03c19dd98d5aa9665
+        - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
       Events:
         getUser:
           Type: Api
