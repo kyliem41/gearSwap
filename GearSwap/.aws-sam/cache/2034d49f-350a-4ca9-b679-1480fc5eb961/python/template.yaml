@@ -7,14 +7,13 @@ Description: >
 
 Globals:
   Function:
-    Timeout: 10
+    Timeout: 15
     MemorySize: 128
     LoggingConfig:
       LogFormat: JSON
     Environment:
       Variables:
         DB_HOST: "gearswapdb.cfs4ukyuq1o9.us-east-2.rds.amazonaws.com"
-        # DB_NAME: "gearSwap"
         DB_USER: "postgres"
         DB_PASSWORD: "postgres"
         DB_PORT: "5432"
@@ -76,7 +75,53 @@ Resources:
             Path: /hello
             Method: get
 
-  getUser:
+  createUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: createUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds: 
+        - sg-03c19dd98d5aa9665
+        - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Events:
+        getAllUsers:
+          Type: Api
+          Properties:
+            Path: /users
+            Method: post
+      Layers:
+        - !Ref DependenciesLayer
+
+  getAllUsers:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: getUsers.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds: 
+        - sg-03c19dd98d5aa9665
+        - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Events:
+        getAllUsers:
+          Type: Api
+          Properties:
+            Path: /users
+            Method: get
+      Layers:
+        - !Ref DependenciesLayer
+
+  getUserById:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: users/
@@ -91,10 +136,102 @@ Resources:
         - !Ref LambdaSecurityGroup
         SubnetIds: !Ref SubnetIds
       Events:
-        getUser:
+        getUserById:
           Type: Api
           Properties:
-            Path: /users
+            Path: /users/{Id}
+            Method: get
+      Layers:
+        - !Ref DependenciesLayer
+
+  putUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: putUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds: 
+        - sg-03c19dd98d5aa9665
+        - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Events:
+        getAllUsers:
+          Type: Api
+          Properties:
+            Path: /users/{Id}
+            Method: put
+      Layers:
+        - !Ref DependenciesLayer
+
+  deleteUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/
+      Handler: deleteUser.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds: 
+        - sg-03c19dd98d5aa9665
+        - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Events:
+        getAllUsers:
+          Type: Api
+          Properties:
+            Path: /users/{Id}
+            Method: delete
+      Layers:
+        - !Ref DependenciesLayer
+    
+  getUsersFollowing:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/following/
+      Handler: getUsersFollowing.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds: 
+        - sg-03c19dd98d5aa9665
+        - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Events:
+        getAllUsers:
+          Type: Api
+          Properties:
+            Path: /users/following/{Id}
+            Method: get
+      Layers:
+        - !Ref DependenciesLayer
+
+  getUsersFollowers:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: users/followers/
+      Handler: getUsersFollowers.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds: 
+        - sg-03c19dd98d5aa9665
+        - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Events:
+        getAllUsers:
+          Type: Api
+          Properties:
+            Path: /users/followers/{Id}
             Method: get
       Layers:
         - !Ref DependenciesLayer

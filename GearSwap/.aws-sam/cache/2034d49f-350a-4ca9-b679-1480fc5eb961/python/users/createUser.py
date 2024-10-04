@@ -1,63 +1,85 @@
 import psycopg2
 import os
+import json
+from psycopg2.extras import RealDictCursor
+from datetime import datetime
 
-# Lambda function
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
 def lambda_handler(event, context):
-    # Database connection parameters
-    db_host = os.environ['localhost']   # Set environment variables in Lambda for security
-    db_name = os.environ['gearSwap']
-    db_user = os.environ['postgres']
-    db_password = os.environ['postgres']
+    db_host = os.environ['DB_HOST']
+    db_user = os.environ['DB_USER']
+    db_password = os.environ['DB_PASSWORD']
+    db_port = os.environ['DB_PORT']
     
-    # Data to insert (usually this comes from the 'event')
-    username = event['username']
-    email = event['email']
-    password = event['password']    # Assuming password is hashed beforehand
-    profile_info = event.get('profileInfo')  # Optional or null if not provided
+    # Parse the event body (handles if the body is a string)
+    try:
+        if isinstance(event, str):
+            event = json.loads(event)
+        elif "body" in event:
+            event = json.loads(event["body"])
+    except json.JSONDecodeError as e:
+        return {
+            "statusCode": 400,
+            "body": json.dumps(f"Invalid JSON format: {str(e)}")
+        }
+    
+    # Extract fields from the event object
+    try:
+        username = event['username']
+        email = event['email']
+        password = event['password']
+        profile_info = event.get('profileInfo')  # Optional
+    except KeyError as e:
+        return {
+            "statusCode": 400,
+            "body": json.dumps(f"Missing required field: {str(e)}")
+        }
 
-    # SQL query to insert a new user
     insert_query = """
-    INSERT INTO users.users (username, email, password, profileInfo) 
-    VALUES (%s, %s, %s, %s)
-    RETURNING id, username, email, joinDate;
+    INSERT INTO users (username, email, password, profileInfo, joinDate, likeCount, saveCount) 
+    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 0, 0)
+    RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
     """
     
-    # Establish a connection to PostgreSQL
     try:
         conn = psycopg2.connect(
             host=db_host,
-            dbname=db_name,
             user=db_user,
-            password=db_password
+            password=db_password,
+            port=db_port,
         )
-        cursor = conn.cursor()
         
-        # Execute the insert query
-        cursor.execute(insert_query, (username, email, password, profile_info))
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(insert_query, (username, email, password, profile_info))
+            
+            new_user = cursor.fetchone()
+            
+            conn.commit()
         
-        # Commit the transaction
-        conn.commit()
-        
-        # Fetch the newly created user details
-        new_user = cursor.fetchone()
-        
-        # Close the connection
-        cursor.close()
-        conn.close()
-        
-        # Return the created user information
         return {
-            "statusCode": 200,
-            "body": {
-                "id": new_user[0],
-                "username": new_user[1],
-                "email": new_user[2],
-                "joinDate": new_user[3].strftime('%Y-%m-%d %H:%M:%S')
-            }
+            "statusCode": 201,
+            "body": json.dumps({
+                "message": "User created successfully",
+                "user": new_user
+            }, default=json_serial)
         }
         
+    except psycopg2.IntegrityError as e:
+        return {
+            "statusCode": 400,
+            "body": json.dumps("Username or email already exists")
+        }
     except Exception as e:
+        print(f"Failed to create user. Error: {str(e)}")
         return {
             "statusCode": 500,
-            "body": f"Error creating user: {str(e)}"
+            "body": json.dumps(f"Error creating user: {str(e)}")
         }
+    finally:
+        if conn:
+            conn.close()

@@ -15,8 +15,6 @@ def lambda_handler(event, context):
     db_user = os.environ['DB_USER']
     db_password = os.environ['DB_PASSWORD']
     db_port = os.environ['DB_PORT']
-    
-    user_id = event['pathParameters']['Id']
 
     try:
         conn = psycopg2.connect(
@@ -33,30 +31,30 @@ def lambda_handler(event, context):
             }
             
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            get_query = "SELECT * FROM users WHERE id = %s"
-            cursor.execute(get_query, (user_id))
-            user = cursor.fetchone()
+            get_query = "SELECT * FROM users"
+            cursor.execute(get_query)
+            users = cursor.fetchall()  # Fetch all users
 
-        if user:
+        if users:
             return {
                 "statusCode": 200,
                 "body": json.dumps({
-                    "message": "User retrieved successfully",
-                    "user": user
+                    "message": "Users retrieved successfully",
+                    "users": users  # Return the list of users
                 }, default=json_serial)
             }
         else:
             return {
                 "statusCode": 404,
-                "body": json.dumps("User not found")
+                "body": json.dumps("No users found")
             }
             
     except Exception as e:
-        print(f"Failed to get user. Error: {str(e)}")
+        print(f"Failed to get users. Error: {str(e)}")
         print(f"Connection details: host={db_host}, user={db_user}, port={db_port}")
         return {
             "statusCode": 500,
-            "body": json.dumps(f"Error getting user: {str(e)}"),
+            "body": json.dumps(f"Error getting users: {str(e)}"),
         }
     finally:
         if conn:

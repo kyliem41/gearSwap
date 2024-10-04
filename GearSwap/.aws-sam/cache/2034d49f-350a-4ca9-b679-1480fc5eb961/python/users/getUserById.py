@@ -15,6 +15,8 @@ def lambda_handler(event, context):
     db_user = os.environ['DB_USER']
     db_password = os.environ['DB_PASSWORD']
     db_port = os.environ['DB_PORT']
+    
+    user_id = event['pathParameters']['Id']
 
     try:
         conn = psycopg2.connect(
@@ -31,8 +33,8 @@ def lambda_handler(event, context):
             }
             
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            get_query = "SELECT * FROM users"
-            cursor.execute(get_query)
+            get_query = "SELECT * FROM users WHERE id = %s"
+            cursor.execute(get_query, (user_id))
             user = cursor.fetchone()
 
         if user:
