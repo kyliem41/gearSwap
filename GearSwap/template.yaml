@@ -161,6 +161,82 @@ Resources:
             Path: /userProfile/{Id}
             Method: DELETE
 
+  CartFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: cart/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        CreateProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: POST
+        GetProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: GET
+        UpdateProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: PUT
+        DeleteProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: DELETE
+
+  PostsFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: posts/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        CreatePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{Id}
+            Method: POST
+        GetAllPosts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{Id}
+            Method: GET
+        GetPostById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{Id}/{Id}
+            Method: GET
+        UpdatePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{Id}
+            Method: PUT
+        DeletePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{Id}
+            Method: DELETE
+        GetPostsByFilter:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/filter/{Id}
+            Method: GET
+
 Outputs:
   gearSwapUrl:
     Description: API Gateway endpoint URL for Prod stage
@@ -171,3 +247,9 @@ Outputs:
   UserProfileFunctionsArn:
     Description: UserProfile Functions ARN
     Value: !GetAtt UserProfileFunctions.Arn
+  CartFunctionsArn:
+    Description: Cart Functions ARN
+    Value: !GetAtt CartFunctions.Arn
+  PostsFunctionsArn:
+    Description: Posts Functions ARN
+    Value: !GetAtt PostsFunctions.Arn

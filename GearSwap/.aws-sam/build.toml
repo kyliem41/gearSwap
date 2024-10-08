@@ -16,10 +16,20 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\userProfile"
 runtime = "python3.12"
 architecture = "x86_64"
 handler = "app.lambda_handler"
-source_hash = "1e884e33e887d25309c54b7c525ab316cdcd8608805d187fa48a320ef34692eb"
+source_hash = "8129d2218d18347a2791f16bb8f0e64e69874d26103022ff6b58056ef1310ccb"
 manifest_hash = ""
 packagetype = "Zip"
 functions = ["UserProfileFunctions"]
+
+[function_build_definitions.6c5bf8a7-a7a1-4fc7-a0d3-ec8da843ac87]
+codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\cart"
+runtime = "python3.12"
+architecture = "x86_64"
+handler = "app.lambda_handler"
+source_hash = "72781a6a14b545403ba85b21a12701aebaa08a0e6479a2b32ca4394d8f9d844a"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["CartFunctions"]
 
 [layer_build_definitions.4d9fdc6d-42d3-4658-96e3-3ecd886f6e00]
 layer_name = "DependenciesLayer"
@@ -27,6 +37,6 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap"
 build_method = "python3.12"
 compatible_runtimes = ["python3.12"]
 architecture = "x86_64"
-source_hash = "b9a59fafcc071ded85740f40accd255d0923d1caa5379bb8eda2726b5e00e713"
+source_hash = "2dcb51ff74fe1ffd88138a27ca882aae3bf3a05c8c94a095a74b39eeaffdf8d9"
 manifest_hash = ""
 layer = "DependenciesLayer"

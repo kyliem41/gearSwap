@@ -161,6 +161,38 @@ Resources:
             Path: /userProfile/{Id}
             Method: DELETE
 
+  CartFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: cart/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        CreateProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: POST
+        GetProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: GET
+        UpdateProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: PUT
+        DeleteProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: DELETE
+
 Outputs:
   gearSwapUrl:
     Description: API Gateway endpoint URL for Prod stage
@@ -171,3 +203,6 @@ Outputs:
   UserProfileFunctionsArn:
     Description: UserProfile Functions ARN
     Value: !GetAtt UserProfileFunctions.Arn
+  CartFunctionsArn:
+    Description: Cart Functions ARN
+    Value: !GetAtt CartFunctions.Arn

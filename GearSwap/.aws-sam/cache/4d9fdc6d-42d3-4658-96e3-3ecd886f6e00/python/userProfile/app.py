@@ -40,18 +40,18 @@ def get_db_connection():
 
 #############
 def createProfile(event, context):
-    try:        
-                
+    try:
+        # Parse the request body
         if isinstance(event.get('body'), str):
             body = json.loads(event['body'])
         else:
             body = json.loads(event.get('body', '{}'))
-            
+
         user_id = event['pathParameters']['Id']
         bio = body.get('bio')
         location = body.get('location')
         profilePicture = body.get('profilePicture')
-        
+
     except json.JSONDecodeError:
         return {
             "statusCode": 400,
@@ -61,7 +61,7 @@ def createProfile(event, context):
     try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # First, check if the user exists and get their username
+                # Check if the user exists and get their username
                 cursor.execute("SELECT username FROM users WHERE id = %s", (user_id,))
                 user = cursor.fetchone()
                 if not user:
@@ -71,6 +71,7 @@ def createProfile(event, context):
                     }
                 username = user['username']
 
+                # Insert a new profile into the userProfile table
                 insert_query = """
                 INSERT INTO userProfile (userId, username, bio, location, profilePicture) 
                 VALUES (%s, %s, %s, %s, %s)
@@ -78,16 +79,26 @@ def createProfile(event, context):
                 """
                 cursor.execute(insert_query, (user_id, username, bio, location, profilePicture))
                 new_profile = cursor.fetchone()
+
+                # Update the profileInfo column in the users table with the new profile ID
+                update_user_query = """
+                UPDATE users
+                SET profileInfo = %s
+                WHERE id = %s;
+                """
+                cursor.execute(update_user_query, (new_profile['id'], user_id))
+
+                # Commit both the insertion and the update
                 conn.commit()
-        
+
         return {
             "statusCode": 201,
             "body": json.dumps({
-                "message": "UserProfile created successfully",
+                "message": "UserProfile created successfully and user profileInfo updated",
                 "profile": new_profile
             }, default=json_serial)
         }
-        
+
     except psycopg2.IntegrityError as e:
         print(f"IntegrityError: {str(e)}")
         return {
@@ -122,7 +133,7 @@ def getUserProfile(event, context):
             return {
                 "statusCode": 200,
                 "body": json.dumps({
-                    "message": "UserProfile retrieved successfully",
+                    "message": "UserProfile retrieved successfully, hey bebyy",
                     "userProfile": userProfile
                 }, default=json_serial)
             }
