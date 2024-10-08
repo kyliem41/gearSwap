@@ -5,20 +5,18 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
 def lambda_handler(event, context):
-    print("Received event:", json.dumps(event))
     http_method = event['httpMethod']
     resource_path = event['resource']
 
     if resource_path == '/userProfile/{Id}':
-        user_id = event['pathParameters']['Id']
         if http_method == 'POST':
-            return createProfile(user_id, event)  # Pass user_id here
+            return createProfile(event, context)
         elif http_method == 'GET':
-            return getUserProfile(user_id)
+            return getUserProfile(event, context)
         elif http_method == 'PUT':
-            return putUserProfile(user_id, event)
+            return putUserProfile(event, context)
         elif http_method == 'DELETE':
-            return deleteUserProfile(user_id)
+            return deleteUserProfile(event, context)
 
     return {
         'statusCode': 400,
@@ -41,20 +39,24 @@ def get_db_connection():
     )
 
 #############
-def createProfile(user_id, event):
-    print(f"Creating profile for user_id: {user_id}")
-    try:
-        body = json.loads(event.get('body', '{}'))
-        print(f"Request body: {body}")
+def createProfile(event, context):
+    try:        
+                
+        if isinstance(event.get('body'), str):
+            body = json.loads(event['body'])
+        else:
+            body = json.loads(event.get('body', '{}'))
+            
+        user_id = event['pathParameters']['Id']
+        bio = body.get('bio')
+        location = body.get('location')
+        profilePicture = body.get('profilePicture')
+        
     except json.JSONDecodeError:
         return {
             "statusCode": 400,
             "body": json.dumps("Invalid JSON format in request body")
         }
-    
-    bio = body.get('bio')
-    location = body.get('location')
-    profilePic = body.get('profilePic')
 
     try:
         with get_db_connection() as conn:
@@ -70,11 +72,11 @@ def createProfile(user_id, event):
                 username = user['username']
 
                 insert_query = """
-                INSERT INTO userProfile (userId, username, bio, location, profilePic) 
+                INSERT INTO userProfile (userId, username, bio, location, profilePicture) 
                 VALUES (%s, %s, %s, %s, %s)
-                RETURNING id, userId, username, bio, location, profilePic;
+                RETURNING id, userId, username, bio, location, profilePicture;
                 """
-                cursor.execute(insert_query, (user_id, username, bio, location, profilePic))
+                cursor.execute(insert_query, (user_id, username, bio, location, profilePicture))
                 new_profile = cursor.fetchone()
                 conn.commit()
         
@@ -102,7 +104,7 @@ def createProfile(user_id, event):
 ################
 def getUserProfile(user_id):
     get_query = """
-    SELECT up.id, up.userId, u.username, up.bio, up.location, up.profilePic
+    SELECT *
     FROM userProfile up
     JOIN users u ON up.userId = u.id
     WHERE up.userId = %s
@@ -149,15 +151,15 @@ def putUserProfile(user_id, event):
     UPDATE userProfile    
     SET bio = COALESCE(%s, bio), 
         location = COALESCE(%s, location), 
-        profilePic = COALESCE(%s, profilePic)
+        profilePicture = COALESCE(%s, profilePicture)
     WHERE userId = %s 
-    RETURNING id, userId, bio, location, profilePic;
+    RETURNING id, userId, bio, location, profilePicture;
     """
     
     try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(update_query, (body.get('bio'), body.get('location'), body.get('profilePic'), user_id))
+                cursor.execute(update_query, (body.get('bio'), body.get('location'), body.get('profilePicture'), user_id))
                 updated_userProfile = cursor.fetchone()
                 
                 if updated_userProfile:

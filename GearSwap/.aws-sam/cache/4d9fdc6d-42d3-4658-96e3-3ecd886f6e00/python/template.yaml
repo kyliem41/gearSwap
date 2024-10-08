@@ -51,7 +51,7 @@ Resources:
                 Action:
                   - rds-db:connect
                 Resource: '*'
-                
+
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -129,41 +129,41 @@ Resources:
             Path: /users/followers/{Id}
             Method: GET
 
-  # UserProfileApi:
-  #   Type: AWS::Serverless::Api
-  #   Properties:
-  #     StageName: Prod
+  UserProfileApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
 
-  # UserProfileFunctions:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     CodeUri: userProfile/
-  #     Handler: app.lambda_handler
-  #     Events:
-  #       CreateProfile:
-  #         Type: Api
-  #         Properties:
-  #           RestApiId: !Ref UserProfileApi
-  #           Path: /userProfile{Id}
-  #           Method: POST
-  #       GetProfile:
-  #         Type: Api
-  #         Properties:
-  #           RestApiId: !Ref UserProfileApi
-  #           Path: /userProfile/{Id}
-  #           Method: GET
-  #       UpdateProfile:
-  #         Type: Api
-  #         Properties:
-  #           RestApiId: !Ref UserProfileApi
-  #           Path: /userProfile/{Id}
-  #           Method: PUT
-  #       DeleteProfile:
-  #         Type: Api
-  #         Properties:
-  #           RestApiId: !Ref UserProfileApi
-  #           Path: /userProfile/{Id}
-  #           Method: DELETE
+  UserProfileFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: userProfile/
+      Handler: app.lambda_handler
+      Events:
+        CreateProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref UserProfileApi
+            Path: /userProfile{Id}
+            Method: POST
+        GetProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref UserProfileApi
+            Path: /userProfile/{Id}
+            Method: GET
+        UpdateProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref UserProfileApi
+            Path: /userProfile/{Id}
+            Method: PUT
+        DeleteProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref UserProfileApi
+            Path: /userProfile/{Id}
+            Method: DELETE
 
 Outputs:
   UserApiUrl:
@@ -172,6 +172,6 @@ Outputs:
   UserFunctionsArn:
     Description: User Functions ARN
     Value: !GetAtt UserFunctions.Arn
-  # UserProfileFunctionsArn:
-  #   Description: UserProfile Functions ARN
-  #   Value: !GetAtt UserProfileFunctions.Arn
+  UserProfileFunctionsArn:
+    Description: UserProfile Functions ARN
+    Value: !GetAtt UserProfileFunctions.Arn

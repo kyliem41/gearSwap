@@ -14,7 +14,6 @@ def lambda_handler(event, context):
         elif http_method == 'POST':
             return createUser(event, context)
     elif resource_path == '/users/{Id}':
-        user_id = event['pathParameters']['Id']
         if http_method == 'GET':
             return getUserById(event, context)
         elif http_method == 'PUT':
@@ -38,6 +37,7 @@ def json_serial(obj):
         return obj.isoformat()
     raise TypeError(f"Type {type(obj)} not serializable")
 
+###############
 def getUsers(event, context):
     db_host = os.environ['DB_HOST']
     db_user = os.environ['DB_USER']
@@ -52,30 +52,19 @@ def getUsers(event, context):
             port=db_port,
         )
         
-        if not conn:
-            return {
-                "statusCode": 500,
-                "body": json.dumps("Failed to connect to database")
-            }
-            
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            get_query = "SELECT * FROM users"
+            get_query = "SELECT * FROM users ORDER BY id"
             cursor.execute(get_query)
-            users = cursor.fetchall()  # Fetch all users
+            users = cursor.fetchall()
 
-        if users:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Users retrieved successfully",
-                    "users": users  # Return the list of users
-                }, default=json_serial)
-            }
-        else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("No users found")
-            }
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "message": "All users retrieved",
+                "users": users,
+                "total_count": len(users)
+            }, default=json_serial)
+        }
             
     except Exception as e:
         print(f"Failed to get users. Error: {str(e)}")
@@ -95,37 +84,26 @@ def createUser(event, context):
     db_password = os.environ['DB_PASSWORD']
     db_port = os.environ['DB_PORT']
     
-    # Parse the event body (handles if the body is a string)
-    try:
-        if isinstance(event, str):
-            event = json.loads(event)
-        elif "body" in event:
-            event = json.loads(event["body"])
-    except json.JSONDecodeError as e:
-        return {
-            "statusCode": 400,
-            "body": json.dumps(f"Invalid JSON format: {str(e)}")
-        }
+    conn = None
     
-    # Extract fields from the event object
     try:
-        username = event['username']
-        email = event['email']
-        password = event['password']
-        profile_info = event.get('profileInfo')  # Optional
-    except KeyError as e:
-        return {
-            "statusCode": 400,
-            "body": json.dumps(f"Missing required field: {str(e)}")
-        }
+        if isinstance(event.get('body'), str):
+            body = json.loads(event['body'])
+        else:
+            body = event.get('body', {})
 
-    insert_query = """
-    INSERT INTO users (username, email, password, profileInfo, joinDate, likeCount, saveCount) 
-    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 0, 0)
-    RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
-    """
-    
-    try:
+        username = body.get('username')
+        email = body.get('email')
+        password = body.get('password')
+        
+        if not username or not email or not password:
+            return {
+                "statusCode": 400,
+                "body": json.dumps("Missing required fields: username, email, or password")
+            }
+        
+        profile_info = body.get('profileInfo')  # Optional field
+
         conn = psycopg2.connect(
             host=db_host,
             user=db_user,
@@ -133,11 +111,15 @@ def createUser(event, context):
             port=db_port,
         )
         
+        insert_query = """
+        INSERT INTO users (username, email, password, profileInfo, joinDate, likeCount, saveCount) 
+        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 0, 0)
+        RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
+        """
+        
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(insert_query, (username, email, password, profile_info))
-            
             new_user = cursor.fetchone()
-            
             conn.commit()
         
         return {
@@ -150,19 +132,33 @@ def createUser(event, context):
         
     except psycopg2.IntegrityError as e:
         return {
-            "statusCode": 400,
-            "body": json.dumps("Username or email already exists")
+            "statusCode": 409,
+            "body": json.dumps(f"Username or email already exists: {str(e)}")
         }
+        
+    except KeyError as e:
+        return {
+            "statusCode": 400,
+            "body": json.dumps(f"Missing required field: {str(e)}")
+        }
+        
+    except json.JSONDecodeError:
+        return {
+            "statusCode": 400,
+            "body": json.dumps("Invalid JSON in request body")
+        }
+        
     except Exception as e:
         print(f"Failed to create user. Error: {str(e)}")
         return {
             "statusCode": 500,
             "body": json.dumps(f"Error creating user: {str(e)}")
         }
+        
     finally:
         if conn:
             conn.close()
-
+            
 ################            
 def getUserById(event, context):
     db_host = os.environ['DB_HOST']
