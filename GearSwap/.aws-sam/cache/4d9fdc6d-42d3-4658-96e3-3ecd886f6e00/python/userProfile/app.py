@@ -102,7 +102,9 @@ def createProfile(event, context):
         }
 
 ################
-def getUserProfile(user_id):
+def getUserProfile(event, context):
+    user_id = event['pathParameters']['Id']
+
     get_query = """
     SELECT *
     FROM userProfile up
@@ -138,7 +140,7 @@ def getUserProfile(user_id):
         }
 
 ############
-def putUserProfile(user_id, event):
+def putUserProfile(event, context):
     try:
         body = json.loads(event.get('body', '{}'))
     except json.JSONDecodeError:
@@ -146,6 +148,8 @@ def putUserProfile(user_id, event):
             "statusCode": 400,
             "body": json.dumps("Invalid JSON format in request body")
         }
+
+    user_id = event['pathParameters']['Id']
 
     update_query = """
     UPDATE userProfile    
@@ -193,10 +197,12 @@ def putUserProfile(user_id, event):
         }
 
 ##########
-def deleteUserProfile(user_id):
-    delete_query = "DELETE FROM userProfile WHERE userId = %s RETURNING id;"
-    
+def deleteUserProfile(event, context):
     try:
+        user_id = event['pathParameters']['Id']
+        
+        delete_query = "DELETE FROM userProfile WHERE userId = %s RETURNING id;"
+
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(delete_query, (user_id,))

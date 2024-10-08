@@ -74,7 +74,7 @@ Resources:
     Metadata:
       BuildMethod: python3.12
 
-  UserApi:
+  gearSwap:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
@@ -89,86 +89,82 @@ Resources:
         CreateUser:
           Type: Api
           Properties:
-            RestApiId: !Ref UserApi
+            RestApiId: !Ref gearSwap
             Path: /users
             Method: POST
         GetAllUsers:
           Type: Api
           Properties:
-            RestApiId: !Ref UserApi
+            RestApiId: !Ref gearSwap
             Path: /users
             Method: GET
         GetUserById:
           Type: Api
           Properties:
-            RestApiId: !Ref UserApi
+            RestApiId: !Ref gearSwap
             Path: /users/{Id}
             Method: GET
         UpdateUser:
           Type: Api
           Properties:
-            RestApiId: !Ref UserApi
+            RestApiId: !Ref gearSwap
             Path: /users/{Id}
             Method: PUT
         DeleteUser:
           Type: Api
           Properties:
-            RestApiId: !Ref UserApi
+            RestApiId: !Ref gearSwap
             Path: /users/{Id}
             Method: DELETE
         GetUsersFollowing:
           Type: Api
           Properties:
-            RestApiId: !Ref UserApi
+            RestApiId: !Ref gearSwap
             Path: /users/following/{Id}
             Method: GET
         GetUsersFollowers:
           Type: Api
           Properties:
-            RestApiId: !Ref UserApi
+            RestApiId: !Ref gearSwap
             Path: /users/followers/{Id}
             Method: GET
-
-  UserProfileApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: Prod
 
   UserProfileFunctions:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: userProfile/
       Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         CreateProfile:
           Type: Api
           Properties:
-            RestApiId: !Ref UserProfileApi
-            Path: /userProfile{Id}
+            RestApiId: !Ref gearSwap
+            Path: /userProfile/{Id}
             Method: POST
         GetProfile:
           Type: Api
           Properties:
-            RestApiId: !Ref UserProfileApi
+            RestApiId: !Ref gearSwap
             Path: /userProfile/{Id}
             Method: GET
         UpdateProfile:
           Type: Api
           Properties:
-            RestApiId: !Ref UserProfileApi
+            RestApiId: !Ref gearSwap
             Path: /userProfile/{Id}
             Method: PUT
         DeleteProfile:
           Type: Api
           Properties:
-            RestApiId: !Ref UserProfileApi
+            RestApiId: !Ref gearSwap
             Path: /userProfile/{Id}
             Method: DELETE
 
 Outputs:
-  UserApiUrl:
+  gearSwapUrl:
     Description: API Gateway endpoint URL for Prod stage
-    Value: !Sub "https://${UserApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Value: !Sub "https://${gearSwap}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
   UserFunctionsArn:
     Description: User Functions ARN
     Value: !GetAtt UserFunctions.Arn

@@ -1,47 +1,5 @@
 # gearSwap
 
-
-
-  # users:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     Handler: users.lambda_handler
-  #     Runtime: python3.12
-  #     CodeUri: users/
-  #     Events:
-  #       getUser:
-  #         Type: Api
-  #         Properties:
-  #           Path: /users/{id}
-  #           Method: get
-  #       createUser:
-  #         Type: Api
-  #         Properties:
-  #           Path: /users
-  #           Method: post
-  #       updateUser:
-  #         Type: Api
-  #         Properties:
-  #           Path: /users/{id}
-  #           Method: put
-  #       deleteUser:
-  #         Type: Api
-  #         Properties:
-  #           Path: /users/{id}
-  #           Method: delete
-  #       getUserFollowers:
-  #         Type: Api
-  #         Properties:
-  #           Path: /users/followers/{userId}
-  #           Method: get
-  #       getUserFollowing:
-  #         Type: Api
-  #         Properties:
-  #           Path: /users/following/{userId}
-  #           Method: get
-  #     Layers:
-  #       - !Ref PsycopgLayer
-
   #auth
   # auth:
   #   Type: AWS::Serverless::Function
