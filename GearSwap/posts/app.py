@@ -184,11 +184,11 @@ def getPostById(event, context):
     db_user = os.environ['DB_USER']
     db_password = os.environ['DB_PASSWORD']
     db_port = os.environ['DB_PORT']
-    
-    userId = event['pathParameters']['userId']
-    postId = event['pathParameters']['postId']
 
     try:
+        userId = event['pathParameters']['userId']
+        postId = event['pathParameters']['postId']
+        
         conn = psycopg2.connect(
             host=db_host,
             user=db_user,
@@ -418,7 +418,7 @@ def deletePost(event, context):
                 "statusCode": 200,
                 "body": json.dumps({
                     "message": "Post deleted successfully",
-                    "deletedPostId": deleted_post['postId']
+                    "deletedPostId": deleted_post['userId']
                 })
             }
         else:
