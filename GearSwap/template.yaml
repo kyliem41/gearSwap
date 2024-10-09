@@ -204,37 +204,37 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{Id}
+            Path: /posts/{userId}
             Method: POST
         GetAllPosts:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{Id}
+            Path: /posts
             Method: GET
         GetPostById:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{Id}/{Id}
+            Path: /posts/{userId}/{postId}
             Method: GET
         UpdatePost:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{Id}
+            Path: /posts/{userId}/{postId}
             Method: PUT
         DeletePost:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{Id}
+            Path: /posts/{userId}/{postId}
             Method: DELETE
         GetPostsByFilter:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/filter/{Id}
+            Path: /posts/filter/{userId}
             Method: GET
 
 Outputs:

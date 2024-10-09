@@ -193,6 +193,50 @@ Resources:
             Path: /cart/{Id}
             Method: DELETE
 
+  PostsFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: posts/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        CreatePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{userId}
+            Method: POST
+        GetAllPosts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts
+            Method: GET
+        GetPostById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{userId}/{postId}
+            Method: GET
+        UpdatePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{userId}/{postId}
+            Method: PUT
+        DeletePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{userId}/{postId}
+            Method: DELETE
+        GetPostsByFilter:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/filter/{userId}
+            Method: GET
+
 Outputs:
   gearSwapUrl:
     Description: API Gateway endpoint URL for Prod stage
@@ -206,3 +250,6 @@ Outputs:
   CartFunctionsArn:
     Description: Cart Functions ARN
     Value: !GetAtt CartFunctions.Arn
+  PostsFunctionsArn:
+    Description: Posts Functions ARN
+    Value: !GetAtt PostsFunctions.Arn
