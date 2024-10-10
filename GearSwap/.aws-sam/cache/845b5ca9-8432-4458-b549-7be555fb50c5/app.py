@@ -363,6 +363,7 @@ def getUsersFollowing(event, context):
             "statusCode": 500,
             "body": json.dumps(f"Error getting following users: {str(e)}")
         }
+        
     finally:
         if conn:
             conn.close()

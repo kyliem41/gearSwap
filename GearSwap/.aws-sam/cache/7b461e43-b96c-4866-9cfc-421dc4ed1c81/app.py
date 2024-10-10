@@ -188,7 +188,7 @@ def getPostById(event, context):
     try:
         userId = event['pathParameters']['userId']
         postId = event['pathParameters']['postId']
-    
+        
         conn = psycopg2.connect(
             host=db_host,
             user=db_user,
@@ -418,7 +418,7 @@ def deletePost(event, context):
                 "statusCode": 200,
                 "body": json.dumps({
                     "message": "Post deleted successfully",
-                    "deletedPostId": deleted_post['userId']
+                    "deletedPostId": deleted_post['id']
                 })
             }
         else:
@@ -433,6 +433,10 @@ def deletePost(event, context):
             "statusCode": 500,
             "body": json.dumps(f"Error deleting post: {str(e)}")
         }
+    
+    finally:
+        if conn:
+            conn.close()
         
-#delete works but isnt returning the right id in message, tried Id, tried postId
+#delete works but isnt returning the right id in message, tried Id, tried postId, userId
 #get post by id doesnt work, presents 'unsupported route'

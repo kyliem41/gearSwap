@@ -6,7 +6,7 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\users"
 runtime = "python3.12"
 architecture = "x86_64"
 handler = "app.lambda_handler"
-source_hash = "63c102cbd8f5a9a6ef79af53b429d66ffe73e12d1d6d625a40513b51dd5502ee"
+source_hash = "eab164a24454f323298e6cc1b41db1051e920d4eb074037cb87790511514c801"
 manifest_hash = ""
 packagetype = "Zip"
 functions = ["UserFunctions"]
@@ -36,10 +36,20 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\posts"
 runtime = "python3.12"
 architecture = "x86_64"
 handler = "app.lambda_handler"
-source_hash = "1cc93af5ef30ef8b127793f6b78da290e7d07873d06f1ab57f23cb8349d9f35c"
+source_hash = "b45b0d6857d6896d3984e9ed22998ac9ce8406feb7bf8286f0c3b96240804db4"
 manifest_hash = ""
 packagetype = "Zip"
 functions = ["PostsFunctions"]
+
+[function_build_definitions.6f86a6c1-df1b-4a69-b634-aaf4bd75d7fe]
+codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\search"
+runtime = "python3.12"
+architecture = "x86_64"
+handler = "app.lambda_handler"
+source_hash = "9c3f1e35e92c8ff8bc4ff9860fd5a097dda506ea2e93d25a3abe5270534718f4"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["SearchFunctions"]
 
 [layer_build_definitions.4d9fdc6d-42d3-4658-96e3-3ecd886f6e00]
 layer_name = "DependenciesLayer"
@@ -47,6 +57,6 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap"
 build_method = "python3.12"
 compatible_runtimes = ["python3.12"]
 architecture = "x86_64"
-source_hash = "65b3545545a84a29b1223524bc010aa8eaf67e32d12cb340fb90251ee21d3c8d"
+source_hash = "9823511d3a24eebc80a5ea924b4ac131f3e2f337ddcccb1e60f564328c86fb91"
 manifest_hash = ""
 layer = "DependenciesLayer"

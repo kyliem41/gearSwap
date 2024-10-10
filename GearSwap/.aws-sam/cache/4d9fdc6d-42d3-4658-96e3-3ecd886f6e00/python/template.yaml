@@ -237,6 +237,32 @@ Resources:
             Path: /posts/filter/{userId}
             Method: GET
 
+  SearchFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: search/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        PostSearch:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /search/{userId}
+            Method: POST
+        GetSearchHistory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /search/{userId}
+            Method: GET
+        DeleteSearch:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /search/{userId}/{searchId}
+            Method: DELETE
+
 Outputs:
   gearSwapUrl:
     Description: API Gateway endpoint URL for Prod stage
@@ -253,3 +279,6 @@ Outputs:
   PostsFunctionsArn:
     Description: Posts Functions ARN
     Value: !GetAtt PostsFunctions.Arn
+  SearchFunctionsArn:
+    Description: Search Functions ARN
+    Value: !GetAtt SearchFunctions.Arn
