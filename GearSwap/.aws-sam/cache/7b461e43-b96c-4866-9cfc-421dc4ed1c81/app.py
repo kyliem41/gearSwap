@@ -17,7 +17,7 @@ def lambda_handler(event, context):
             return createPost(event, context)
     elif resource_path == '/posts/{userId}/{postId}':
         if http_method == 'GET':
-            getPostById(event, context)
+            return getPostById(event, context)
         elif http_method == 'PUT':
             return putPost(event, context)
         elif http_method == 'DELETE':

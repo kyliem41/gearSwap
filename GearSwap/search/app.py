@@ -91,7 +91,7 @@ def postSearch(event, context):
             "statusCode": 201,
             "body": json.dumps({
                 "message": "Search posted successfully",
-                "profile": new_search
+                "search": new_search
             }, default=json_serial)
         }
 

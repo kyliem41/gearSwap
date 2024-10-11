@@ -263,6 +263,38 @@ Resources:
             Path: /search/{userId}/{searchId}
             Method: DELETE
 
+  LikedPostFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: likedPosts/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        AddLikedPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /likedPosts/{userId}
+            Method: POST
+        GetLikedPosts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /likedPosts/{userId}
+            Method: GET
+        RemoveLikedPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /likedPosts/{userId}/{postId}
+            Method: DELETE
+        GetLikedPostById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /likedPosts/{userId}/{postId}
+            Method: GET
+
 Outputs:
   gearSwapUrl:
     Description: API Gateway endpoint URL for Prod stage
@@ -282,3 +314,6 @@ Outputs:
   SearchFunctionsArn:
     Description: Search Functions ARN
     Value: !GetAtt SearchFunctions.Arn
+  LikedPostFunctionsArn:
+    Description: LikedPost Functions ARN
+    Value: !GetAtt LikedPostFunctions.Arn
