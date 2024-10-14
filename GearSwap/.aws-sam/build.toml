@@ -70,12 +70,22 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["OutfitFunctions"]
 
+[function_build_definitions.1d9233f5-7363-4e57-9a93-5058c326bdef]
+codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\styler"
+runtime = "python3.12"
+architecture = "x86_64"
+handler = "app.lambda_handler"
+source_hash = "3d244868e851e656dd599a93b8ad7de0ac1e8cf032c3abcc08dabf4d4f989a4f"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["StylerFunctions"]
+
 [layer_build_definitions.4d9fdc6d-42d3-4658-96e3-3ecd886f6e00]
 layer_name = "DependenciesLayer"
 codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap"
 build_method = "python3.12"
 compatible_runtimes = ["python3.12"]
 architecture = "x86_64"
-source_hash = "0bb152bf535831bd4ff35669279570d2290d71e9e61381ba661742c69354e2d1"
+source_hash = "30d76c38e98b3fd43dd8e45353de15ba0a51130fdc49bdeec1b5296da593bdec"
 manifest_hash = ""
 layer = "DependenciesLayer"

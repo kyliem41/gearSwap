@@ -345,6 +345,74 @@ Resources:
             Path: /outfit/item/{userId}/{outfitId}
             Method: DELETE
 
+  StylerFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: styler/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        RefreshStyler:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/{userId}
+            Method: POST
+        GetStyleTips:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/{userId}
+            Method: GET
+        GenerateOutfitByWardrobe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/wardrobe/{userId}
+            Method: POST
+        GetSimilarItems:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/similar/{postId}
+            Method: GET
+        GetTrendingItems:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/trending
+            Method: GET
+        GetStyleAnalysis:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/analysis/{userId}
+            Method: GET
+        GenerateOutfitRec:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/outfit/{userId}
+            Method: POST
+        GenerateItemRec:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/item/{userId}
+            Method: POST
+        GetStylePreferences:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/preferences/{userId}
+            Method: GET
+        PutStylePreferences:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/preferences/{userId}
+            Method: PUT
+
 Outputs:
   gearSwapUrl:
     Description: API Gateway endpoint URL for Prod stage
@@ -370,3 +438,6 @@ Outputs:
   OutfitFunctionsArn:
     Description: Outfit Functions ARN
     Value: !GetAtt OutfitFunctions.Arn
+  StylerFunctionsArn:
+    Description: Styler Functions ARN
+    Value: !GetAtt StylerFunctions.Arn
