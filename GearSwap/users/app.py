@@ -112,9 +112,9 @@ def createUser(event, context):
         )
         
         insert_query = """
-        INSERT INTO users (username, email, password, profileInfo, joinDate, likeCount, saveCount) 
+        INSERT INTO users (username, email, password, profileInfo, joinDate, likeCount) 
         VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 0, 0)
-        RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
+        RETURNING id, username, email, profileInfo, joinDate, likeCount;
         """
         
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -226,7 +226,7 @@ def putUser(event, context):
     UPDATE users 
     SET username = %s 
     WHERE id = %s 
-    RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
+    RETURNING id, username, email, profileInfo, joinDate, likeCount;
     """
     
     try:
@@ -331,7 +331,7 @@ def getUsersFollowing(event, context):
     user_id = event['pathParameters']['Id']
 
     get_following_query = """
-    SELECT u.id, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount, u.saveCount
+    SELECT u.id, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount
     FROM users u
     INNER JOIN follows f ON u.id = f.followed_id
     WHERE f.follower_id = %s;
@@ -378,7 +378,7 @@ def getUsersFollowers(event, context):
     user_id = event['pathParameters']['Id']
 
     get_followers_query = """
-    SELECT u.id, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount, u.saveCount
+    SELECT u.id, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount
     FROM users u
     INNER JOIN follows f ON u.id = f.follower_id
     WHERE f.followed_id = %s;

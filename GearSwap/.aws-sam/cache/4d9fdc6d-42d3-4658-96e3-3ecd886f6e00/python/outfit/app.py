@@ -141,33 +141,51 @@ def getOutfits(event, context):
                 "body": json.dumps({"error": "User ID is required"})
             }
 
+        # Get pagination parameters from query string
+        query_params = event.get('queryStringParameters') or {}
+        page = int(query_params.get('page', 1))
+        page_size = int(query_params.get('page_size', 10))
+        
+        # Calculate offset
+        offset = (page - 1) * page_size
+
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # Query to get paginated outfits
                 get_query = """
                     SELECT * FROM outfit 
                     WHERE userId = %s 
                     ORDER BY dateCreated DESC 
+                    LIMIT %s OFFSET %s
                 """
-                cursor.execute(get_query, (userId,))
+                cursor.execute(get_query, (userId, page_size, offset))
                 outfits = cursor.fetchall()
+
+                # Query to get total count of outfits
+                count_query = "SELECT COUNT(*) FROM outfit WHERE userId = %s"
+                cursor.execute(count_query, (userId,))
+                total_outfits = cursor.fetchone()['count']
+
+        total_pages = -(-total_outfits // page_size)  # Ceiling division
 
         return {
             "statusCode": 200,
             "body": json.dumps({
-                "message": "All outfits retrieved",
+                "message": "Outfits retrieved successfully",
                 "outfits": outfits,
-                "total_count": len(outfits)
+                "page": page,
+                "page_size": page_size,
+                "total_outfits": total_outfits,
+                "total_pages": total_pages
             }, default=json_serial)
         }
             
     except Exception as e:
+        print(f"Failed to get outfits. Error: {str(e)}")
         return {
             "statusCode": 500,
             "body": json.dumps({"error": f"Error getting outfits: {str(e)}"})
         }
-    finally:
-        if conn:
-            conn.close()
             
 ############
 def putOutfit(event, context):
