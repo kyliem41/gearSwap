@@ -59,8 +59,8 @@ Resources:
       VpcId: vpc-05b31ac071b580a8c
       SecurityGroupEgress:
         - IpProtocol: -1
-          FromPort: -1
-          ToPort: -1
+          # FromPort: -1
+          # ToPort: -1
           CidrIp: 0.0.0.0/0
 
   DependenciesLayer:
@@ -294,6 +294,56 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /likedPosts/{userId}/{postId}
             Method: GET
+  
+  OutfitFunctions:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: outfit/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        CreateOutfit:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/{userId}
+            Method: POST
+        GetOutfits:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/{userId}
+            Method: GET
+        PutOutfit:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/{userId}/{outfitId}
+            Method: PUT
+        DeleteOutfit:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/{userId}/{outfitId}
+            Method: DELETE
+        GetOutfitById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/{userId}/{outfitId}
+            Method: GET
+        AddItemByOutfitId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/item/{userId}/{outfitId}
+            Method: POST
+        RemoveItemByOutfitId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/item/{userId}/{outfitId}
+            Method: DELETE
 
 Outputs:
   gearSwapUrl:
@@ -317,3 +367,6 @@ Outputs:
   LikedPostFunctionsArn:
     Description: LikedPost Functions ARN
     Value: !GetAtt LikedPostFunctions.Arn
+  OutfitFunctionsArn:
+    Description: Outfit Functions ARN
+    Value: !GetAtt OutfitFunctions.Arn
