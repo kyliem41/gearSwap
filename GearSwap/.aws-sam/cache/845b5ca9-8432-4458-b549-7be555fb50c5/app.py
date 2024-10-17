@@ -92,14 +92,16 @@ def createUser(event, context):
         else:
             body = event.get('body', {})
 
+        firstName = body.get('firstName')
+        lastName = body.get('lastName')
         username = body.get('username')
         email = body.get('email')
         password = body.get('password')
         
-        if not username or not email or not password:
+        if not firstName or not lastName or not username or not email or not password:
             return {
                 "statusCode": 400,
-                "body": json.dumps("Missing required fields: username, email, or password")
+                "body": json.dumps("Missing required fields: firstname, lastname, username, email, or password")
             }
         
         profile_info = body.get('profileInfo')  # Optional field
@@ -112,13 +114,13 @@ def createUser(event, context):
         )
         
         insert_query = """
-        INSERT INTO users (username, email, password, profileInfo, joinDate, likeCount, saveCount) 
-        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 0, 0)
-        RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
+        INSERT INTO users (firstName, lastName, username, email, password, profileInfo, joinDate, likeCount) 
+        VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0)
+        RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
         """
         
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(insert_query, (username, email, password, profile_info))
+            cursor.execute(insert_query, (firstName, lastName, username, email, password, profile_info))
             new_user = cursor.fetchone()
             conn.commit()
         
@@ -226,7 +228,7 @@ def putUser(event, context):
     UPDATE users 
     SET username = %s 
     WHERE id = %s 
-    RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
+    RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
     """
     
     try:
@@ -331,7 +333,7 @@ def getUsersFollowing(event, context):
     user_id = event['pathParameters']['Id']
 
     get_following_query = """
-    SELECT u.id, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount, u.saveCount
+    SELECT u.id, u.firstName, u.lastName, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount
     FROM users u
     INNER JOIN follows f ON u.id = f.followed_id
     WHERE f.follower_id = %s;
@@ -378,7 +380,7 @@ def getUsersFollowers(event, context):
     user_id = event['pathParameters']['Id']
 
     get_followers_query = """
-    SELECT u.id, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount, u.saveCount
+    SELECT u.id, u.firstName, u.lastName, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount
     FROM users u
     INNER JOIN follows f ON u.id = f.follower_id
     WHERE f.followed_id = %s;

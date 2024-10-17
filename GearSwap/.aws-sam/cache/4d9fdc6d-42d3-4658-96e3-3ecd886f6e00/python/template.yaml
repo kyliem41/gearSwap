@@ -15,6 +15,10 @@ Globals:
         DB_USER: "postgres"
         DB_PASSWORD: "postgres"
         DB_PORT: "5432"
+        WORKOS_CLIENT_ID: "client_01JA67H9AXQGPC28X9JHF3TB0F"
+        WORKOS_API_KEY: "sk_test_a2V5XzAxSkE2N0g4UllEODUxMEVSVkFCRjJEN1czLGNISXJXdmsyck84QjJoZVJ2c0dNdGx4SmY"
+        COGNITO_USER_POOL_ID: "us-east-2_pqVjVG3qi"
+        COGNITO_CLIENT_ID: "5hu1dh5v8aj9cl35je2ptgqg9h"
     VpcConfig:
       SecurityGroupIds: 
         - sg-03c19dd98d5aa9665
@@ -52,6 +56,31 @@ Resources:
                   - rds-db:connect
                 Resource: '*'
 
+  AuthFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CognitoInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cognito-idp:AdminInitiateAuth'
+                  - 'cognito-idp:AdminCreateUser'
+                  - 'cognito-idp:AdminSetUserPassword'
+                Resource: '*' 
+
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -79,6 +108,43 @@ Resources:
     Properties:
       StageName: Prod
 
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: gearPool
+      LambdaConfig:
+        UserMigration: !GetAtt AuthFunction.Arn
+
+  # Auth Function
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: auth/
+      Handler: auth.lambda_handler
+      Runtime: python3.12
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds: 
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+  
+  # # Login Function
+  # loginFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     CodeUri: auth/
+  #     Handler: login.lambda_handler
+  #     Runtime: python3.12
+  #     Architectures:
+  #       - x86_64
+  #     Events:
+  #       Login:
+  #         Type: Api
+  #         Properties:
+  #           Path: /login/{email}
+  #           Method: POST
+
+  # User Functions
   UserFunctions:
     Type: AWS::Serverless::Function
     Properties:
@@ -129,6 +195,7 @@ Resources:
             Path: /users/followers/{Id}
             Method: GET
 
+  # UserProfile Functions
   UserProfileFunctions:
     Type: AWS::Serverless::Function
     Properties:
@@ -161,6 +228,7 @@ Resources:
             Path: /userProfile/{Id}
             Method: DELETE
 
+  # Cart Functions
   CartFunctions:
     Type: AWS::Serverless::Function
     Properties:
@@ -193,6 +261,7 @@ Resources:
             Path: /cart/{Id}
             Method: DELETE
 
+  # Posts Functions
   PostsFunctions:
     Type: AWS::Serverless::Function
     Properties:
@@ -237,6 +306,7 @@ Resources:
             Path: /posts/filter/{userId}
             Method: GET
 
+  # Search Functions
   SearchFunctions:
     Type: AWS::Serverless::Function
     Properties:
@@ -263,6 +333,7 @@ Resources:
             Path: /search/{userId}/{searchId}
             Method: DELETE
 
+  # LikedPost Functions
   LikedPostFunctions:
     Type: AWS::Serverless::Function
     Properties:
@@ -295,6 +366,7 @@ Resources:
             Path: /likedPosts/{userId}/{postId}
             Method: GET
   
+  # Outfit Functions
   OutfitFunctions:
     Type: AWS::Serverless::Function
     Properties:
@@ -345,6 +417,7 @@ Resources:
             Path: /outfit/item/{userId}/{outfitId}
             Method: DELETE
 
+  # Styler Functions
   StylerFunctions:
     Type: AWS::Serverless::Function
     Properties:
@@ -441,3 +514,6 @@ Outputs:
   StylerFunctionsArn:
     Description: Styler Functions ARN
     Value: !GetAtt StylerFunctions.Arn
+  AuthFunctionArn:
+    Description: Auth Function ARN
+    Value: !GetAtt AuthFunction.Arn

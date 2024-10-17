@@ -3,6 +3,7 @@ import os
 import json
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import boto3
 
 def lambda_handler(event, context):
     http_method = event['httpMethod']
@@ -79,82 +80,97 @@ def getUsers(event, context):
 
 ################
 def createUser(event, context):
-    db_host = os.environ['DB_HOST']
-    db_user = os.environ['DB_USER']
-    db_password = os.environ['DB_PASSWORD']
-    db_port = os.environ['DB_PORT']
-    
-    conn = None
-    
+    cognito_client = boto3.client('cognito-idp')
+    user_pool_id = os.environ['COGNITO_USER_POOL_ID']
+    client_id = os.environ['COGNITO_CLIENT_ID']
+
     try:
         if isinstance(event.get('body'), str):
             body = json.loads(event['body'])
         else:
             body = event.get('body', {})
 
+        firstName = body.get('firstName')
+        lastName = body.get('lastName')
         username = body.get('username')
         email = body.get('email')
         password = body.get('password')
-        
-        if not username or not email or not password:
+        profile_info = body.get('profileInfo')
+
+        if not all([firstName, lastName, username, email, password]):
             return {
                 "statusCode": 400,
-                "body": json.dumps("Missing required fields: username, email, or password")
+                "body": json.dumps("Missing required fields")
             }
-        
-        profile_info = body.get('profileInfo')  # Optional field
 
-        conn = psycopg2.connect(
-            host=db_host,
-            user=db_user,
-            password=db_password,
-            port=db_port,
+        # Create user in Cognito
+        cognito_response = cognito_client.sign_up(
+            ClientId=client_id,
+            Username=username,
+            Password=password,
+            UserAttributes=[
+                {'Name': 'email', 'Value': email},
+                {'Name': 'given_name', 'Value': firstName},
+                {'Name': 'family_name', 'Value': lastName},
+            ]
         )
-        
+
+        cognito_id = cognito_response['UserSub']
+
+        # Automatically confirm the user (optional, remove if email verification is required)
+        cognito_client.admin_confirm_sign_up(
+            UserPoolId=user_pool_id,
+            Username=username
+        )
+
+        # Insert user into database
+        conn = psycopg2.connect(
+            host=os.environ['DB_HOST'],
+            user=os.environ['DB_USER'],
+            password=os.environ['DB_PASSWORD'],
+            port=os.environ['DB_PORT'],
+        )
+
         insert_query = """
-        INSERT INTO users (username, email, password, profileInfo, joinDate, likeCount, saveCount) 
-        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 0, 0)
-        RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
+        INSERT INTO users (firstName, lastName, username, email, cognito_id, profileInfo, joinDate, likeCount) 
+        VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0)
+        RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
         """
-        
+
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(insert_query, (username, email, password, profile_info))
+            cursor.execute(insert_query, (firstName, lastName, username, email, cognito_id, profile_info))
             new_user = cursor.fetchone()
             conn.commit()
-        
+
         return {
             "statusCode": 201,
             "body": json.dumps({
-                "message": "User created successfully",
+                "message": "User created successfully in both Cognito and database",
                 "user": new_user
-            }, default=json_serial)
+            }, default=str)
         }
-        
-    except psycopg2.IntegrityError as e:
+
+    except cognito_client.exceptions.UsernameExistsException:
         return {
             "statusCode": 409,
-            "body": json.dumps(f"Username or email already exists: {str(e)}")
+            "body": json.dumps("Username already exists in Cognito")
         }
-        
-    except KeyError as e:
+    except psycopg2.IntegrityError as e:
+        # If database insertion fails, we should also delete the Cognito user
+        cognito_client.admin_delete_user(
+            UserPoolId=user_pool_id,
+            Username=username
+        )
         return {
-            "statusCode": 400,
-            "body": json.dumps(f"Missing required field: {str(e)}")
+            "statusCode": 409,
+            "body": json.dumps(f"Database error: {str(e)}")
         }
-        
-    except json.JSONDecodeError:
-        return {
-            "statusCode": 400,
-            "body": json.dumps("Invalid JSON in request body")
-        }
-        
     except Exception as e:
         print(f"Failed to create user. Error: {str(e)}")
         return {
             "statusCode": 500,
             "body": json.dumps(f"Error creating user: {str(e)}")
         }
-        
     finally:
         if conn:
             conn.close()
@@ -226,7 +242,7 @@ def putUser(event, context):
     UPDATE users 
     SET username = %s 
     WHERE id = %s 
-    RETURNING id, username, email, profileInfo, joinDate, likeCount, saveCount;
+    RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
     """
     
     try:
@@ -331,7 +347,7 @@ def getUsersFollowing(event, context):
     user_id = event['pathParameters']['Id']
 
     get_following_query = """
-    SELECT u.id, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount, u.saveCount
+    SELECT u.id, u.firstName, u.lastName, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount
     FROM users u
     INNER JOIN follows f ON u.id = f.followed_id
     WHERE f.follower_id = %s;
@@ -378,7 +394,7 @@ def getUsersFollowers(event, context):
     user_id = event['pathParameters']['Id']
 
     get_followers_query = """
-    SELECT u.id, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount, u.saveCount
+    SELECT u.id, u.firstName, u.lastName, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount
     FROM users u
     INNER JOIN follows f ON u.id = f.follower_id
     WHERE f.followed_id = %s;

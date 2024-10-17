@@ -1,0 +1,47 @@
+PODS:
+  - Auth0 (2.6.0):
+    - JWTDecode (~> 3.1)
+    - SimpleKeychain (~> 1.1)
+  - auth0_flutter (1.6.0):
+    - Auth0 (= 2.6.0)
+    - Flutter
+    - FlutterMacOS
+    - JWTDecode (= 3.1.0)
+    - SimpleKeychain (= 1.1.0)
+  - FlutterMacOS (1.0.0)
+  - JWTDecode (3.1.0)
+  - path_provider_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - SimpleKeychain (1.1.0)
+
+DEPENDENCIES:
+  - auth0_flutter (from `Flutter/ephemeral/.symlinks/plugins/auth0_flutter/darwin`)
+  - FlutterMacOS (from `Flutter/ephemeral`)
+  - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - Auth0
+    - JWTDecode
+    - SimpleKeychain
+
+EXTERNAL SOURCES:
+  auth0_flutter:
+    :path: Flutter/ephemeral/.symlinks/plugins/auth0_flutter/darwin
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+  path_provider_foundation:
+    :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
+
+SPEC CHECKSUMS:
+  Auth0: 9cdb51adf6d348353e44bca03f9eb6080a58fdf1
+  auth0_flutter: b3c3a62694f526fbc810b0ed0f228d342f4b3608
+  FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  JWTDecode: 3eaab1e06b6f4dcbdd6716aff09ba4c2104ca8b7
+  path_provider_foundation: 3784922295ac71e43754bd15e0653ccfd36a147c
+  SimpleKeychain: f8707c8e97b38c6a6e687b17732afc9bcef06439
+
+PODFILE CHECKSUM: a67b39594138394c7576fcbf46367d05f1b401ca
+
+COCOAPODS: 1.15.2
