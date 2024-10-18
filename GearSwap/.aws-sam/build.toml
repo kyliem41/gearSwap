@@ -5,7 +5,7 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\users"
 runtime = "python3.12"
 architecture = "x86_64"
 handler = "app.lambda_handler"
-source_hash = "0ff4173d7bbb01fed00ef62e0709db854bcd3457df6990ac22255abe75fcec44"
+source_hash = "cbcfe503fd09b4713842c7d25a1d30af435bc1e8c5ff69170b831f214aed2fd8"
 manifest_hash = ""
 packagetype = "Zip"
 functions = ["UserFunctions"]
@@ -80,14 +80,15 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["StylerFunctions"]
 
-[function_build_definitions.d609dee2-fae0-4177-831f-f7f3a9bc5765]
-codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\auth"
+[function_build_definitions.a43cf86b-63de-4770-b110-985c6922fda0]
+codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\logIn"
 runtime = "python3.12"
 architecture = "x86_64"
-handler = "auth.lambda_handler"
+handler = "logIn.lambda_handler"
+source_hash = "0a4ffd25c570093ca8a24c2eab481139bde14c4416649b3c02340961adc5e44a"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["AuthFunction"]
+functions = ["loginFunction"]
 
 [layer_build_definitions.4d9fdc6d-42d3-4658-96e3-3ecd886f6e00]
 layer_name = "DependenciesLayer"
@@ -95,6 +96,6 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap"
 build_method = "python3.12"
 compatible_runtimes = ["python3.12"]
 architecture = "x86_64"
-source_hash = "e799b72ed91901035b34d644ee5b252575ecd019cb149348621441384b3c5e67"
+source_hash = "43884142c3764fc3d0b3f016155b3a67d73e088d395eabfc316ddddcd7f849a4"
 manifest_hash = ""
 layer = "DependenciesLayer"
