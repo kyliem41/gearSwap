@@ -58,7 +58,7 @@ class _SignUpPageState extends State<SignUpPage> {
         children: <Widget>[
           Container(
             decoration: BoxDecoration(
-              color: Colors.deepPurple[100],
+              color: Colors.deepOrange[100],
             ),
           ),
           Center(

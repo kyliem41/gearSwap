@@ -109,7 +109,7 @@ class _MyLoginPageState extends State<MyLoginPage> {
         children: <Widget>[
           Container(
             decoration: BoxDecoration(
-              color: Colors.deepPurple[100],
+              color: Colors.deepOrange[100],
               // image: DecorationImage(
               //   image: AssetImage("assets/BidBackground.png"),
               //   fit: BoxFit.cover,
