@@ -7,6 +7,7 @@ from botocore.exceptions import ClientError
 
 def lambda_handler(event, context):
     # Parse the incoming request body
+    print('test1')
     try:
         body = json.loads(event['body'])
         email = body['email']
@@ -17,10 +18,15 @@ def lambda_handler(event, context):
             'body': json.dumps('Invalid request body')
         }
 
+    print('test2')
     # Initialize Cognito client
     cognito_client = boto3.client('cognito-idp')
     user_pool_id = os.environ['COGNITO_USER_POOL_ID']
     client_id = os.environ['COGNITO_CLIENT_ID']
+    
+    print(cognito_client)
+    print(user_pool_id)
+    print(client_id)
 
     try:
         # Attempt to authenticate the user with Cognito
@@ -33,6 +39,7 @@ def lambda_handler(event, context):
                 'PASSWORD': password
             }
         )
+        print('test3')
 
         # If authentication is successful, get the user's information from the database
         if 'AuthenticationResult' in response:
@@ -51,6 +58,7 @@ def lambda_handler(event, context):
                 'statusCode': 401,
                 'body': json.dumps('Login failed')
             }
+            print('test4')
 
     except ClientError as e:
         error_code = e.response['Error']['Code']
@@ -70,6 +78,7 @@ def lambda_handler(event, context):
                 'statusCode': 500,
                 'body': json.dumps('An error occurred during login')
             }
+            print('test5')
 
 def get_user_info_from_db(email):
     db_host = os.environ['DB_HOST']
@@ -84,6 +93,7 @@ def get_user_info_from_db(email):
             password=db_password,
             port=db_port,
         )
+        print('test6')
         
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             query = "SELECT id, firstName, lastName, username, email, profileInfo, joinDate, likeCount FROM users WHERE email = %s"

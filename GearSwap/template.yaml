@@ -4,7 +4,7 @@ Description: GearSwap - Streamlined SAM Template
 
 Globals:
   Function:
-    Timeout: 1000
+    Timeout: 30
     MemorySize: 128
     Runtime: python3.12
     Architectures: 
@@ -21,7 +21,7 @@ Globals:
         COGNITO_CLIENT_ID: "1u996ubaotokbh9aq9rg3771ku"
     VpcConfig:
       SecurityGroupIds: 
-        - sg-03c19dd98d5aa9665
+        - sg-0181737ce24d7cdd0
         - !Ref LambdaSecurityGroup
       SubnetIds: !Ref SubnetIds
     Layers:
@@ -84,7 +84,7 @@ Resources:
     Properties:
       LayerName: dependencies-layer
       Description: Dependencies for the Lambda functions
-      ContentUri: ./ 
+      ContentUri: ./
       CompatibleRuntimes:
         - python3.12
     Metadata:

@@ -21,7 +21,7 @@ confirm_changeset = true
 resolve_s3 = true
 s3_prefix = "GearSwap"
 image_repositories = []
-parameter_overrides = "SubnetIds=subnet-0fa15e69a1c3038ee,subnet-095f1347424a1a8fb"
+parameter_overrides = "SubnetIds=subnet-0b9a0521d92169655,subnet-095f1347424a1a8fb"
 
 [default.package.parameters]
 resolve_s3 = true

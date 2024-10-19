@@ -89,6 +89,9 @@ def createUser(event, context):
 
     conn = None
     cognito_client = boto3.client('cognito-idp')
+    
+    print(cognito_client)
+    print(user_pool_id)
 
     try:
         if isinstance(event.get('body'), str):
@@ -109,6 +112,8 @@ def createUser(event, context):
             }
 
         profile_info = body.get('profileInfo')  # Optional field
+        
+        print("test 1")
 
         # Create user in Cognito
         try:
@@ -124,6 +129,8 @@ def createUser(event, context):
                 TemporaryPassword=password,
                 MessageAction='SUPPRESS'
             )
+            
+            print("test 2")
 
             # Set the user's password permanently
             cognito_client.admin_set_user_password(
@@ -145,6 +152,8 @@ def createUser(event, context):
             password=db_password,
             port=db_port,
         )
+        
+        print("test 3")
 
         insert_query = """
         INSERT INTO users (firstName, lastName, username, email, password, profileInfo, joinDate, likeCount) 
@@ -156,6 +165,8 @@ def createUser(event, context):
             cursor.execute(insert_query, (firstName, lastName, username, email, password, profile_info))
             new_user = cursor.fetchone()
             conn.commit()
+            
+        print("test 4")
 
         return {
             "statusCode": 201,
