@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-import 'package:sample/appBar.dart'; // Assuming BottomNavBar is defined here
-import 'package:sample/logIn/logIn.dart';
+import 'package:sample/appBars/bottomNavBar.dart'; // Assuming BottomNavBar is defined here
+import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/signUp/signUp.dart';
 
 void main() {
@@ -76,28 +76,9 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(100.0),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-            border: Border(
-              bottom: BorderSide(
-                color: Colors.black,
-                width: 0.5,
-              ),
-            ),
-          ),
-          child: AppBar(
-            automaticallyImplyLeading: false,
-            backgroundColor: Colors.deepOrange,
-            elevation: 0,
-          ),
-        ),
-      ),
+      appBar: TopNavBar(), // TopNavBar here
       body: Column(
         children: <Widget>[
-          // Main content area (scrollable)
           Expanded(
             child: Container(
               padding: EdgeInsets.all(20.0),
@@ -118,7 +99,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(), // Placing BottomNavBar here
+      bottomNavigationBar: BottomNavBar(), // BottomNavBar here
     );
   }
 }
