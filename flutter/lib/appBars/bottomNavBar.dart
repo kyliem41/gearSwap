@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:sample/main.dart';  // Adjust the imports as necessary
+import 'package:sample/main.dart';
+import 'package:sample/posts/newPost.dart';
 import 'package:sample/profile/profile.dart';
 import 'package:sample/search/search.dart';
+import 'package:sample/styler/styler.dart';
+import 'package:sample/wishlist/wishlist.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
 class BottomNavBar extends StatefulWidget {
   @override
@@ -36,13 +40,30 @@ class _BottomNavBarState extends State<BottomNavBar> {
         );
         break;
       case 2:
-        // Handle new post
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => NewPostPage(),
+          ),
+        );
         break;
       case 3:
-        // Handle inbox
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StylistPage(),
+          ),
+        );
         break;
       case 4:
-        // Handle settings
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => WishlistPage(
+              username: 'john',
+            ),
+          ),
+        );
         break;
       case 5:
         Navigator.pushReplacement(
@@ -80,16 +101,16 @@ class _BottomNavBarState extends State<BottomNavBar> {
           label: 'New Post',
         ),
         BottomNavigationBarItem(
+          icon: Icon(Icons.checkroom_rounded),
+          label: 'Styler',
+        ),
+        BottomNavigationBarItem(
           icon: Icon(Icons.mail_outline_rounded),
           label: 'Inbox',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.person),
           label: 'My Swap',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.logout),
-          label: 'Logout',
         ),
       ],
     );

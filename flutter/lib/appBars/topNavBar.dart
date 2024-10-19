@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:sample/cart/cart.dart';
+import 'package:sample/main.dart';
 
 class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   final Size preferredSize; // Define preferred size
 
   TopNavBar({Key? key})
-      : preferredSize = Size.fromHeight(60.0), // Set your preferred height here
+      : preferredSize = Size.fromHeight(60.0),
         super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      automaticallyImplyLeading: false, // Removes the back arrow
+      automaticallyImplyLeading: false, 
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.swap_calls_rounded, color: Colors.white), // Home icon to match bottom navbar
-          SizedBox(width: 8), // Add some spacing
+          Icon(Icons.swap_calls_rounded, color: Colors.white), 
+          SizedBox(width: 8), 
           Text(
-            'GearSwap', // Title of the app
+            'GearSwap',
             style: TextStyle(color: Colors.white),
           ),
         ],
@@ -27,12 +28,12 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: Colors.deepOrange,
       actions: [
         Padding(
-          padding: const EdgeInsets.only(right: 16.0), // Add padding to the right
+          padding: const EdgeInsets.only(right: 16.0), 
           child: IconButton(
             icon: Icon(
-              Icons.shopping_bag_outlined, // Cart icon
-              color: Color.fromARGB(248, 255, 255, 255), // Match color with bottom navbar
-              size: 30, // Set icon size to match bottom navbar icons
+              Icons.shopping_bag_outlined, 
+              color: Color.fromARGB(248, 255, 255, 255), 
+              size: 30, 
             ),
             onPressed: () {
               Navigator.push(
@@ -44,7 +45,29 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
             },
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.only(right: 16.0), 
+          child: IconButton(
+            icon: Icon(
+              Icons.logout, // Logout icon
+              color: Color.fromARGB(248, 255, 255, 255),
+              size: 30, 
+            ),
+            onPressed: () {
+              logOut(context); // Call logOut function
+            },
+          ),
+        ),
       ],
     );
   }
+}
+
+logOut(context) {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (context) => MyHomePage(title: "GearSwap"),
+    ),
+  );
 }

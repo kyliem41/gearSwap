@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:sample/appBars/bottomNavBar.dart';
+import 'package:sample/appBars/topNavBar.dart';
+import 'package:sample/main.dart';
 
 class SearchPage extends StatefulWidget {
   @override
@@ -57,10 +60,7 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Search", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.deepOrange,
-      ),
+      appBar: TopNavBar(),
       body: Column(
         children: [
           // Search bar
@@ -107,7 +107,9 @@ class _SearchPageState extends State<SearchPage> {
                     });
                   },
                   labelStyle: TextStyle(
-                    color: selectedTag == tag ? Colors.black : Colors.white, // Change text color when selected
+                    color: selectedTag == tag
+                        ? Colors.black
+                        : Colors.white, // Change text color when selected
                   ),
                 );
               }).toList(),
@@ -125,7 +127,8 @@ class _SearchPageState extends State<SearchPage> {
                         crossAxisCount: 2, // Two posts per row
                         mainAxisSpacing: 10.0,
                         crossAxisSpacing: 10.0,
-                        childAspectRatio: 3 / 4, // Adjust the ratio based on item size
+                        childAspectRatio:
+                            3 / 4, // Adjust the ratio based on item size
                       ),
                       itemCount: searchResults.length,
                       itemBuilder: (context, index) {
@@ -148,7 +151,8 @@ class _SearchPageState extends State<SearchPage> {
                                       borderRadius: BorderRadius.vertical(
                                           top: Radius.circular(10.0)),
                                       image: DecorationImage(
-                                        image: AssetImage(searchResults[index]['image']),
+                                        image: AssetImage(
+                                            searchResults[index]['image']),
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -171,6 +175,7 @@ class _SearchPageState extends State<SearchPage> {
                 ),
         ],
       ),
+      bottomNavigationBar: BottomNavBar(), 
     );
   }
 }

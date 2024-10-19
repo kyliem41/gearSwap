@@ -7,7 +7,7 @@ import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/signUp/signUp.dart';
 
 void main() {
-  runApp(signUpUser()); // Entry point
+  runApp(const MyApp()); // Entry point
 }
 
 class MyApp extends StatelessWidget {
@@ -39,6 +39,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   bool isLoading = true;
   bool hasError = false;
+  List<dynamic> posts = []; // To hold the fetched posts
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _MyHomePageState extends State<MyHomePage> {
         print(data);
 
         setState(() {
+          posts = data; // Assign the fetched data to the posts list
           hasError = false;
           isLoading = false;
         });
@@ -70,6 +72,10 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     } catch (e) {
       print(e);
+      setState(() {
+        hasError = true;
+        isLoading = false;
+      });
     }
   }
 
@@ -77,29 +83,80 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: TopNavBar(), // TopNavBar here
-      body: Column(
-        children: <Widget>[
-          Expanded(
-            child: Container(
-              padding: EdgeInsets.all(20.0),
-              child: isLoading
-                  ? Center(child: CircularProgressIndicator())
-                  : hasError
-                      ? Center(child: Text("Failed to load"))
-                      : ListView(
-                          children: <Widget>[
-                            Wrap(
-                              spacing: 10.0,
-                              runSpacing: 10.0,
-                              // Add your grid or list of items here
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: isLoading
+            ? Center(child: CircularProgressIndicator())
+            : hasError
+                ? Center(child: Text("Failed to load"))
+                : GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2, // Number of columns
+                      crossAxisSpacing: 10.0,
+                      mainAxisSpacing: 10.0,
+                      childAspectRatio: 0.7, // Adjust aspect ratio as needed
+                    ),
+                    itemCount: posts.length, // Number of posts
+                    itemBuilder: (context, index) {
+                      return GestureDetector(
+                        onTap: () {
+                          // Handle post click
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PostDetailPage(postId: posts[index]['id']), // Navigate to post detail
                             ),
-                          ],
+                          );
+                        },
+                        child: Card(
+                          elevation: 4.0,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Expanded(
+                                child: Container(
+                                  color: Colors.grey[300], // Placeholder for image
+                                  child: Center(
+                                    child: Text(
+                                      posts[index]['title'], // Replace with actual post title
+                                      style: TextStyle(fontSize: 18),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Text(
+                                  posts[index]['description'], // Replace with actual post description
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-            ),
-          ),
-        ],
+                      );
+                    },
+                  ),
       ),
       bottomNavigationBar: BottomNavBar(), // BottomNavBar here
+    );
+  }
+}
+
+// Placeholder for PostDetailPage
+class PostDetailPage extends StatelessWidget {
+  final int postId;
+
+  PostDetailPage({Key? key, required this.postId}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: TopNavBar(), // You can use the same TopNavBar here
+      body: Center(
+        child: Text("Details for Post ID: $postId"), // Display post details
+      ),
+      bottomNavigationBar: BottomNavBar(), // Same BottomNavBar
     );
   }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:sample/appBars/bottomNavBar.dart';
+import 'package:sample/appBars/topNavBar.dart';
 
 class ProfilePage extends StatelessWidget {
   final String profileImageUrl = 'https://hjsg6z4hj9.execute-api.us-east-2.amazonaws.com/Stage/userProfile/{Id}'; // Replace
@@ -12,10 +14,7 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Profile'),
-        centerTitle: true,
-      ),
+      appBar: TopNavBar(),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -82,6 +81,7 @@ class ProfilePage extends StatelessWidget {
           ],
         ),
       ),
+      bottomNavigationBar: BottomNavBar(), 
     );
   }
 
