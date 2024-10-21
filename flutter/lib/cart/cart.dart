@@ -32,7 +32,6 @@ class _CartPageState extends State<CartPage> {
     ],
   };
 
-  // Calculate total price for each group
   double _calculateGroupTotal(List<Map<String, dynamic>> group) {
     return group.fold(
       0,
@@ -40,7 +39,6 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
-  // Calculate overall total price for all groups
   double _calculateTotalPrice() {
     return cartData.values.fold(
       0,
@@ -48,14 +46,12 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
-  // Increase item quantity
   void _increaseQuantity(String seller, int index) {
     setState(() {
       cartData[seller]![index]['quantity']++;
     });
   }
 
-  // Decrease item quantity
   void _decreaseQuantity(String seller, int index) {
     setState(() {
       if (cartData[seller]![index]['quantity'] > 1) {
@@ -64,7 +60,6 @@ class _CartPageState extends State<CartPage> {
     });
   }
 
-  // Remove an item from the cart
   void _removeItem(String seller, int index) {
     setState(() {
       cartData[seller]!.removeAt(index);
@@ -175,7 +170,6 @@ class _CartPageState extends State<CartPage> {
                                         ],
                                       ),
                                     ),
-                                    // Remove button
                                     IconButton(
                                       onPressed: () =>
                                           _removeItem(seller, index),
@@ -188,7 +182,6 @@ class _CartPageState extends State<CartPage> {
                             );
                           }).toList(),
                         ),
-                        // Group Total and Checkout Button
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -216,7 +209,6 @@ class _CartPageState extends State<CartPage> {
                 }).toList(),
               ),
             ),
-            // Overall Total Price
             Container(
               padding: EdgeInsets.symmetric(vertical: 10.0),
               child: Row(

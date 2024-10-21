@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-import 'package:sample/appBars/bottomNavBar.dart'; // Assuming BottomNavBar is defined here
+import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
-import 'package:sample/signUp/signUp.dart';
 
 void main() {
-  runApp(const MyApp()); // Entry point
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -39,7 +37,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   bool isLoading = true;
   bool hasError = false;
-  List<dynamic> posts = []; // To hold the fetched posts
+  List<dynamic> posts = [];
 
   @override
   void initState() {
@@ -63,7 +61,7 @@ class _MyHomePageState extends State<MyHomePage> {
         print(data);
 
         setState(() {
-          posts = data; // Assign the fetched data to the posts list
+          posts = data;
           hasError = false;
           isLoading = false;
         });
@@ -82,7 +80,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: TopNavBar(), // TopNavBar here
+      appBar: TopNavBar(),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: isLoading
@@ -91,20 +89,21 @@ class _MyHomePageState extends State<MyHomePage> {
                 ? Center(child: Text("Failed to load"))
                 : GridView.builder(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2, // Number of columns
+                      crossAxisCount: 2,
                       crossAxisSpacing: 10.0,
                       mainAxisSpacing: 10.0,
-                      childAspectRatio: 0.7, // Adjust aspect ratio as needed
+                      childAspectRatio: 0.7,
                     ),
                     itemCount: posts.length, // Number of posts
                     itemBuilder: (context, index) {
                       return GestureDetector(
                         onTap: () {
-                          // Handle post click
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => PostDetailPage(postId: posts[index]['id']), // Navigate to post detail
+                              builder: (context) => PostDetailPage(
+                                  postId: posts[index]
+                                      ['id']),
                             ),
                           );
                         },
@@ -115,10 +114,12 @@ class _MyHomePageState extends State<MyHomePage> {
                             children: <Widget>[
                               Expanded(
                                 child: Container(
-                                  color: Colors.grey[300], // Placeholder for image
+                                  color:
+                                      Colors.grey[300],
                                   child: Center(
                                     child: Text(
-                                      posts[index]['title'], // Replace with actual post title
+                                      posts[index][
+                                          'price'],
                                       style: TextStyle(fontSize: 18),
                                     ),
                                   ),
@@ -127,7 +128,8 @@ class _MyHomePageState extends State<MyHomePage> {
                               Padding(
                                 padding: const EdgeInsets.all(8.0),
                                 child: Text(
-                                  posts[index]['description'], // Replace with actual post description
+                                  posts[index][
+                                      'description'],
                                   style: TextStyle(fontSize: 14),
                                 ),
                               ),
@@ -138,12 +140,11 @@ class _MyHomePageState extends State<MyHomePage> {
                     },
                   ),
       ),
-      bottomNavigationBar: BottomNavBar(), // BottomNavBar here
+      bottomNavigationBar: BottomNavBar(),
     );
   }
 }
 
-// Placeholder for PostDetailPage
 class PostDetailPage extends StatelessWidget {
   final int postId;
 
@@ -152,11 +153,11 @@ class PostDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: TopNavBar(), // You can use the same TopNavBar here
+      appBar: TopNavBar(),
       body: Center(
-        child: Text("Details for Post ID: $postId"), // Display post details
+        child: Text("Details for Post ID: $postId"),
       ),
-      bottomNavigationBar: BottomNavBar(), // Same BottomNavBar
+      bottomNavigationBar: BottomNavBar(),
     );
   }
 }

@@ -1,22 +1,68 @@
 import 'package:flutter/material.dart';
-import 'package:sample/appBars/bottomNavBar.dart'; // Import your BottomNavBar
-import 'package:sample/appBars/topNavBar.dart'; // Import your TopNavBar
+import 'package:sample/appBars/bottomNavBar.dart';
+import 'package:sample/appBars/topNavBar.dart';
+import 'package:sample/profile/profile.dart';
+import 'package:sample/outfits/outfits.dart';
 
-class WishlistPage extends StatelessWidget {
-  final String username; // Pass the username to display
+class WishlistPage extends StatefulWidget {
+  final String username;
 
   WishlistPage({Key? key, required this.username}) : super(key: key);
 
   @override
+  _WishlistPageState createState() => _WishlistPageState();
+}
+
+class _WishlistPageState extends State<WishlistPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this, initialIndex: 0); // Wishlist as the selected tab
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: TopNavBar(), // Your top navigation bar
+      appBar: TopNavBar(),
       body: Column(
         children: <Widget>[
+          TabBar(
+            controller: _tabController,
+            labelColor: Colors.deepOrange,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: Colors.deepOrange,
+            indicatorWeight: 3,
+            tabs: const [
+              Tab(text: "Wishlist"),
+              Tab(text: "My Swap"),
+              Tab(text: "Outfits"),
+            ],
+            onTap: (index) {
+              if (index == 1) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => ProfilePage()),
+                );
+              } else if (index == 2) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => OutfitsPage()),
+                );
+              }
+            },
+          ),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              "${username}'s Wishlist",
+              "${widget.username}'s Wishlist",
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -32,15 +78,14 @@ class WishlistPage extends StatelessWidget {
                 mainAxisSpacing: 16.0,
                 childAspectRatio: 0.7, // Adjust aspect ratio as needed
               ),
-              itemCount: 10, // Replace with your item count
+              itemCount: 10, // item count
               itemBuilder: (context, index) {
                 return GestureDetector(
                   onTap: () {
-                    // Handle post click
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => PostDetailPage(postId: index), // Navigate to post detail
+                        builder: (context) => PostDetailPage(postId: index),
                       ),
                     );
                   },
@@ -49,7 +94,6 @@ class WishlistPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        // Replace with your image
                         Expanded(
                           child: Container(
                             color: Colors.grey[300], // Placeholder for image
@@ -82,7 +126,6 @@ class WishlistPage extends StatelessWidget {
   }
 }
 
-// Placeholder for PostDetailPage
 class PostDetailPage extends StatelessWidget {
   final int postId;
 
@@ -91,11 +134,11 @@ class PostDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: TopNavBar(), // You can use the same TopNavBar here
+      appBar: TopNavBar(),
       body: Center(
         child: Text("Details for Post $postId"),
       ),
-      bottomNavigationBar: BottomNavBar(), // Same BottomNavBar
+      bottomNavigationBar: BottomNavBar(),
     );
   }
 }

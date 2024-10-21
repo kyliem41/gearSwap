@@ -33,7 +33,7 @@ class _SearchPageState extends State<SearchPage> {
   void onTagTap(String tag) {
     setState(() {
       searchQuery = tag;
-      _performSearch(tag); // Perform search using tag as query
+      _performSearch(tag);
     });
   }
 
@@ -41,12 +41,12 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {
       isLoading = true;
       searchResults =
-          posts; // In a real scenario, you'd filter posts based on query
+          posts;
       isLoading = false;
     });
   }
 
-  String? selectedTag; // Variable to track the selected tag
+  String? selectedTag;
   List<Color> tagColors = [
     Colors.red,
     Colors.pink,
@@ -63,7 +63,6 @@ class _SearchPageState extends State<SearchPage> {
       appBar: TopNavBar(),
       body: Column(
         children: [
-          // Search bar
           Padding(
             padding: EdgeInsets.all(16.0),
             child: TextField(
@@ -94,29 +93,27 @@ class _SearchPageState extends State<SearchPage> {
                 int index = entry.key;
                 String tag = entry.value;
 
-                // Cycle through colors based on index
                 Color tagColor = tagColors[index % tagColors.length];
 
                 return ActionChip(
                   label: Text(tag),
-                  backgroundColor: tagColor, // Set unique color
+                  backgroundColor: tagColor,
                   onPressed: () {
                     setState(() {
-                      selectedTag = tag; // Set the selected tag
-                      onTagTap(tag); // Handle tag tap
+                      selectedTag = tag;
+                      onTagTap(tag);
                     });
                   },
                   labelStyle: TextStyle(
                     color: selectedTag == tag
                         ? Colors.black
-                        : Colors.white, // Change text color when selected
+                        : Colors.white,
                   ),
                 );
               }).toList(),
             ),
           ),
           SizedBox(height: 16.0),
-          // Search results section (unchanged)
           isLoading
               ? Center(child: CircularProgressIndicator())
               : Expanded(
@@ -124,11 +121,11 @@ class _SearchPageState extends State<SearchPage> {
                     padding: EdgeInsets.all(10.0),
                     child: GridView.builder(
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2, // Two posts per row
+                        crossAxisCount: 2,
                         mainAxisSpacing: 10.0,
                         crossAxisSpacing: 10.0,
                         childAspectRatio:
-                            3 / 4, // Adjust the ratio based on item size
+                            3 / 4,
                       ),
                       itemCount: searchResults.length,
                       itemBuilder: (context, index) {

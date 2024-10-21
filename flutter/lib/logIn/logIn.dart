@@ -12,7 +12,6 @@ void login() {
 class loginUser extends StatelessWidget {
   const loginUser({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -94,11 +93,9 @@ class _MyLoginPageState extends State<MyLoginPage> {
           },
         );
         print('Failed to LogIn');
-        // Handle failure or show error message
       }
     } catch (e) {
       print('Error occurred: $e');
-      // Handle network error or show error message
     }
   }
 

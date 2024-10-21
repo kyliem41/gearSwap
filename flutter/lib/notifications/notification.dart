@@ -70,38 +70,7 @@ Widget _notificationContent(String user, String userHandle, String text) {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    // HoverableIcon(
-                    //   icon: Icons.message_rounded,
-                    //   label: "15",
-                    //   hintText: "Comments",
-                    //   onTap: () {
-                    //     print('Comments icon clicked');
-                    //   },
-                    // ),
-                    // HoverableIcon(
-                    //   icon: Icons.repeat,
-                    //   label: "15",
-                    //   hintText: "Reposts",
-                    //   onTap: () {
-                    //     print('Repeat icon clicked');
-                    //   },
-                    // ),
-                    // HoverableIcon(
-                    //   icon: Icons.favorite_border,
-                    //   label: "15",
-                    //   hintText: "Likes",
-                    //   onTap: () {
-                    //     print('Like icon clicked');
-                    //   },
-                    // ),
-                    // HoverableIcon(
-                    //   icon: Icons.share,
-                    //   label: "",
-                    //   hintText: "Share",
-                    //   onTap: () {
-                    //     print('Share icon clicked');
-                    //   },
-                    // ),
+  
                   ],
                 ),
               ),
