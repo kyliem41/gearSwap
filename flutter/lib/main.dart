@@ -3,9 +3,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
+import 'package:sample/logIn/logIn.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(loginUser());
 }
 
 class MyApp extends StatelessWidget {

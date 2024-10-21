@@ -35,68 +35,56 @@ class MyLoginPage extends StatefulWidget {
 class _MyLoginPageState extends State<MyLoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  // final storage = new FlutterSecureStorage();
 
-  void _LogIn() async {
-    //print(response1.body);
-    var url = Uri.parse(
-        'https://hjsg6z4hj9.execute-api.us-east-2.amazonaws.com/Stage/login');
-    print('url');
-    try {
-      print(url);
-      var response = await http.post(
-        url,
-        headers: {
-          'Content-Type':
-              'application/json',
-          'authorizationToken': _passwordController.text,
-        },
-        body: jsonEncode({
-          'password': _passwordController.text,
-        }),
-      );
+  void _LogIn() { //async {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => MyApp()));
+    // var url = Uri.parse(
+    //     'https://hjsg6z4hj9.execute-api.us-east-2.amazonaws.com/Stage/login');
+    // try {
+    //   var response = await http.post(
+    //     url,
+    //     headers: {
+    //       'Content-Type': 'application/json',
+    //       'authorizationToken': _passwordController.text,
+    //     },
+    //     body: jsonEncode({
+    //       'password': _passwordController.text,
+    //     }),
+    //   );
 
-      print(response.statusCode);
-      if (response.statusCode == 200) {
-        print('LogIn successful');
-        // Navigate to the next page
-        Map<String, dynamic> user = jsonDecode(response.body);
-        // print(response.body);
-        // await storage.write(key: 'token', value: user["Id"]);
-        // await storage.write(key: 'UserId', value: user["Id"]);
-        // await storage.write(key: 'role', value: user["role"]);
-        // print(await storage.read(key: 'role'));
-        // String? token = await storage.read(key: 'token');
-        print('userid');
-        print(user["Id"]);
+    //   if (response.statusCode == 200) {
+    //     print('LogIn successful');
+    //     Map<String, dynamic> user = jsonDecode(response.body);
+    //     Navigator.push(
+    //       context,
+    //       MaterialPageRoute(builder: (context) => MyApp()),
+    //     );
+    //   } else {
+    //     _showLoginFailedDialog();
+    //   }
+    // } catch (e) {
+    //   print('Error occurred: $e');
+    // }
+  }
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => MyApp()),
+  void _showLoginFailedDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Login Failed"),
+          content: const Text("Incorrect Email or Password."),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("OK"),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
         );
-      } else {
-        showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text("Login Failed"),
-              content: const Text("Incorrect Email or Password."),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text("OK"),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            );
-          },
-        );
-        print('Failed to LogIn');
-      }
-    } catch (e) {
-      print('Error occurred: $e');
-    }
+      },
+    );
   }
 
   @override
@@ -107,10 +95,6 @@ class _MyLoginPageState extends State<MyLoginPage> {
           Container(
             decoration: BoxDecoration(
               color: Colors.deepOrange[100],
-              // image: DecorationImage(
-              //   image: AssetImage("assets/BidBackground.png"),
-              //   fit: BoxFit.cover,
-              // ),
             ),
           ),
           Center(
@@ -154,6 +138,7 @@ class _MyLoginPageState extends State<MyLoginPage> {
                   SizedBox(height: 10),
                   TextField(
                     controller: _passwordController,
+                    obscureText: true, // Hide password input
                     decoration: InputDecoration(
                       border: OutlineInputBorder(),
                       labelText: 'Enter your password',
@@ -161,28 +146,34 @@ class _MyLoginPageState extends State<MyLoginPage> {
                       fillColor: Colors.white,
                     ),
                   ),
-                  SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: () {
-                      // Add your onPressed code here
-                      Navigator.push(
-                       context,
-                       MaterialPageRoute(
-                           builder: (context) => signUpUser()),
-                      );
-                    },
-                    child: Text(''),
+                  SizedBox(height: 20),
+                  
+                  // "Forgot Password?" Link
+                  Center( // Centering the link
+                    child: TextButton(
+                      onPressed: () {
+                        // Navigator.push(
+                        //   context,
+                        //   MaterialPageRoute(
+                        //     builder: (context) => ForgotPasswordPage(),
+                        //   ),
+                        // );
+                        Placeholder();
+                      },
+                      child: Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          color: Colors.deepOrange,
+                          decoration: TextDecoration.underline, // Underline the text
+                        ),
+                      ),
+                    ),
                   ),
+                  
                   SizedBox(height: 30),
                   ElevatedButton(
                     onPressed: () {
                       _LogIn();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MyHomePage(title: 'GearSwap'),
-                        ),
-                      );
                     },
                     child: Text('Login'),
                     style: ElevatedButton.styleFrom(
@@ -192,6 +183,33 @@ class _MyLoginPageState extends State<MyLoginPage> {
                         borderRadius: BorderRadius.circular(32.0),
                       ),
                     ),
+                  ),
+                  
+                  SizedBox(height: 25),
+                  
+                  // "Sign Up" Button
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text("Don't have an account? "),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => signUpUser(),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          'Sign Up',
+                          style: TextStyle(
+                            color: Colors.deepOrange,
+                            decoration: TextDecoration.underline, // Underline the text
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

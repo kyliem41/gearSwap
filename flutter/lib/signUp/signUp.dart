@@ -188,7 +188,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       child: const Text(
                         'Already have an account? Log in',
                         style: TextStyle(
-                          color: Colors.blue,
+                          color: Colors.deepOrange,
                           decoration: TextDecoration.underline,
                         ),
                       ),
