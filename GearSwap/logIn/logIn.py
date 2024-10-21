@@ -4,6 +4,13 @@ import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from botocore.exceptions import ClientError
+from datetime import datetime
+
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super(DateTimeEncoder, self).default(obj)
 
 def lambda_handler(event, context):
     # Parse the incoming request body
@@ -44,14 +51,14 @@ def lambda_handler(event, context):
         # If authentication is successful, get the user's information from the database
         if 'AuthenticationResult' in response:
             user_info = get_user_info_from_db(email)
-            
+        
             return {
                 'statusCode': 200,
                 'body': json.dumps({
                     'message': 'Login successful',
                     'token': response['AuthenticationResult']['AccessToken'],
                     'user': user_info
-                })
+                }, cls=DateTimeEncoder)  # Use the custom encoder here
             }
         else:
             return {
