@@ -11,7 +11,7 @@ Globals:
       - x86_64
     Environment:
       Variables:
-        DB_HOST: "gearswapdb.cfs4ukyuq1o9.us-east-2.rds.amazonaws.com"
+        DB_HOST: "capdb.cfs4ukyuq1o9.us-east-2.rds.amazonaws.com"
         DB_USER: "postgres"
         DB_PASSWORD: "postgres"
         DB_PORT: "5432"
@@ -21,7 +21,7 @@ Globals:
         COGNITO_CLIENT_ID: "1u996ubaotokbh9aq9rg3771ku"
     VpcConfig:
       SecurityGroupIds: 
-        - sg-0181737ce24d7cdd0
+        - sg-07e026f3fb32eb128
         - !Ref LambdaSecurityGroup
       SubnetIds: !Ref SubnetIds
     Layers:
@@ -72,7 +72,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Lambda functions
-      VpcId: vpc-05b31ac071b580a8c
+      VpcId: vpc-0bb7af1b6c9530541
       SecurityGroupEgress:
         - IpProtocol: -1
           # FromPort: -1
