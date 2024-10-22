@@ -17,8 +17,8 @@ Globals:
         DB_PORT: "5432"
         WORKOS_CLIENT_ID: "client_01JA67H9AXQGPC28X9JHF3TB0F"
         WORKOS_API_KEY: "sk_test_a2V5XzAxSkE2N0g4UllEODUxMEVSVkFCRjJEN1czLGNISXJXdmsyck84QjJoZVJ2c0dNdGx4SmY"
-        COGNITO_USER_POOL_ID: "us-east-2_y5z7hsmC1"
-        COGNITO_CLIENT_ID: "1u996ubaotokbh9aq9rg3771ku"
+        COGNITO_USER_POOL_ID: !Ref UserPool #"us-east-2_y5z7hsmC1"
+        COGNITO_CLIENT_ID: !Ref UserPoolClient #"1u996ubaotokbh9aq9rg3771ku"
     VpcConfig:
       SecurityGroupIds: 
         - sg-07e026f3fb32eb128
@@ -66,7 +66,12 @@ Resources:
                   - cognito-idp:AdminSetUserPassword
                   - cognito-idp:AdminDeleteUser
                   - cognito-idp:AdminGetUser
-                Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/us-east-2_y5z7hsmC1
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:DescribeUserPoolClient
+                Resource: 
+                  # - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/us-east-2_y5z7hsmC1
+                  - !GetAtt UserPool.Arn
+                  - !Sub ${UserPool.Arn}/client/*
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -84,7 +89,7 @@ Resources:
     Properties:
       LayerName: dependencies-layer
       Description: Dependencies for the Lambda functions
-      ContentUri: ./
+      ContentUri: ./layer
       CompatibleRuntimes:
         - python3.12
     Metadata:
@@ -117,16 +122,29 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
-      Auth:
-        DefaultAuthorizer: CognitoAuthorizer
-        Authorizers:
-          CognitoAuthorizer:
-            UserPoolArn: !GetAtt UserPool.Arn
 
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: gearPool
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: gearPoolClient
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
   
   # Login Function
   loginFunction:

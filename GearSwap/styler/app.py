@@ -9,50 +9,104 @@ import random
 import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
+import boto3
 
 def lambda_handler(event, context):
+    http_method = event['httpMethod']
+    resource_path = event['resource']
+    
     try:
-        http_method = event['httpMethod']
-        resource_path = event['resource']
+        auth_header = event.get('headers', {}).get('Authorization')
+        if not auth_header:
+            return {
+                'statusCode': 401,
+                'body': json.dumps({'error': 'No authorization header'})
+            }
 
-        if resource_path == '/styler/{userId}':
-            if http_method == 'POST':
-                return refreshStyler(event, context)
-            elif http_method == 'GET':
-                return getStyleTips(event, context)
-        elif resource_path == '/styler/wardrobe/{userId}':
-            if http_method == 'POST':
-                return generateOutfitByWardrobe(event, context)
-        elif resource_path == '/styler/similar/{postId}':
-            if http_method == 'GET':
-                return getSimilarItems(event, context)
-        elif resource_path == '/styler/trending':
-            if http_method == 'GET':
-                return getTrendingItems(event, context)
-        elif resource_path == '/styler/analysis/{userId}':
-            if http_method == 'GET':
-                return getStyleAnalysis(event, context)
-        elif resource_path == '/styler/outfit/{userId}':
-            if http_method == 'POST':
-                return generateOutfitRec(event, context)
-        elif resource_path == '/styler/item/{userId}':
-            if http_method == 'POST':
-                return generateItemRec(event, context)
-        elif resource_path == '/styler/preferences/{userId}':
-            if http_method == 'GET':
-                return getStylePreferences(event, context)
-            elif http_method == 'PUT':
-                return putStylePreferences(event, context)
-
-        return {
-            'statusCode': 400,
-            'body': json.dumps('Unsupported route')
-        }
+        # Extract token from Bearer authentication
+        token = auth_header.split(' ')[-1]
+        verify_token(token)
     except Exception as e:
-        print(f"Unexpected error in lambda_handler: {str(e)}")
-        print("Traceback:")
-        traceback.print_exc()
-        return error_response(500, f"Unexpected error: {str(e)}")
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
+        }
+
+    if resource_path == '/styler/{userId}':
+        if http_method == 'POST':
+            return refreshStyler(event, context)
+        elif http_method == 'GET':
+            return getStyleTips(event, context)
+    elif resource_path == '/styler/wardrobe/{userId}':
+        if http_method == 'POST':
+            return generateOutfitByWardrobe(event, context)
+    elif resource_path == '/styler/similar/{postId}':
+        if http_method == 'GET':
+            return getSimilarItems(event, context)
+    elif resource_path == '/styler/trending':
+        if http_method == 'GET':
+            return getTrendingItems(event, context)
+    elif resource_path == '/styler/analysis/{userId}':
+        if http_method == 'GET':
+            return getStyleAnalysis(event, context)
+    elif resource_path == '/styler/outfit/{userId}':
+        if http_method == 'POST':
+            return generateOutfitRec(event, context)
+    elif resource_path == '/styler/item/{userId}':
+        if http_method == 'POST':
+            return generateItemRec(event, context)
+    elif resource_path == '/styler/preferences/{userId}':
+        if http_method == 'GET':
+            return getStylePreferences(event, context)
+        elif http_method == 'PUT':
+            return putStylePreferences(event, context)
+    return {
+        'statusCode': 400,
+        'body': json.dumps('Unsupported route')
+    }
+
+########################
+#AUTH
+def verify_token(token):
+    # Get the JWT token from the Authorization header
+    if not token:
+        raise Exception('No token provided')
+
+    region = boto3.session.Session().region_name
+    
+    # Get the JWT kid (key ID)
+    headers = jwt.get_unverified_header(token)
+    kid = headers['kid']
+
+    # Get the public keys from Cognito
+    url = f'https://cognito-idp.{region}.amazonaws.com/{os.environ["COGNITO_USER_POOL_ID"]}/.well-known/jwks.json'
+    response = requests.get(url)
+    keys = response.json()['keys']
+
+    # Find the correct public key
+    public_key = None
+    for key in keys:
+        if key['kid'] == kid:
+            public_key = RSAAlgorithm.from_jwk(json.dumps(key))
+            break
+
+    if not public_key:
+        raise Exception('Public key not found')
+
+    # Verify the token
+    try:
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=['RS256'],
+            audience=os.environ['COGNITO_CLIENT_ID'],
+            options={"verify_exp": True}
+        )
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise Exception('Token has expired')
+    except jwt.InvalidTokenError:
+        raise Exception('Invalid token')
 
 ##############
 def json_serial(obj):

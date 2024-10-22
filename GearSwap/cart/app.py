@@ -3,10 +3,28 @@ import os
 import json
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import boto3
 
 def lambda_handler(event, context):
     http_method = event['httpMethod']
     resource_path = event['resource']
+    
+    try:
+        auth_header = event.get('headers', {}).get('Authorization')
+        if not auth_header:
+            return {
+                'statusCode': 401,
+                'body': json.dumps({'error': 'No authorization header'})
+            }
+
+        # Extract token from Bearer authentication
+        token = auth_header.split(' ')[-1]
+        verify_token(token)
+    except Exception as e:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
+        }
 
     if resource_path == '/cart/{Id}':
         user_id = event['pathParameters']['Id']
@@ -23,7 +41,51 @@ def lambda_handler(event, context):
         'statusCode': 400,
         'body': json.dumps('Unsupported route')
     }
+    
+########################
+#AUTH
+def verify_token(token):
+    # Get the JWT token from the Authorization header
+    if not token:
+        raise Exception('No token provided')
 
+    region = boto3.session.Session().region_name
+    
+    # Get the JWT kid (key ID)
+    headers = jwt.get_unverified_header(token)
+    kid = headers['kid']
+
+    # Get the public keys from Cognito
+    url = f'https://cognito-idp.{region}.amazonaws.com/{os.environ["COGNITO_USER_POOL_ID"]}/.well-known/jwks.json'
+    response = requests.get(url)
+    keys = response.json()['keys']
+
+    # Find the correct public key
+    public_key = None
+    for key in keys:
+        if key['kid'] == kid:
+            public_key = RSAAlgorithm.from_jwk(json.dumps(key))
+            break
+
+    if not public_key:
+        raise Exception('Public key not found')
+
+    # Verify the token
+    try:
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=['RS256'],
+            audience=os.environ['COGNITO_CLIENT_ID'],
+            options={"verify_exp": True}
+        )
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise Exception('Token has expired')
+    except jwt.InvalidTokenError:
+        raise Exception('Invalid token')
+
+########################
 def get_db_connection():
     return psycopg2.connect(
         host=os.environ['DB_HOST'],
@@ -32,6 +94,7 @@ def get_db_connection():
         port=os.environ['DB_PORT'],
     )
 
+########################
 def add_to_cart(event, user_id):
     try:
         body = json.loads(event['body'])
@@ -68,6 +131,7 @@ def add_to_cart(event, user_id):
             "body": json.dumps(f"Error adding item to cart: {str(e)}")
         }
 
+########################
 def get_cart(user_id):
     try:
         with get_db_connection() as conn:
@@ -100,6 +164,7 @@ def get_cart(user_id):
             "body": json.dumps(f"Error getting cart: {str(e)}")
         }
 
+########################
 def update_cart_item(event, user_id):
     try:
         body = json.loads(event['body'])
@@ -134,6 +199,7 @@ def update_cart_item(event, user_id):
             "body": json.dumps(f"Error updating cart item: {str(e)}")
         }
 
+########################
 def remove_from_cart(event, user_id):
     try:
         body = json.loads(event['body'])

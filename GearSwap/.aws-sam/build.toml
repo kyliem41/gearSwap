@@ -90,12 +90,11 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["loginFunction"]
 
-[layer_build_definitions.4d9fdc6d-42d3-4658-96e3-3ecd886f6e00]
+[layer_build_definitions.86894c2f-e1b1-4ba4-99f5-b5df25ddd03b]
 layer_name = "DependenciesLayer"
-codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap"
+codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\layer"
 build_method = "python3.12"
 compatible_runtimes = ["python3.12"]
 architecture = "x86_64"
-source_hash = "049ee32c676e47f4a16338782ce69952aa72be5ad4f1a3315dc0c186f559f0d8"
 manifest_hash = ""
 layer = "DependenciesLayer"

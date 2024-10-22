@@ -13,11 +13,32 @@ def lambda_handler(event, context):
     http_method = event['httpMethod']
     resource_path = event['resource']
 
+    # Skip authentication for user creation
+    if resource_path == '/users' and http_method == 'POST':
+        return createUser(event, context)
+
+    # Verify token for all other endpoints
+    try:        
+        auth_header = event.get('headers', {}).get('Authorization')
+        if not auth_header:
+            return {
+                'statusCode': 401,
+                'body': json.dumps({'error': 'No authorization header'})
+            }
+
+        # Extract token from Bearer authentication
+        token = auth_header.split(' ')[-1]        
+        verify_token(token)
+    except Exception as e:
+        return {
+            'statusCode': 401,
+            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
+        }
+
+    # Handle the authenticated routes
     if resource_path == '/users':
         if http_method == 'GET':
             return getUsers(event, context)
-        elif http_method == 'POST':
-            return createUser(event, context)
     elif resource_path == '/users/{Id}':
         if http_method == 'GET':
             return getUserById(event, context)
@@ -42,12 +63,14 @@ def verify_token(token):
     if not token:
         raise Exception('No token provided')
 
+    region = boto3.session.Session().region_name
+    
     # Get the JWT kid (key ID)
     headers = jwt.get_unverified_header(token)
     kid = headers['kid']
 
     # Get the public keys from Cognito
-    url = f'https://cognito-idp.{os.environ["AWS_REGION"]}.amazonaws.com/{os.environ["COGNITO_USER_POOL_ID"]}/.well-known/jwks.json'
+    url = f'https://cognito-idp.{region}.amazonaws.com/{os.environ["COGNITO_USER_POOL_ID"]}/.well-known/jwks.json'
     response = requests.get(url)
     keys = response.json()['keys']
 
@@ -75,7 +98,7 @@ def verify_token(token):
         raise Exception('Token has expired')
     except jwt.InvalidTokenError:
         raise Exception('Invalid token')
-
+    
 #########################
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
