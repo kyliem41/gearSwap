@@ -17,10 +17,10 @@ Globals:
         DB_PORT: "5432"
         WORKOS_CLIENT_ID: "client_01JA67H9AXQGPC28X9JHF3TB0F"
         WORKOS_API_KEY: "sk_test_a2V5XzAxSkE2N0g4UllEODUxMEVSVkFCRjJEN1czLGNISXJXdmsyck84QjJoZVJ2c0dNdGx4SmY"
-        COGNITO_USER_POOL_ID: !Ref UserPool #"us-east-2_y5z7hsmC1"
-        COGNITO_CLIENT_ID: !Ref UserPoolClient #"1u996ubaotokbh9aq9rg3771ku"
+        COGNITO_USER_POOL_ID: "us-east-2_y5z7hsmC1"
+        COGNITO_CLIENT_ID: "1u996ubaotokbh9aq9rg3771ku"
     VpcConfig:
-      SecurityGroupIds:
+      SecurityGroupIds: 
         - sg-07e026f3fb32eb128
         - !Ref LambdaSecurityGroup
       SubnetIds: !Ref SubnetIds
@@ -128,14 +128,6 @@ Resources:
     Properties:
       UserPoolName: gearPool
   
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      UserPoolId: !Ref UserPool
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ADMIN_NO_SRP_AUTH
-  
   # Login Function
   loginFunction:
     Type: AWS::Serverless::Function
@@ -151,8 +143,6 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /login
             Method: POST
-            Auth:
-              Authorizer: NONE
 
   # User Functions
   UserFunctions:
@@ -168,8 +158,6 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /users
             Method: POST
-            Auth:
-              Authorizer: NONE
         GetAllUsers:
           Type: Api
           Properties:

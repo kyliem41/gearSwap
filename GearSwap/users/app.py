@@ -5,6 +5,9 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError
+import jwt
+import requests
+from jwt.algorithms import RSAAlgorithm
 
 def lambda_handler(event, context):
     http_method = event['httpMethod']
@@ -31,6 +34,47 @@ def lambda_handler(event, context):
         'statusCode': 400,
         'body': json.dumps('Unsupported route')
     }
+
+########################
+#AUTH
+def verify_token(token):
+    # Get the JWT token from the Authorization header
+    if not token:
+        raise Exception('No token provided')
+
+    # Get the JWT kid (key ID)
+    headers = jwt.get_unverified_header(token)
+    kid = headers['kid']
+
+    # Get the public keys from Cognito
+    url = f'https://cognito-idp.{os.environ["AWS_REGION"]}.amazonaws.com/{os.environ["COGNITO_USER_POOL_ID"]}/.well-known/jwks.json'
+    response = requests.get(url)
+    keys = response.json()['keys']
+
+    # Find the correct public key
+    public_key = None
+    for key in keys:
+        if key['kid'] == kid:
+            public_key = RSAAlgorithm.from_jwk(json.dumps(key))
+            break
+
+    if not public_key:
+        raise Exception('Public key not found')
+
+    # Verify the token
+    try:
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=['RS256'],
+            audience=os.environ['COGNITO_CLIENT_ID'],
+            options={"verify_exp": True}
+        )
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise Exception('Token has expired')
+    except jwt.InvalidTokenError:
+        raise Exception('Invalid token')
 
 #########################
 def json_serial(obj):

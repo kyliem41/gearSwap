@@ -43,10 +43,10 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    _GetPosts();
+    _getPosts();
   }
 
-  void _GetPosts() async {
+  void _getPosts() async {
     var url = Uri.parse(
         'https://hjsg6z4hj9.execute-api.us-east-2.amazonaws.com/Stage/posts');
     try {
@@ -59,10 +59,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
-        print(data);
-
+        // Extract the posts array from the response
+        List<dynamic> postsData = data['posts'];
+        
         setState(() {
-          posts = data;
+          posts = postsData;
           hasError = false;
           isLoading = false;
         });
@@ -90,21 +91,21 @@ class _MyHomePageState extends State<MyHomePage> {
                 ? Center(child: Text("Failed to load"))
                 : GridView.builder(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
+                      crossAxisCount: 4,
                       crossAxisSpacing: 10.0,
                       mainAxisSpacing: 10.0,
                       childAspectRatio: 0.7,
                     ),
-                    itemCount: posts.length, // Number of posts
+                    itemCount: posts.length,
                     itemBuilder: (context, index) {
+                      final post = posts[index];
                       return GestureDetector(
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => PostDetailPage(
-                                  postId: posts[index]
-                                      ['id']),
+                                  postId: post['id']),
                             ),
                           );
                         },
@@ -115,23 +116,41 @@ class _MyHomePageState extends State<MyHomePage> {
                             children: <Widget>[
                               Expanded(
                                 child: Container(
-                                  color:
-                                      Colors.grey[300],
+                                  color: Colors.grey[200],
                                   child: Center(
-                                    child: Text(
-                                      posts[index][
-                                          'price'],
-                                      style: TextStyle(fontSize: 18),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.image,
+                                          size: 40,
+                                          color: Colors.grey[400],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '\$${post['price']}',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(8.0),
-                                child: Text(
-                                  posts[index][
-                                      'description'],
-                                  style: TextStyle(fontSize: 14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      post['description'],
+                                      style: TextStyle(fontSize: 14),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

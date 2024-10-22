@@ -5,6 +5,9 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from decimal import Decimal
 import traceback
+import jwt
+import requests
+from jwt.algorithms import RSAAlgorithm
 
 def lambda_handler(event, context):
     try:

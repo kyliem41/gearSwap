@@ -3,6 +3,9 @@ import os
 import json
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import jwt
+import requests
+from jwt.algorithms import RSAAlgorithm
 
 def lambda_handler(event, context):
     http_method = event['httpMethod']
