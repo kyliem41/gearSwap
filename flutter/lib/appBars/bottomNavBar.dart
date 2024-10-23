@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:sample/inbox/inbox.dart';
 import 'package:sample/main.dart';
 import 'package:sample/posts/newPost.dart';
 import 'package:sample/profile/profile.dart';
 import 'package:sample/search/search.dart';
 import 'package:sample/styler/styler.dart';
-import 'package:sample/wishlist/wishlist.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
 class BottomNavBar extends StatefulWidget {
   @override
@@ -59,9 +58,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => WishlistPage(
-              username: 'john',
-            ),
+            builder: (context) => InboxPage(),
           ),
         );
         break;

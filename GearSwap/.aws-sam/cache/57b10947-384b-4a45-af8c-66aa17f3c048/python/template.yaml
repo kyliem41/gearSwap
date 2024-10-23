@@ -4,7 +4,7 @@ Description: GearSwap - Streamlined SAM Template
 
 Globals:
   Function:
-    Timeout: 60
+    Timeout: 80
     MemorySize: 128
     Runtime: python3.12
     Architectures: 
@@ -66,8 +66,10 @@ Resources:
                   - cognito-idp:AdminSetUserPassword
                   - cognito-idp:AdminDeleteUser
                   - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminUpdateUserAttributes
                   - cognito-idp:DescribeUserPool
                   - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:ListUsers
                 Resource: 
                   # - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/us-east-2_y5z7hsmC1
                   - !GetAtt UserPool.Arn
@@ -127,6 +129,29 @@ Resources:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: gearPool
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: preferred_username
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: given_name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: family_name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -141,11 +166,20 @@ Resources:
       UserPoolId: !Ref UserPool
       ClientName: gearPoolClient
       GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
       ExplicitAuthFlows:
-        - ALLOW_USER_SRP_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
         - ALLOW_USER_PASSWORD_AUTH
-  
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      AccessTokenValidity: 60 
+      IdTokenValidity: 60     
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
   # Login Function
   loginFunction:
     Type: AWS::Serverless::Function

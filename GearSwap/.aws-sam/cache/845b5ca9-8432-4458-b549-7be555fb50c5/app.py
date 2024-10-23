@@ -153,11 +153,12 @@ def createUser(event, context):
     db_password = os.environ['DB_PASSWORD']
     db_port = os.environ['DB_PORT']
     user_pool_id = os.environ['COGNITO_USER_POOL_ID']
-
+    
     conn = None
     cognito_client = boto3.client('cognito-idp')
 
     try:
+        # Parse request body
         if isinstance(event.get('body'), str):
             body = json.loads(event['body'])
         else:
@@ -175,13 +176,14 @@ def createUser(event, context):
                 "body": json.dumps("Missing required fields: firstname, lastname, username, email, or password")
             }
 
-        profile_info = body.get('profileInfo')  # Optional field
+        profile_info = body.get('profileInfo')
 
-        # Create user in Cognito using email as the main username
+        # Create user in Cognito
         try:
+            # Create user with email as username
             cognito_response = cognito_client.admin_create_user(
                 UserPoolId=user_pool_id,
-                Username=email,  # Use email as the username
+                Username=email,
                 UserAttributes=[
                     {'Name': 'email', 'Value': email},
                     {'Name': 'preferred_username', 'Value': username},
@@ -190,16 +192,46 @@ def createUser(event, context):
                     {'Name': 'email_verified', 'Value': 'true'}
                 ],
                 TemporaryPassword=password,
-                MessageAction='SUPPRESS'
+                MessageAction='SUPPRESS',
+                ForceAliasCreation=True
             )
 
-            # Set the user's password permanently
+            # Set permanent password
             cognito_client.admin_set_user_password(
                 UserPoolId=user_pool_id,
-                Username=email,  # Use email here as well
+                Username=email,
                 Password=password,
                 Permanent=True
             )
+
+            # Create user in database
+            conn = psycopg2.connect(
+                host=db_host,
+                user=db_user,
+                password=db_password,
+                port=db_port,
+            )
+
+            insert_query = """
+            INSERT INTO users (firstName, lastName, username, email, password, profileInfo, joinDate, likeCount) 
+            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0)
+            RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
+            """
+
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(insert_query, (firstName, lastName, username, email, password, profile_info))
+                new_user = cursor.fetchone()
+                conn.commit()
+
+            return {
+                "statusCode": 201,
+                "body": json.dumps({
+                    "message": "User created successfully",
+                    "user": new_user,
+                    "cognitoUser": cognito_response['User']
+                }, default=str)
+            }
+
         except ClientError as e:
             print(f"Cognito error: {str(e)}")
             return {
@@ -207,56 +239,13 @@ def createUser(event, context):
                 "body": json.dumps(f"Error creating Cognito user: {str(e)}")
             }
 
-        # If Cognito user creation is successful, proceed with database insertion
-        conn = psycopg2.connect(
-            host=db_host,
-            user=db_user,
-            password=db_password,
-            port=db_port,
-        )
-        
-        print("test 3")
-
-        insert_query = """
-        INSERT INTO users (firstName, lastName, username, email, password, profileInfo, joinDate, likeCount) 
-        VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0)
-        RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
-        """
-
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(insert_query, (firstName, lastName, username, email, password, profile_info))
-            new_user = cursor.fetchone()
-            conn.commit()
-            
-        print("test 4")
-
-        return {
-            "statusCode": 201,
-            "body": json.dumps({
-                "message": "User created successfully in both Cognito and database",
-                "user": new_user,
-                "cognitoUser": cognito_response['User']
-            }, default=str)
-        }
-
-    except psycopg2.IntegrityError as e:
-        # If database insertion fails, we should delete the Cognito user
-        cognito_client.admin_delete_user(
-            UserPoolId=user_pool_id,
-            Username=username
-        )
-        return {
-            "statusCode": 409,
-            "body": json.dumps(f"Username or email already exists: {str(e)}")
-        }
-
     except Exception as e:
-        print(f"Failed to create user. Error: {str(e)}")
-        # If an exception occurs after Cognito user creation, we should delete the Cognito user
+        print(f"Error: {str(e)}")
+        # Clean up Cognito user if it was created
         try:
             cognito_client.admin_delete_user(
                 UserPoolId=user_pool_id,
-                Username=username
+                Username=email
             )
         except:
             pass
