@@ -1,6 +1,0 @@
-pyjwt[crypto]
-requests
-psycopg2-binary
-boto3
-botocore
-bcrypt==4.0.1
