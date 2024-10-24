@@ -48,7 +48,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _getPosts() async {
     var url = Uri.parse(
-        'https://hjsg6z4hj9.execute-api.us-east-2.amazonaws.com/Stage/posts');
+        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts');
     try {
       var response = await http.get(
         url,

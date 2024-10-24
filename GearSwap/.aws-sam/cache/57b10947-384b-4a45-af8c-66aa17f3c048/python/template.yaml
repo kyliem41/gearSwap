@@ -4,7 +4,7 @@ Description: GearSwap - Streamlined SAM Template
 
 Globals:
   Function:
-    Timeout: 80
+    Timeout: 120
     MemorySize: 128
     Runtime: python3.12
     Architectures: 

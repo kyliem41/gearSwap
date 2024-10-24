@@ -40,64 +40,78 @@ class _MyLoginPageState extends State<MyLoginPage> {
   String _errorMessage = '';
 
   Future<void> _logIn() async {
+  setState(() {
+    _isLoading = true;
+    _errorMessage = '';
+  });
+
+  if (!_validateInputs()) {
     setState(() {
-      _isLoading = true;
-      _errorMessage = '';
+      _isLoading = false;
     });
+    return;
+  }
 
-    if (!_validateInputs()) {
-      setState(() {
-        _isLoading = false;
-      });
-      return;
-    }
+  var url = Uri.parse(
+      'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/login');
+  
+  try {
+    var response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text,
+      }),
+    );
 
-    var url = Uri.parse(
-        'https://hjsg6z4hj9.execute-api.us-east-2.amazonaws.com/Stage/login');
+    var data = jsonDecode(response.body);
     
-    try {
-      var response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'email': _emailController.text.trim(),
-          'password': _passwordController.text,
-        }),
-      );
-
-      var data = jsonDecode(response.body);
-      print(data);
-
-      if (response.statusCode == 200) {
-        // Save the token and user info
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', data['token']);
+    // Check if the response contains a message indicating success
+    if (response.statusCode == 200 && data['message'] == 'Login successful') {
+      // Save the tokens
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('accessToken', data['accessToken']);
+      await prefs.setString('idToken', data['idToken']);
+      await prefs.setString('refreshToken', data['refreshToken']);
+      
+      // Save user info
+      if (data['user'] != null) {
         await prefs.setString('user', jsonEncode(data['user']));
-        
-        // Navigate to home page and clear the stack
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => MyApp()),
-          (Route<dynamic> route) => false,
-        );
-      } else {
-        setState(() {
-          _errorMessage = data['body'] ?? 'Login failed. Please try again.';
-        });
-        _showErrorDialog(_errorMessage);
       }
-    } catch (e) {
+      
+      // Navigate to home page and clear the stack
+      if (mounted) {  // Check if widget is still mounted
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MyHomePage(title: 'GearSwap'),
+          ),
+        );
+      }
+    } else {
       setState(() {
-        _errorMessage = 'Network error. Please check your connection.';
+        _errorMessage = data['body'] ?? 'Login failed. Please try again.';
       });
       _showErrorDialog(_errorMessage);
-    } finally {
+    }
+  } catch (e, stackTrace) {
+    print('Login error: $e');
+    print('Stack trace: $stackTrace');  // Add stack trace for debugging
+    setState(() {
+      _errorMessage = 'Network error. Please check your connection.';
+    });
+    _showErrorDialog(_errorMessage);
+  } finally {
+    if (mounted) {  // Check if widget is still mounted
       setState(() {
         _isLoading = false;
       });
     }
   }
+}
 
   bool _validateInputs() {
     if (_emailController.text.trim().isEmpty) {
