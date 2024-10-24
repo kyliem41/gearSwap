@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
+import 'package:http/http.dart' as http;
+import 'package:sample/main.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class NewPostPage extends StatefulWidget {
   @override
@@ -9,203 +13,368 @@ class NewPostPage extends StatefulWidget {
 
 class _NewPostPageState extends State<NewPostPage> {
   final List<String> sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
-  final List<String> categories = ['Clothing', 'Electronics', 'Furniture', 'Accessories'];
-  final List<String> brands = ['Nike', 'Adidas', 'H&M', 'Zara', 'Puma'];
+  final List<String> categories = [
+    'Clothing',
+    'Electronics',
+    'Furniture',
+    'Accessories'
+  ];
+  final List<String> clothingTypes = [
+    'Shirt',
+    'Pants',
+    'Dress',
+    'Jacket',
+    'Shoes'
+  ];
   final List<String> colors = ['Red', 'Blue', 'Green', 'Black', 'White'];
-  final List<String> tags = ['Jackets', 'Shoes', 'Skirts', 'Dresses', 'Casual', 'Formal'];
-  
+  final List<String> tags = [
+    'Casual',
+    'Formal',
+    'Vintage',
+    'Modern',
+    'Sporty',
+    'Designer'
+  ];
+
   List<String> selectedTags = [];
   String? selectedSize;
   String? selectedCategory;
-  String? selectedBrand;
+  String? selectedClothingType;
   String? selectedColor;
-  
+  List<String> photos = [];
+  bool _isLoading = false;
+
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
-  
-  void _saveDraft() {
-    // Save draft logic here
-    print("Draft saved");
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Error"),
+          content: Text(message),
+          actions: [
+            TextButton(
+              child: Text("OK"),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        );
+      },
+    );
   }
 
-  void _addPost() {
-    // Add post logic here
-    print("Post added");
+  Future<void> _addPost() async {
+    if (!_validateInputs()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userStr = prefs.getString('user');
+      final accessToken = prefs.getString('accessToken');
+      final idToken = prefs.getString('idToken'); // Add this line
+
+      print('User string: $userStr');
+      print('Access token available: ${accessToken != null}');
+      print('ID token available: ${idToken != null}');
+
+      if (userStr == null || idToken == null) {
+        // Changed to check idToken
+        _showErrorDialog('Please log in to create a post');
+        return;
+      }
+
+      final userData = json.decode(userStr);
+      final userId = userData['id'];
+
+      print('User ID: $userId');
+
+      final requestBody = {
+        'price': double.parse(priceController.text),
+        'description': descriptionController.text.trim(),
+        'size': selectedSize,
+        'category': selectedCategory,
+        'clothingType': selectedClothingType,
+        'tags': selectedTags,
+        'photos': photos,
+      };
+
+      print('Request body: ${json.encode(requestBody)}');
+      final url =
+          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/$userId';
+      print('Endpoint URL: $url');
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization':
+              'Bearer $idToken', // Changed to use idToken instead of accessToken
+          'Accept': 'application/json',
+        },
+        body: json.encode(requestBody),
+      );
+
+      print('Response status code: ${response.statusCode}');
+      print('Response headers: ${response.headers}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        // Added 200 as acceptable
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("Success"),
+              content: Text("Post created successfully!"),
+              actions: [
+                TextButton(
+                  child: Text("OK"),
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MyHomePage(title: "GearSwap"),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        String errorMessage;
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData is String
+              ? errorData
+              : (errorData['error'] ?? // Added error field check
+                  errorData['message'] ??
+                  errorData['body'] ??
+                  'Failed to create post');
+        } catch (e) {
+          print('Error parsing response body: $e');
+          errorMessage = response.body;
+        }
+        print('Error message: $errorMessage');
+        _showErrorDialog('Error: $errorMessage');
+      }
+    } catch (e, stackTrace) {
+      print('Exception details: $e');
+      print('Stack trace: $stackTrace');
+      _showErrorDialog('Error creating post: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  bool _validateInputs() {
+    if (descriptionController.text.trim().isEmpty) {
+      _showErrorDialog('Please enter a description');
+      return false;
+    }
+    if (priceController.text.isEmpty) {
+      _showErrorDialog('Please enter a price');
+      return false;
+    }
+    if (selectedSize == null) {
+      _showErrorDialog('Please select a size');
+      return false;
+    }
+    if (selectedCategory == null) {
+      _showErrorDialog('Please select a category');
+      return false;
+    }
+    if (selectedClothingType == null) {
+      _showErrorDialog('Please select a clothing type');
+      return false;
+    }
+    if (photos.isEmpty) {
+      _showErrorDialog('Please add at least one photo');
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _uploadPhotos() async {
+    setState(() {
+      if (photos.length < 5) {
+        photos.add('https://example.com/photo${photos.length + 1}.jpg');
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: TopNavBar(),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Photo Upload Section
-              GestureDetector(
-                onTap: () {
-                  // Logic to upload photos
-                },
-                child: Container(
-                  height: 150,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(child: Text("Tap to add photos (max 5)")),
-                ),
-              ),
-              SizedBox(height: 16.0),
-              
-              // Description Field
-              TextField(
-                controller: descriptionController,
-                decoration: InputDecoration(
-                  labelText: "Description",
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-              SizedBox(height: 16.0),
-
-              // Size Dropdown
-              DropdownButtonFormField<String>(
-                value: selectedSize,
-                onChanged: (value) {
-                  setState(() {
-                    selectedSize = value;
-                  });
-                },
-                decoration: InputDecoration(
-                  labelText: "Size",
-                  border: OutlineInputBorder(),
-                ),
-                items: sizes.map((String size) {
-                  return DropdownMenuItem<String>(
-                    value: size,
-                    child: Text(size),
-                  );
-                }).toList(),
-              ),
-              SizedBox(height: 16.0),
-
-              // Price Field
-              TextField(
-                controller: priceController,
-                decoration: InputDecoration(
-                  labelText: "Price",
-                  border: OutlineInputBorder(),
-                  prefixText: "\$",
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              SizedBox(height: 16.0),
-
-              // Category Dropdown
-              DropdownButtonFormField<String>(
-                value: selectedCategory,
-                onChanged: (value) {
-                  setState(() {
-                    selectedCategory = value;
-                  });
-                },
-                decoration: InputDecoration(
-                  labelText: "Category",
-                  border: OutlineInputBorder(),
-                ),
-                items: categories.map((String category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-              ),
-              SizedBox(height: 16.0),
-
-              // Brand Dropdown
-              DropdownButtonFormField<String>(
-                value: selectedBrand,
-                onChanged: (value) {
-                  setState(() {
-                    selectedBrand = value;
-                  });
-                },
-                decoration: InputDecoration(
-                  labelText: "Brand",
-                  border: OutlineInputBorder(),
-                ),
-                items: brands.map((String brand) {
-                  return DropdownMenuItem<String>(
-                    value: brand,
-                    child: Text(brand),
-                  );
-                }).toList(),
-              ),
-              SizedBox(height: 16.0),
-
-              // Color Dropdown
-              DropdownButtonFormField<String>(
-                value: selectedColor,
-                onChanged: (value) {
-                  setState(() {
-                    selectedColor = value;
-                  });
-                },
-                decoration: InputDecoration(
-                  labelText: "Color",
-                  border: OutlineInputBorder(),
-                ),
-                items: colors.map((String color) {
-                  return DropdownMenuItem<String>(
-                    value: color,
-                    child: Text(color),
-                  );
-                }).toList(),
-              ),
-              SizedBox(height: 16.0),
-
-              // Tags Selection
-              Wrap(
-                spacing: 8.0,
-                children: tags.map((String tag) {
-                  return ChoiceChip(
-                    label: Text(tag),
-                    selected: selectedTags.contains(tag),
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) {
-                          if (selectedTags.length < 6) {
-                            selectedTags.add(tag);
-                          }
-                        } else {
-                          selectedTags.remove(tag);
-                        }
-                      });
-                    },
-                    selectedColor: Colors.deepOrange,
-                  );
-                }).toList(),
-              ),
-              SizedBox(height: 16.0),
-
-              // Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ElevatedButton(
-                    onPressed: _saveDraft,
-                    child: Text("Save as Draft"),
+                  // Photo Upload Section
+                  Container(
+                    height: 150,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text("Tap to add photos (max 5)"),
+                        if (photos.isNotEmpty) ...[
+                          SizedBox(height: 8),
+                          Text(
+                            "${photos.length} photo(s) selected",
+                            style: TextStyle(color: Colors.deepOrange),
+                          ),
+                        ],
+                        ElevatedButton(
+                          onPressed: _uploadPhotos,
+                          child: Text("Add Test Photo"),
+                        ),
+                      ],
+                    ),
                   ),
+                  SizedBox(height: 16.0),
+
+                  // Description Field
+                  TextField(
+                    controller: descriptionController,
+                    decoration: InputDecoration(
+                      labelText: "Description",
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  SizedBox(height: 16.0),
+
+                  // Price Field
+                  TextField(
+                    controller: priceController,
+                    decoration: InputDecoration(
+                      labelText: "Price",
+                      border: OutlineInputBorder(),
+                      prefixText: "\$",
+                    ),
+                    keyboardType:
+                        TextInputType.numberWithOptions(decimal: true),
+                  ),
+                  SizedBox(height: 16.0),
+
+                  // Size Dropdown
+                  DropdownButtonFormField<String>(
+                    value: selectedSize,
+                    decoration: InputDecoration(
+                      labelText: "Size",
+                      border: OutlineInputBorder(),
+                    ),
+                    items: sizes
+                        .map((size) => DropdownMenuItem(
+                              value: size,
+                              child: Text(size),
+                            ))
+                        .toList(),
+                    onChanged: (value) => setState(() => selectedSize = value),
+                  ),
+                  SizedBox(height: 16.0),
+
+                  // Category Dropdown
+                  DropdownButtonFormField<String>(
+                    value: selectedCategory,
+                    decoration: InputDecoration(
+                      labelText: "Category",
+                      border: OutlineInputBorder(),
+                    ),
+                    items: categories
+                        .map((category) => DropdownMenuItem(
+                              value: category,
+                              child: Text(category),
+                            ))
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => selectedCategory = value),
+                  ),
+                  SizedBox(height: 16.0),
+
+                  // Clothing Type Dropdown
+                  DropdownButtonFormField<String>(
+                    value: selectedClothingType,
+                    decoration: InputDecoration(
+                      labelText: "Clothing Type",
+                      border: OutlineInputBorder(),
+                    ),
+                    items: clothingTypes
+                        .map((type) => DropdownMenuItem(
+                              value: type,
+                              child: Text(type),
+                            ))
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => selectedClothingType = value),
+                  ),
+                  SizedBox(height: 16.0),
+
+                  // Tags Selection
+                  Text("Tags (select up to 5):",
+                      style: TextStyle(fontSize: 16)),
+                  Wrap(
+                    spacing: 8.0,
+                    children: tags
+                        .map((tag) => ChoiceChip(
+                              label: Text(tag),
+                              selected: selectedTags.contains(tag),
+                              onSelected: (selected) {
+                                setState(() {
+                                  if (selected && selectedTags.length < 5) {
+                                    selectedTags.add(tag);
+                                  } else {
+                                    selectedTags.remove(tag);
+                                  }
+                                });
+                              },
+                              selectedColor: Colors.deepOrange,
+                            ))
+                        .toList(),
+                  ),
+                  SizedBox(height: 24.0),
+
+                  // Submit Button
                   ElevatedButton(
-                    onPressed: _addPost,
-                    child: Text("Add Post"),
+                    onPressed: _isLoading ? null : _addPost,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepOrange,
+                      padding: EdgeInsets.symmetric(vertical: 15),
+                    ),
+                    child: _isLoading
+                        ? CircularProgressIndicator()
+                        : Text(
+                            'Add Post',
+                            style: TextStyle(fontSize: 18),
+                          ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
       bottomNavigationBar: BottomNavBar(),
     );
