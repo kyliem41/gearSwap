@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
-import 'package:sample/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SearchPage extends StatefulWidget {
   @override
@@ -9,6 +11,7 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
+  final TextEditingController _searchController = TextEditingController();
   String searchQuery = "";
   List<String> tags = [
     'Jackets',
@@ -19,34 +22,12 @@ class _SearchPageState extends State<SearchPage> {
     'Zara',
     'Denim'
   ];
-  List<dynamic> searchResults = []; // For storing related posts after search
+  List<dynamic> searchResults = [];
   bool isLoading = false;
-
-  // Example posts data for grid layout
-  List<Map<String, String>> posts = [
-    {'image': 'assets/images/jacket1.jpg', 'description': 'Leather Jacket'},
-    {'image': 'assets/images/skirt1.jpg', 'description': 'Floral Skirt'},
-    {'image': 'assets/images/shoes1.jpg', 'description': 'Sneakers'},
-    {'image': 'assets/images/hm1.jpg', 'description': 'H&M Dress'},
-  ];
-
-  void onTagTap(String tag) {
-    setState(() {
-      searchQuery = tag;
-      _performSearch(tag);
-    });
-  }
-
-  void _performSearch(String query) {
-    setState(() {
-      isLoading = true;
-      searchResults =
-          posts;
-      isLoading = false;
-    });
-  }
-
   String? selectedTag;
+  String? _idToken;
+  String? _userId;
+
   List<Color> tagColors = [
     Colors.red,
     Colors.pink,
@@ -58,6 +39,91 @@ class _SearchPageState extends State<SearchPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userStr = prefs.getString('user');
+      final idToken = prefs.getString('idToken');
+
+      if (userStr != null && idToken != null) {
+        final userData = json.decode(userStr);
+        setState(() {
+          _userId = userData['id'].toString();
+          _idToken = idToken;
+        });
+        // Initially load all posts
+        _performSearch('');
+      } else {
+        print('No user data or token found');
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    }
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (_idToken == null || _userId == null) {
+      print('No authentication token or user ID found');
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      searchResults = [];
+    });
+
+    try {
+      var searchUrl = Uri.parse(
+          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/search/$_userId');
+
+      var response = await http.post(
+        searchUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_idToken',
+        },
+        body: json.encode({'searchQuery': query}),
+      );
+
+      if (response.statusCode == 201) {
+        var data = json.decode(response.body);
+        print('Search response: ${response.body}');
+        setState(() {
+          searchResults = data['posts'] ?? [];
+          isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to perform search: ${response.body}');
+      }
+    } catch (e) {
+      print('Error performing search: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  void onTagTap(String tag) {
+    setState(() {
+      selectedTag = tag;
+      searchQuery = tag;
+      _searchController.clear();
+      _performSearch(tag);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: TopNavBar(),
@@ -66,8 +132,11 @@ class _SearchPageState extends State<SearchPage> {
           Padding(
             padding: EdgeInsets.all(16.0),
             child: TextField(
+              controller: _searchController,
               onChanged: (value) {
-                searchQuery = value;
+                setState(() {
+                  searchQuery = value;
+                });
               },
               decoration: InputDecoration(
                 hintText: 'Search for items...',
@@ -80,11 +149,13 @@ class _SearchPageState extends State<SearchPage> {
               ),
               textAlign: TextAlign.center,
               onSubmitted: (value) {
-                _performSearch(value); // Perform search when submitted
+                setState(() {
+                  selectedTag = null;
+                });
+                _performSearch(value);
               },
             ),
           ),
-          // Tags Section with unique colors
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: Wrap(
@@ -92,87 +163,134 @@ class _SearchPageState extends State<SearchPage> {
               children: tags.asMap().entries.map((entry) {
                 int index = entry.key;
                 String tag = entry.value;
-
                 Color tagColor = tagColors[index % tagColors.length];
 
                 return ActionChip(
                   label: Text(tag),
                   backgroundColor: tagColor,
-                  onPressed: () {
-                    setState(() {
-                      selectedTag = tag;
-                      onTagTap(tag);
-                    });
-                  },
+                  onPressed: () => onTagTap(tag),
                   labelStyle: TextStyle(
-                    color: selectedTag == tag
-                        ? Colors.black
-                        : Colors.white,
+                    color: selectedTag == tag ? Colors.black : Colors.white,
                   ),
                 );
               }).toList(),
             ),
           ),
           SizedBox(height: 16.0),
-          isLoading
-              ? Center(child: CircularProgressIndicator())
-              : Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.all(10.0),
-                    child: GridView.builder(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 10.0,
-                        crossAxisSpacing: 10.0,
-                        childAspectRatio:
-                            3 / 4,
-                      ),
-                      itemCount: searchResults.length,
-                      itemBuilder: (context, index) {
-                        return GestureDetector(
-                          onTap: () {
-                            // Handle post click
-                          },
-                          child: Card(
-                            elevation: 3.0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10.0),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Image of the post
-                                Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.vertical(
-                                          top: Radius.circular(10.0)),
-                                      image: DecorationImage(
-                                        image: AssetImage(
-                                            searchResults[index]['image']),
-                                        fit: BoxFit.cover,
+          if (_idToken == null || _userId == null)
+            Center(
+              child: Text('Please log in to search'),
+            )
+          else if (isLoading)
+            Center(child: CircularProgressIndicator())
+          else
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.all(10.0),
+                child: searchResults.isEmpty
+                    ? Center(
+                        child: Text('No results found'),
+                      )
+                    : GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          mainAxisSpacing: 10.0,
+                          crossAxisSpacing: 10.0,
+                          childAspectRatio: 0.7,
+                        ),
+                        itemCount: searchResults.length,
+                        itemBuilder: (context, index) {
+                          final post = searchResults[index];
+                          return GestureDetector(
+                            onTap: () {
+                              // Handle post tap
+                              print('Post tapped: ${post['id']}');
+                            },
+                            child: Card(
+                              elevation: 4.0,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius: BorderRadius.vertical(
+                                          top: Radius.circular(10.0),
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            if (post['photos'] != null &&
+                                                post['photos'].isNotEmpty)
+                                              Image.network(
+                                                post['photos'][0],
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error,
+                                                        stackTrace) =>
+                                                    Icon(
+                                                  Icons.image,
+                                                  size: 40,
+                                                  color: Colors.grey[400],
+                                                ),
+                                              )
+                                            else
+                                              Icon(
+                                                Icons.image,
+                                                size: 40,
+                                                color: Colors.grey[400],
+                                              ),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              '\$${post['price']}',
+                                              style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Text(
-                                    searchResults[index]['description'],
-                                    style: TextStyle(fontSize: 16.0),
+                                  Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          post['description'] ??
+                                              'No description',
+                                          style: TextStyle(fontSize: 14),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (post['size'] != null)
+                                          Text(
+                                            'Size: ${post['size']}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+                          );
+                        },
+                      ),
+              ),
+            ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(), 
+      bottomNavigationBar: BottomNavBar(),
     );
   }
 }

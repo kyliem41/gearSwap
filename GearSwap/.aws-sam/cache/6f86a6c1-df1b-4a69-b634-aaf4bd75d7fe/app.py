@@ -92,6 +92,8 @@ def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
     if isinstance(obj, datetime):
         return obj.isoformat()
+    if isinstance(obj, Decimal):
+        return float(obj)
     raise TypeError(f"Type {type(obj)} not serializable")
 
 #########
@@ -112,15 +114,15 @@ def postSearch(event, context):
             body = json.loads(event.get('body', '{}'))
 
         userId = event['pathParameters']['userId']
-        searchQuery = (body.get('searchQuery')) 
+        searchQuery = (body.get('searchQuery', '')).lower()
         
         required_fields = ['searchQuery']
         for field in required_fields:
             if field not in body:
                 return {
-            "statusCode": 400,
-            "body": json.dumps(f"Missing required field: {field}")
-            }
+                    "statusCode": 400,
+                    "body": json.dumps(f"Missing required field: {field}")
+                }
 
     except json.JSONDecodeError:
         return {
@@ -140,6 +142,7 @@ def postSearch(event, context):
                         "body": json.dumps("User not found")
                     }
 
+                # Save the search query
                 insert_query = """
                 INSERT INTO search (userId, searchQuery) 
                 VALUES (%s, %s)
@@ -148,6 +151,36 @@ def postSearch(event, context):
                 
                 cursor.execute(insert_query, (userId, searchQuery))
                 new_search = cursor.fetchone()
+                
+                # Get filtered posts
+                search_pattern = f'%{searchQuery}%'
+                get_posts_query = """
+                    SELECT 
+                        id,
+                        userid,
+                        CAST(price AS float) as price,
+                        description,
+                        size,
+                        category,
+                        clothingtype,
+                        tags,
+                        photos,
+                        dateposted,
+                        likecount
+                    FROM posts 
+                    WHERE 
+                        LOWER(description) LIKE %s 
+                        OR LOWER(category) LIKE %s
+                        OR LOWER(clothingtype) LIKE %s
+                        OR EXISTS (
+                            SELECT 1 FROM jsonb_array_elements_text(tags) tag 
+                            WHERE LOWER(tag) LIKE %s
+                        )
+                    ORDER BY dateposted DESC;
+                """
+                
+                cursor.execute(get_posts_query, (search_pattern, search_pattern, search_pattern, search_pattern))
+                filtered_posts = cursor.fetchall()
 
                 conn.commit()
 
@@ -155,7 +188,9 @@ def postSearch(event, context):
             "statusCode": 201,
             "body": json.dumps({
                 "message": "Search posted successfully",
-                "search": new_search
+                "search": new_search,
+                "posts": filtered_posts,
+                "total_count": len(filtered_posts)
             }, default=json_serial)
         }
 
