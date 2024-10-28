@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/outfits/outfits.dart';
+import 'package:sample/profile/editProfile.dart';
 import 'package:sample/wishlist/wishlist.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -12,9 +14,13 @@ class UserData {
   final String lastName;
   final String username;
   final String email;
-  final String profileInfo;
+  final String? profileInfo;
   final DateTime joinDate;
   final int likeCount;
+  String? bio;
+  String? location;
+  String? profilePicture;
+  List<dynamic> posts = [];
 
   UserData({
     required this.id,
@@ -22,9 +28,12 @@ class UserData {
     required this.lastName,
     required this.username,
     required this.email,
-    required this.profileInfo,
+    this.profileInfo,
     required this.joinDate,
     required this.likeCount,
+    this.bio,
+    this.location,
+    this.profilePicture,
   });
 
   factory UserData.fromJson(Map<String, dynamic> json) {
@@ -34,9 +43,12 @@ class UserData {
       lastName: json['lastname'] ?? '',
       username: json['username'] ?? '',
       email: json['email'] ?? '',
-      profileInfo: json['profileinfo']?.toString() ?? '',
+      profileInfo: json['profileinfo']?.toString(),
       joinDate: DateTime.parse(json['joindate']),
       likeCount: json['likecount'] ?? 0,
+      bio: json['bio'],
+      location: json['location'],
+      profilePicture: json['profilepicture'],
     );
   }
 }
@@ -46,46 +58,122 @@ class ProfilePage extends StatefulWidget {
   _ProfilePageState createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
+class _ProfilePageState extends State<ProfilePage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   UserData? userData;
   bool isLoading = true;
+  String? _idToken;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
-    _loadUserData();
+    _loadUserDataAndProfile();
   }
 
-  Future<void> _loadUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userString = prefs.getString('user');
+  Future<void> _loadUserDataAndProfile() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final userString = prefs.getString('user');
+    final idToken = prefs.getString('idToken');
+    
+    print('Loading user data...');
+    print('User string exists: ${userString != null}');
+    print('ID token exists: ${idToken != null}');
+    
+    if (userString != null && idToken != null) {
+      final userJson = jsonDecode(userString);
+      print('User ID from stored data: ${userJson['id']}');
       
-      if (userString != null) {
-        final userJson = jsonDecode(userString);
+      setState(() {
+        _idToken = idToken;
+        userData = UserData.fromJson(userJson);
+      });
+      
+      await _fetchUserProfile();
+      await _fetchUserPosts();
+    }
+  } catch (e) {
+    print('Error loading user data: $e');
+  } finally {
+    setState(() {
+      isLoading = false;
+    });
+  }
+}
+
+  Future<void> _fetchUserProfile() async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+            'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/userProfile/${userData!.id}'),
+        headers: {
+          'Authorization': 'Bearer $_idToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final profile = data['userProfile'];
         setState(() {
-          userData = UserData.fromJson(userJson);
-          isLoading = false;
+          userData!.bio = profile['bio'];
+          userData!.location = profile['location'];
+          userData!.profilePicture = profile['profilepicture'];
         });
       }
     } catch (e) {
-      print('Error loading user data: $e');
-      setState(() {
-        isLoading = false;
-      });
+      print('Error fetching user profile: $e');
     }
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+  Future<void> _fetchUserPosts() async {
+  try {
+    // Get the user's posts where userid matches
+    var postsUrl = Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts');
+    
+    print('Fetching posts for user ID: ${userData!.id}');
+    var response = await http.get(
+      postsUrl,
+      headers: {
+        'Authorization': 'Bearer $_idToken',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    );
 
-  String _formatDate(DateTime date) {
-    return '${date.month}/${date.day}/${date.year}';
+    print('Posts response status: ${response.statusCode}');
+    print('Posts response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      var data = json.decode(response.body);
+      setState(() {
+        // Filter posts where userid matches current user's id
+        userData!.posts = (data['posts'] as List).where((post) => 
+          post['userid'] == userData!.id
+        ).toList();
+      });
+      print('Found ${userData!.posts.length} posts for user ${userData!.id}');
+    }
+  } catch (e) {
+    print('Error fetching user posts: $e');
+  }
+}
+
+  void _navigateToEditProfile() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfilePage(
+          userData: userData!,
+          idToken: _idToken!,
+        ),
+      ),
+    );
+
+    if (result == true) {
+      _loadUserDataAndProfile();
+    }
   }
 
   @override
@@ -105,19 +193,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               Tab(text: "My Swap"),
               Tab(text: "Outfits"),
             ],
-            onTap: (index) {
-              if (index == 0) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => WishlistPage(username: userData?.username ?? '')),
-                );
-              } else if (index == 2) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => OutfitsPage()),
-                );
-              }
-            },
           ),
           Expanded(
             child: _buildContent(),
@@ -125,6 +200,11 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         ],
       ),
       bottomNavigationBar: BottomNavBar(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _navigateToEditProfile,
+        child: Icon(Icons.edit),
+        backgroundColor: Colors.deepOrange,
+      ),
     );
   }
 
@@ -147,15 +227,19 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               children: [
                 CircleAvatar(
                   radius: 50,
-                  backgroundColor: Colors.deepOrange.shade100,
-                  child: Text(
-                    '${userData!.firstName[0]}${userData!.lastName[0]}',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepOrange,
-                    ),
-                  ),
+                  backgroundImage: userData!.profilePicture != null
+                      ? NetworkImage(userData!.profilePicture!)
+                      : null,
+                  child: userData!.profilePicture == null
+                      ? Text(
+                          '${userData!.firstName[0]}${userData!.lastName[0]}',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.deepOrange,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -173,37 +257,76 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                     color: Colors.grey[600],
                   ),
                 ),
+                if (userData!.bio != null && userData!.bio!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text(
+                      userData!.bio!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                if (userData!.location != null &&
+                    userData!.location!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.location_on,
+                            size: 16, color: Colors.grey[600]),
+                        SizedBox(width: 4),
+                        Text(
+                          userData!.location!,
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildStatColumn('Likes', userData!.likeCount),
                     const SizedBox(width: 40),
-                    _buildStatColumn('Items', 0), // You can add actual items count here
+                    _buildStatColumn('Items', userData!.posts.length),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildInfoRow(Icons.email, userData!.email),
-                      const SizedBox(height: 12),
-                      _buildInfoRow(Icons.calendar_today, 'Joined ${_formatDate(userData!.joinDate)}'),
-                      if (userData!.profileInfo.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        _buildInfoRow(Icons.info_outline, userData!.profileInfo),
-                      ],
-                    ],
-                  ),
-                ),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 4,
+                childAspectRatio: 1,
+              ),
+              itemCount: userData!.posts.length,
+              itemBuilder: (context, index) {
+                final post = userData!.posts[index];
+                return Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: post['photos'] != null && post['photos'].isNotEmpty
+                      ? Image.network(
+                          post['photos'][0],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.image,
+                              size: 40,
+                              color: Colors.grey[400]),
+                        )
+                      : Center(
+                          child: Icon(Icons.image,
+                              size: 40, color: Colors.grey[400]),
+                        ),
+                );
+              },
             ),
           ),
         ],
@@ -226,24 +349,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           style: TextStyle(
             fontSize: 16,
             color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[800],
-            ),
           ),
         ),
       ],

@@ -90,6 +90,15 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["loginFunction"]
 
+[function_build_definitions.18c82b22-662b-4711-96a2-11846b426acb]
+codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\rabbitmq"
+runtime = "python3.12"
+architecture = "x86_64"
+handler = "app.lambda_handler"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["EmailServiceFunction"]
+
 [layer_build_definitions.57b10947-384b-4a45-af8c-66aa17f3c048]
 layer_name = "DependenciesLayer"
 codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap"

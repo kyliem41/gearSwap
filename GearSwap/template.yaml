@@ -4,7 +4,7 @@ Description: GearSwap - Streamlined SAM Template
 
 Globals:
   Function:
-    Timeout: 180
+    Timeout: 220
     MemorySize: 128
     Runtime: python3.12
     Architectures: 
@@ -15,6 +15,10 @@ Globals:
         DB_USER: "postgres"
         DB_PASSWORD: "postgres"
         DB_PORT: "5432"
+        RABBITMQ_HOST: "amqps://b-cc6042ef-5a23-4da4-9ae7-75adf6ccea4d.mq.us-east-2.amazonaws.com:5671"
+        RABBITMQ_PORT: "5671"
+        RABBITMQ_USER: "myguest"
+        RABBITMQ_PASSWORD: "Guest1234!@#"
         WORKOS_CLIENT_ID: "client_01JA67H9AXQGPC28X9JHF3TB0F"
         WORKOS_API_KEY: "sk_test_a2V5XzAxSkE2N0g4UllEODUxMEVSVkFCRjJEN1czLGNISXJXdmsyck84QjJoZVJ2c0dNdGx4SmY"
         COGNITO_USER_POOL_ID: !Ref UserPool #"us-east-2_y5z7hsmC1"
@@ -74,6 +78,17 @@ Resources:
                   # - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/us-east-2_y5z7hsmC1
                   - !GetAtt UserPool.Arn
                   - !Sub ${UserPool.Arn}/client/*
+        - PolicyName: AmazonMQAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - mq:Connect
+                  - mq:SendMessage
+                  - mq:ReceiveMessage
+                Resource:
+                  - !Sub arn:aws:mq:${AWS::Region}:${AWS::AccountId}:broker:*
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -194,6 +209,27 @@ Resources:
           Properties:
             RestApiId: !Ref gearSwap
             Path: /login
+            Method: POST
+
+  # Email Verification Function
+  EmailServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: rabbitmq/
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        RequestPasswordReset:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/password-reset/request
+            Method: POST
+        VerifyPasswordReset:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/password-reset/verify
             Method: POST
 
   # User Functions
