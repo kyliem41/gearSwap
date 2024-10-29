@@ -9,8 +9,6 @@ import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
 
-from GearSwap.rabbitmq.receive import request_password_reset
-
 def lambda_handler(event, context):
     http_method = event['httpMethod']
     resource_path = event['resource']

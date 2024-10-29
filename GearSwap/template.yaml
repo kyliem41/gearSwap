@@ -4,7 +4,7 @@ Description: GearSwap - Streamlined SAM Template
 
 Globals:
   Function:
-    Timeout: 220
+    Timeout: 520
     MemorySize: 128
     Runtime: python3.12
     Architectures: 
@@ -19,6 +19,7 @@ Globals:
         RABBITMQ_PORT: "5671"
         RABBITMQ_USER: "myguest"
         RABBITMQ_PASSWORD: "Guest1234!@#"
+        SES_SENDER_EMAIL: !Ref SESSenderEmail
         WORKOS_CLIENT_ID: "client_01JA67H9AXQGPC28X9JHF3TB0F"
         WORKOS_API_KEY: "sk_test_a2V5XzAxSkE2N0g4UllEODUxMEVSVkFCRjJEN1czLGNISXJXdmsyck84QjJoZVJ2c0dNdGx4SmY"
         COGNITO_USER_POOL_ID: !Ref UserPool #"us-east-2_y5z7hsmC1"
@@ -35,6 +36,65 @@ Parameters:
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Subnets where the Lambda functions will be deployed
+  SESDomain:
+    Type: String
+    Description: Domain to verify for SES (optional)
+    Default: ""
+  SESRegion:
+    Type: String
+    Default: us-east-2
+    Description: AWS Region for SES
+  SESSenderEmail:
+    Type: String
+    Description: Verified sender email for SES
+  SESConfigurationSet:
+    Type: String
+    Description: SES Configuration Set Name (optional)
+    Default: ""
+  GmailEmail:
+    Type: String
+    Description: Gmail address for sending emails
+    Default: ""
+    NoEcho: true
+  GmailPassword:
+    Type: String
+    Description: Gmail app-specific password
+    Default: ""
+    NoEcho: true  
+  YahooEmail:
+    Type: String
+    Description: Yahoo address for sending emails
+    Default: ""
+    NoEcho: true
+  YahooPassword:
+    Type: String
+    Description: Yahoo app-specific password
+    Default: ""
+    NoEcho: true  
+  OutlookEmail:
+    Type: String
+    Description: Outlook address for sending emails
+    Default: ""
+    NoEcho: true
+  OutlookPassword:
+    Type: String
+    Description: Outlook password or app password
+    Default: ""
+    NoEcho: true    
+  Office365Email:
+    Type: String
+    Description: Office 365 address for sending emails
+    Default: ""
+    NoEcho: true
+  Office365Password:
+    Type: String
+    Description: Office 365 password or app password
+    Default: ""
+    NoEcho: true
+
+Conditions:
+  CreateConfigSet: !Not [!Equals [!Ref SESConfigurationSet, ""]]
+  VerifyDomain: !Not [!Equals [!Ref SESDomain, ""]]
 
 Resources:
   LambdaExecutionRole:
@@ -89,6 +149,24 @@ Resources:
                   - mq:ReceiveMessage
                 Resource:
                   - !Sub arn:aws:mq:${AWS::Region}:${AWS::AccountId}:broker:*
+        - PolicyName: SESAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                  - ses:GetSendQuota
+                  - ses:GetSendStatistics
+                Resource: 
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*'
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${SESConfigurationSet}'
+              - Effect: Allow
+                Action:
+                  - ses:GetSendQuota
+                  - ses:GetSendStatistics
+                Resource: "*"
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -139,6 +217,18 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS,GET'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+            Identity:
+              Header: Authorization
+            Type: COGNITO_USER_POOLS
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -195,6 +285,68 @@ Resources:
         IdToken: minutes
         RefreshToken: days
 
+  EmailLoggingGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/ses/${AWS::StackName}"
+      RetentionInDays: 14
+
+  EmailMetricsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ses.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogging
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt EmailLoggingGroup.Arn
+
+  SESDomainIdentity:
+    Type: AWS::SES::EmailIdentity
+    Condition: VerifyDomain
+    Properties:
+      EmailIdentity: !Ref SESDomain
+      ConfigurationSetAttributes:
+        ConfigurationSetName: !Ref SESConfigurationSet
+      DkimAttributes:
+        SigningEnabled: true
+
+  SESConfigurationSetResource:
+    Type: AWS::SES::ConfigurationSet
+    Condition: CreateConfigSet  # Only create if configuration set name is provided
+    Properties:
+      Name: !Ref SESConfigurationSet
+      
+  SESEventDestination:
+    Type: AWS::SES::ConfigurationSetEventDestination
+    Condition: CreateConfigSet
+    Properties:
+      ConfigurationSetName: !Ref SESConfigurationSet
+      EventDestination:
+        Name: "EmailEventLogging"
+        Enabled: true
+        MatchingEventTypes:
+          - "send"
+          - "reject"
+          - "bounce"
+          - "complaint"
+        CloudWatchDestination:
+          DimensionConfigurations:
+            - DimensionName: "Source"
+              DimensionValueSource: "MessageTag"
+              DefaultDimensionValue: "Unknown"
+
   # Login Function
   loginFunction:
     Type: AWS::Serverless::Function
@@ -210,6 +362,8 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /login
             Method: POST
+            Auth:
+              Authorizer: NONE
 
   # Email Verification Function
   EmailServiceFunction:
@@ -218,6 +372,19 @@ Resources:
       CodeUri: rabbitmq/
       Handler: app.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          GMAIL_EMAIL: !Ref GmailEmail
+          GMAIL_PASSWORD: !Ref GmailPassword          
+          YAHOO_EMAIL: !Ref YahooEmail
+          YAHOO_PASSWORD: !Ref YahooPassword          
+          OUTLOOK_EMAIL: !Ref OutlookEmail
+          OUTLOOK_PASSWORD: !Ref OutlookPassword          
+          OFFICE365_EMAIL: !Ref Office365Email
+          OFFICE365_PASSWORD: !Ref Office365Password
+          SES_REGION: !Ref SESRegion
+          SES_SENDER_EMAIL: !Ref SESSenderEmail
+          SES_CONFIGURATION_SET: !Ref SESConfigurationSet
       Events:
         RequestPasswordReset:
           Type: Api
@@ -225,12 +392,16 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /users/password-reset/request
             Method: POST
+            Auth:
+              Authorizer: NONE
         VerifyPasswordReset:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /users/password-reset/verify
             Method: POST
+            Auth:
+              Authorizer: NONE
 
   # User Functions
   UserFunctions:
@@ -246,6 +417,8 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /users
             Method: POST
+            Auth:
+              Authorizer: NONE
         GetAllUsers:
           Type: Api
           Properties:
@@ -602,3 +775,17 @@ Outputs:
   StylerFunctionsArn:
     Description: Styler Functions ARN
     Value: !GetAtt StylerFunctions.Arn
+  EmailLogGroupName:
+    Description: CloudWatch Log Group for Email Events
+    Value: !Ref EmailLoggingGroup
+  EmailMetricsRoleArn:
+    Description: IAM Role ARN for Email Metrics
+    Value: !GetAtt EmailMetricsRole.Arn
+  SESConfigurationSetName:
+    Description: SES Configuration Set Name
+    Condition: CreateConfigSet
+    Value: !Ref SESConfigurationSet
+  SESDomainIdentityName:
+    Description: SES Domain Identity
+    Condition: VerifyDomain
+    Value: !Ref SESDomain

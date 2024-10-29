@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:sample/logIn/resetPass.dart';
 import 'package:sample/signUp/signUp.dart';
 import '../main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -67,23 +68,35 @@ class _MyLoginPageState extends State<MyLoginPage> {
       }),
     );
 
+    // Print the raw response body for debugging
+    print("Raw response: ${response.body}");
+    
     var data = jsonDecode(response.body);
     
-    // Check if the response contains a message indicating success
-    if (response.statusCode == 200 && data['message'] == 'Login successful') {
+    // Handle error response
+    if (response.statusCode != 200) {
+      setState(() {
+        _errorMessage = data['body'] ?? 'Login failed. Please try again.';
+      });
+      _showErrorDialog(_errorMessage);
+      return;
+    }
+
+    // Handle successful response
+    if (data['message'] == 'Login successful') {
       // Save the tokens
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('accessToken', data['accessToken']);
       await prefs.setString('idToken', data['idToken']);
       await prefs.setString('refreshToken', data['refreshToken']);
       
-      // Save user info
+      // Save user info if present
       if (data['user'] != null) {
         await prefs.setString('user', jsonEncode(data['user']));
       }
       
-      // Navigate to home page and clear the stack
-      if (mounted) {  // Check if widget is still mounted
+      // Navigate to home page
+      if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -93,19 +106,19 @@ class _MyLoginPageState extends State<MyLoginPage> {
       }
     } else {
       setState(() {
-        _errorMessage = data['body'] ?? 'Login failed. Please try again.';
+        _errorMessage = 'Login failed. Please try again.';
       });
       _showErrorDialog(_errorMessage);
     }
   } catch (e, stackTrace) {
     print('Login error: $e');
-    print('Stack trace: $stackTrace');  // Add stack trace for debugging
+    print('Stack trace: $stackTrace');
     setState(() {
-      _errorMessage = 'Network error. Please check your connection.';
+      _errorMessage = 'An error occurred. Please try again.';
     });
     _showErrorDialog(_errorMessage);
   } finally {
-    if (mounted) {  // Check if widget is still mounted
+    if (mounted) {
       setState(() {
         _isLoading = false;
       });
@@ -229,7 +242,12 @@ class _MyLoginPageState extends State<MyLoginPage> {
                     Center(
                       child: TextButton(
                         onPressed: () {
-                          // Implement forgot password functionality
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ResetPasswordPage(),
+                              ),
+                            );
                         },
                         child: Text(
                           'Forgot Password?',

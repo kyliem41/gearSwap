@@ -51,11 +51,6 @@ def lambda_handler(event, context):
     elif resource_path == '/users/followers/{Id}':
         return getUsersFollowers(event, context)
 
-    return {
-        'statusCode': 400,
-        'body': json.dumps('Unsupported route')
-    }
-
 ########################
 #AUTH
 def verify_token(token):
