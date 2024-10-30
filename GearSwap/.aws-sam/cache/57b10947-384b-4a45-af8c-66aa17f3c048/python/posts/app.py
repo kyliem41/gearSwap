@@ -112,6 +112,8 @@ def get_db_connection():
         user=os.environ['DB_USER'],
         password=os.environ['DB_PASSWORD'],
         port=os.environ['DB_PORT'],
+        
+        connect_timeout=5
     )
 
 #############
@@ -244,48 +246,32 @@ def getPosts(event, context):
 
 ############
 def getPostById(event, context):
-    db_host = os.environ['DB_HOST']
-    db_user = os.environ['DB_USER']
-    db_password = os.environ['DB_PASSWORD']
-    db_port = os.environ['DB_PORT']
-
     try:
         userId = event['pathParameters']['userId']
         postId = event['pathParameters']['postId']
         
-        conn = psycopg2.connect(
-            host=db_host,
-            user=db_user,
-            password=db_password,
-            port=db_port,
-        )
-        
-        if not conn:
-            return {
-                "statusCode": 500,
-                "body": json.dumps("Failed to connect to database")
-            }
-            
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            get_query = "SELECT * FROM posts WHERE id = %s AND userId = %s"
-            cursor.execute(get_query, (postId, userId))
-            post = cursor.fetchone()
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                get_query = "SELECT * FROM posts WHERE id = %s AND userId = %s"
+                cursor.execute(get_query, (postId, userId))
+                post = cursor.fetchone()
 
-        if post:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Post retrieved successfully",
-                    "post": post
-                }, default=json_serial)
-            }
-        else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("Post not found")
-            }
-            
+                if post:
+                    return {
+                        "statusCode": 200,
+                        "body": json.dumps({
+                            "message": "Post retrieved successfully",
+                            "post": post
+                        }, default=json_serial)
+                    }
+                else:
+                    return {
+                        "statusCode": 404,
+                        "body": json.dumps("Post not found")
+                    }
+                
     except Exception as e:
+        print(f"Error in getPostById: {str(e)}")  # Add detailed logging
         return {
             "statusCode": 500,
             "body": json.dumps(f"Error getting post: {str(e)}"),

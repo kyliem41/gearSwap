@@ -1,9 +1,12 @@
+import jwt
 import psycopg2
 import os
 import json
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import boto3
+import requests
+from jwt.algorithms import RSAAlgorithm
 
 def lambda_handler(event, context):
     http_method = event['httpMethod']
@@ -92,6 +95,8 @@ def get_db_connection():
         user=os.environ['DB_USER'],
         password=os.environ['DB_PASSWORD'],
         port=os.environ['DB_PORT'],
+        
+        connect_timeout=5
     )
 
 ########################

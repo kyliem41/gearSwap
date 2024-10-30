@@ -142,6 +142,8 @@ def get_user_info_from_db(email):
             user=db_user,
             password=os.environ['DB_PASSWORD'],
             port=db_port,
+            
+            connect_timeout=5
         )
         print("Database connection successful")
         

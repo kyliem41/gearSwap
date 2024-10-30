@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/logIn/logIn.dart';
+import 'package:sample/posts/postDetails.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -69,7 +70,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
       var url = Uri.parse(
           'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts');
-      
+
       print('Fetching posts with token...');
       var response = await http.get(
         url,
@@ -87,9 +88,9 @@ class _MyHomePageState extends State<MyHomePage> {
         var data = jsonDecode(response.body);
         // Extract the posts array from the response
         List<dynamic> postsData = data['posts'];
-        
+
         print('Fetched ${postsData.length} posts');
-        
+
         setState(() {
           posts = postsData;
           hasError = false;
@@ -138,7 +139,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   : posts.isEmpty
                       ? Center(child: Text("No posts available"))
                       : GridView.builder(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 4,
                             crossAxisSpacing: 10.0,
                             mainAxisSpacing: 10.0,
@@ -149,14 +151,14 @@ class _MyHomePageState extends State<MyHomePage> {
                             final post = posts[index];
                             return GestureDetector(
                               onTap: () {
-                                print('Post tapped: ${post['id']}');
-                                // Navigator.push(
-                                  // context,
-                                  // MaterialPageRoute(
-                                  //   builder: (context) =>
-                                  //       PostDetailPage(postId: post['id']),
-                                  // ),
-                                // );
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PostDetailPage(
+                                      postId: post['id'].toString(),
+                                    ),
+                                  ),
+                                );
                               },
                               child: Card(
                                 elevation: 4.0,
@@ -210,7 +212,8 @@ class _MyHomePageState extends State<MyHomePage> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            post['description'] ?? 'No description',
+                                            post['description'] ??
+                                                'No description',
                                             style: TextStyle(fontSize: 14),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
