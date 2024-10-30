@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
-import 'package:sample/appBars/topNavBar.dart';
+import 'package:sample/appBars/postDetailTopBar.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -24,61 +24,31 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Map<String, dynamic>? post;
   bool isLiked = false;
   TextEditingController messageController = TextEditingController();
-  Map<String, dynamic>? userData;
-  String? _idToken;
 
   @override
   void initState() {
     super.initState();
-    _loadUserDataAndPost();
-  }
-
-  Future<void> _loadUserDataAndPost() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userString = prefs.getString('user');
-      final idToken = prefs.getString('idToken');
-
-      print('Loading user data...');
-      print('User string exists: ${userString != null}');
-      print('ID token exists: ${idToken != null}');
-
-      if (userString != null && idToken != null) {
-        final userJson = jsonDecode(userString);
-        print('User ID from stored data: ${userJson['id']}');
-
-        setState(() {
-          _idToken = idToken;
-          userData = userJson;
-        });
-
-        await _loadPostDetails();
-      } else {
-        throw Exception('No authentication data found');
-      }
-    } catch (e) {
-      print('Error loading user data: $e');
-      setState(() {
-        hasError = true;
-      });
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
-    }
+    _loadPostDetails();
   }
 
   Future<void> _loadPostDetails() async {
-    if (userData == null || _idToken == null) {
-      throw Exception('No user data or token available');
-    }
+    setState(() {
+      isLoading = true;
+      hasError = false;
+    });
 
     try {
-      print(
-          'Loading details for post ${widget.postId} with user ${userData!['id']}');
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
+
+      if (idToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      print('Loading details for post ${widget.postId}');
 
       final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/${userData!['id']}/${widget.postId}',
+        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/${widget.postId}',
       );
 
       print('Requesting URL: $url');
@@ -87,7 +57,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_idToken',
+          'Authorization': 'Bearer $idToken',
         },
       );
 
@@ -269,7 +239,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
     if (isLoading) {
       return Scaffold(
-        appBar: TopNavBar(),
+        appBar: PostDetailTopNavBar(),
         body: const Center(child: CircularProgressIndicator()),
         bottomNavigationBar: BottomNavBar(),
       );
@@ -277,7 +247,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
     if (hasError || post == null) {
       return Scaffold(
-        appBar: TopNavBar(),
+        appBar: PostDetailTopNavBar(),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -304,7 +274,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
 
     return Scaffold(
-      appBar: TopNavBar(),
+      appBar: PostDetailTopNavBar(),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(

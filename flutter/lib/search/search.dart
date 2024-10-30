@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
+import 'package:sample/posts/postDetails.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SearchPage extends StatefulWidget {
@@ -202,10 +203,17 @@ class _SearchPageState extends State<SearchPage> {
                         itemBuilder: (context, index) {
                           final post = searchResults[index];
                           return GestureDetector(
-                            onTap: () {
-                              // Handle post tap
-                              print('Post tapped: ${post['id']}');
-                            },
+                              onTap: () {
+                                print('Post tapped: ${post['id']}');
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PostDetailPage(
+                                      postId: post['id'].toString(),
+                                    ),
+                                  ),
+                                );
+                              },
                             child: Card(
                               elevation: 4.0,
                               child: Column(

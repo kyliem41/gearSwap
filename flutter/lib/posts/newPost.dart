@@ -103,7 +103,7 @@ class _NewPostPageState extends State<NewPostPage> {
 
       print('Request body: ${json.encode(requestBody)}');
       final url =
-          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/$userId';
+          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/create/$userId';
       print('Endpoint URL: $url');
 
       final response = await http.post(

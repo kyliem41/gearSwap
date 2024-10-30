@@ -33,18 +33,17 @@ def lambda_handler(event, context):
     if resource_path == '/posts':
         if http_method == 'GET':
             return getPosts(event, context)
-    elif resource_path == '/posts/{userId}':
+    elif resource_path == '/posts/create/{userId}':
         if http_method == 'POST':
             return createPost(event, context)
-    elif resource_path == '/posts/{userId}/{postId}':
-        if http_method == 'GET':
-            return getPostById(event, context)
-        elif http_method == 'PUT':
-            return putPost(event, context)
-        elif http_method == 'DELETE':
-            return deletePost(event, context)
+    elif resource_path == '/posts/update/{userId}/{postId}':
+        return putPost(event, context)
+    elif resource_path == 'posts/delete/{userId}/{postId}':
+        return deletePost(event, context)
     elif resource_path == '/posts/filter/{userId}':
         return getPostsByFilter(event, context)
+    elif resource_path == '/posts/{postId}':
+        return getPostById(event, context)
 
     return {
         'statusCode': 400,
@@ -203,7 +202,7 @@ def getPosts(event, context):
         get_query = """
         SELECT *
         FROM posts
-        ORDER BY id  -- Or any other field you want to order by
+        ORDER BY id
         LIMIT %s OFFSET %s
         """
         
@@ -247,13 +246,12 @@ def getPosts(event, context):
 ############
 def getPostById(event, context):
     try:
-        userId = event['pathParameters']['userId']
         postId = event['pathParameters']['postId']
         
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                get_query = "SELECT * FROM posts WHERE id = %s AND userId = %s"
-                cursor.execute(get_query, (postId, userId))
+                get_query = "SELECT * FROM posts WHERE id = %s"
+                cursor.execute(get_query, (postId))
                 post = cursor.fetchone()
 
                 if post:
@@ -279,6 +277,40 @@ def getPostById(event, context):
     finally:
         if conn:
             conn.close()
+# def getPostById(event, context):
+#     try:
+#         userId = event['pathParameters']['userId']
+#         postId = event['pathParameters']['postId']
+        
+#         with get_db_connection() as conn:
+#             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+#                 get_query = "SELECT * FROM posts WHERE id = %s AND userId = %s"
+#                 cursor.execute(get_query, (postId, userId))
+#                 post = cursor.fetchone()
+
+#                 if post:
+#                     return {
+#                         "statusCode": 200,
+#                         "body": json.dumps({
+#                             "message": "Post retrieved successfully",
+#                             "post": post
+#                         }, default=json_serial)
+#                     }
+#                 else:
+#                     return {
+#                         "statusCode": 404,
+#                         "body": json.dumps("Post not found")
+#                     }
+                
+#     except Exception as e:
+#         print(f"Error in getPostById: {str(e)}")
+#         return {
+#             "statusCode": 500,
+#             "body": json.dumps(f"Error getting post: {str(e)}"),
+#         }
+#     finally:
+#         if conn:
+#             conn.close()
 
 ############
 # GET /posts/filter/{userId}?clothingType=shirt&size=M&minPrice=20&maxPrice=50&page=1&page_size=10
@@ -487,6 +519,3 @@ def deletePost(event, context):
     finally:
         if conn:
             conn.close()
-        
-#delete works but isnt returning the right id in message, tried Id, tried postId, userId
-#get post by id doesnt work, presents 'unsupported route'

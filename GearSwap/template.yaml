@@ -534,7 +534,7 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{userId}
+            Path: /posts/create/{userId}
             Method: POST
         GetAllPosts:
           Type: Api
@@ -546,19 +546,19 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{userId}/{postId}
+            Path: /posts/{postId}
             Method: GET
         UpdatePost:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{userId}/{postId}
+            Path: /posts/update/{userId}/{postId}
             Method: PUT
         DeletePost:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
-            Path: /posts/{userId}/{postId}
+            Path: /posts/delete/{userId}/{postId}
             Method: DELETE
         GetPostsByFilter:
           Type: Api
