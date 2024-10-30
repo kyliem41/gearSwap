@@ -100,6 +100,8 @@ def get_db_connection():
         user=os.environ['DB_USER'],
         password=os.environ['DB_PASSWORD'],
         port=os.environ['DB_PORT'],
+        
+        connect_timeout=5
     )
 
 #############
@@ -217,14 +219,21 @@ def getUserProfile(event, context):
 ############
 def putUserProfile(event, context):
     try:
-        body = json.loads(event.get('body', '{}'))
+        if isinstance(event.get('body'), str):
+            body = json.loads(event['body'])
+        else:
+            body = json.loads(event.get('body', '{}'))
+
+        user_id = event['pathParameters']['Id']
+        bio = body.get('bio')
+        location = body.get('location')
+        profilePicture = body.get('profilePicture')
+
     except json.JSONDecodeError:
         return {
             "statusCode": 400,
             "body": json.dumps("Invalid JSON format in request body")
         }
-
-    user_id = event['pathParameters']['Id']
 
     update_query = """
     UPDATE userProfile    
@@ -238,11 +247,11 @@ def putUserProfile(event, context):
     try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(update_query, (body.get('bio'), body.get('location'), body.get('profilePicture'), user_id))
+                print("Executing update query")
+                cursor.execute(update_query, (bio, location, profilePicture, user_id))
                 updated_userProfile = cursor.fetchone()
                 
                 if updated_userProfile:
-                    # Fetch the username from the users table
                     cursor.execute("SELECT username FROM users WHERE id = %s", (user_id,))
                     user = cursor.fetchone()
                     if user:
@@ -266,6 +275,7 @@ def putUserProfile(event, context):
         
     except Exception as e:
         print(f"Failed to update UserProfile. Error: {str(e)}")
+        print(f"Error type: {type(e)}")
         return {
             "statusCode": 500,
             "body": json.dumps(f"Error updating UserProfile: {str(e)}")

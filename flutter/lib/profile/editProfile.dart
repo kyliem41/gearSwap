@@ -48,7 +48,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       print('Making PUT request to: $url');
       print('Request body: ${json.encode(body)}');
-      print('Token: ${widget.idToken}');
 
       final response = await http.put(
         url,
