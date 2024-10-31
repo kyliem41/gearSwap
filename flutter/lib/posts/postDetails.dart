@@ -23,12 +23,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
   bool hasError = false;
   Map<String, dynamic>? post;
   bool isLiked = false;
+  String? userId;
   TextEditingController messageController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadPostDetails();
+    _loadUserId();
   }
 
   Future<void> _loadPostDetails() async {
@@ -89,14 +91,121 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Future<void> _toggleLike() async {
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      isLiked = !isLiked;
+      userId = prefs.getString('userId');
     });
-    // Implement like functionality with your API
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(isLiked ? 'Post liked' : 'Post unliked')),
-    );
+    if (userId != null) {
+      _checkIfPostLiked();
+    }
+  }
+
+  Future<void> _checkIfPostLiked() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
+
+      if (idToken == null || userId == null) {
+        throw Exception('No authentication token or user ID found');
+      }
+
+      final url = Uri.parse(
+        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/likedPosts/$userId/${widget.postId}',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          isLiked = true;
+        });
+      } else if (response.statusCode == 404) {
+        setState(() {
+          isLiked = false;
+        });
+      } else {
+        throw Exception('Failed to check like status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error checking like status: $e');
+    }
+  }
+
+  Future<void> _toggleLike() async {
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to like posts')),
+      );
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
+
+      if (idToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final baseUrl = 'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/likedPosts';
+
+      if (!isLiked) {
+        // Add like
+        final response = await http.post(
+          Uri.parse('$baseUrl/$userId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: json.encode({
+            'postId': widget.postId,
+          }),
+        );
+
+        if (response.statusCode == 201) {
+          setState(() {
+            isLiked = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Post liked')),
+          );
+        } else {
+          throw Exception('Failed to like post: ${response.statusCode}');
+        }
+      } else {
+        // Remove like
+        final response = await http.delete(
+          Uri.parse('$baseUrl/$userId/${widget.postId}'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+        );
+
+        if (response.statusCode == 200) {
+          setState(() {
+            isLiked = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Post unliked')),
+          );
+        } else {
+          throw Exception('Failed to unlike post: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      print('Error toggling like: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to ${isLiked ? 'unlike' : 'like'} post')),
+      );
+    }
   }
 
   Future<void> _reportPost() async {

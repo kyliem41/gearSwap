@@ -30,7 +30,12 @@ def lambda_handler(event, context):
             'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
         }
 
-    if resource_path == '/posts':
+    print(f"HTTP Method: {http_method}")
+    print(f"Resource Path: {resource_path}")
+
+    if http_method == 'DELETE' and resource_path == '/posts/delete/{userId}/{postId}':
+        return deletePost(event, context)
+    elif resource_path == '/posts':
         if http_method == 'GET':
             return getPosts(event, context)
     elif resource_path == '/posts/create/{userId}':
@@ -38,10 +43,6 @@ def lambda_handler(event, context):
             return createPost(event, context)
     elif resource_path == '/posts/update/{userId}/{postId}':
         return putPost(event, context)
-    elif resource_path == 'posts/delete/{userId}/{postId}':
-        return deletePost(event, context)
-    elif resource_path == '/posts/filter/{userId}':
-        return getPostsByFilter(event, context)
     elif resource_path == '/posts/{postId}':
         return getPostById(event, context)
 

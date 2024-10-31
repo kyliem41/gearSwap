@@ -4,6 +4,7 @@ import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/outfits/outfits.dart';
 import 'package:sample/profile/editProfile.dart';
+import 'package:sample/profile/profilePostDetails.dart';
 import 'package:sample/wishlist/wishlist.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -266,15 +267,13 @@ class _ProfilePageState extends State<ProfilePage>
                       style: TextStyle(fontSize: 16),
                     ),
                   ),
-                if (userData!.location != null &&
-                    userData!.location!.isNotEmpty)
+                if (userData!.location != null && userData!.location!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.location_on,
-                            size: 16, color: Colors.grey[600]),
+                        Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
                         SizedBox(width: 4),
                         Text(
                           userData!.location!,
@@ -297,37 +296,107 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           const SizedBox(height: 16),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: 4,
-                crossAxisSpacing: 4,
-                childAspectRatio: 1,
-              ),
-              itemCount: userData!.posts.length,
-              itemBuilder: (context, index) {
-                final post = userData!.posts[index];
-                return Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: post['photos'] != null && post['photos'].isNotEmpty
-                      ? Image.network(
-                          post['photos'][0],
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Icon(
-                              Icons.image,
-                              size: 40,
-                              color: Colors.grey[400]),
-                        )
-                      : Center(
-                          child: Icon(Icons.image,
-                              size: 40, color: Colors.grey[400]),
+            padding: const EdgeInsets.all(20.0),
+            child: userData!.posts.isEmpty
+                ? Center(child: Text("No posts available"))
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 10.0,
+                      mainAxisSpacing: 10.0,
+                      childAspectRatio: 0.7,
+                    ),
+                    itemCount: userData!.posts.length,
+                    itemBuilder: (context, index) {
+                      final post = userData!.posts[index];
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProfilePostDetailPage(
+                                postId: post['id'].toString(),
+                              ),
+                            ),
+                          ).then((_) {
+                            // Refresh the posts when returning from detail page
+                            _fetchUserPosts();
+                          });
+                        },
+                        child: Card(
+                          elevation: 4.0,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Expanded(
+                                child: Container(
+                                  color: Colors.grey[200],
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        if (post['photos'] != null &&
+                                            post['photos'].isNotEmpty)
+                                          Image.network(
+                                            post['photos'][0],
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    Icon(
+                                              Icons.image,
+                                              size: 40,
+                                              color: Colors.grey[400],
+                                            ),
+                                          )
+                                        else
+                                          Icon(
+                                            Icons.image,
+                                            size: 40,
+                                            color: Colors.grey[400],
+                                          ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '\$${post['price']}',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      post['description'] ?? 'No description',
+                                      style: TextStyle(fontSize: 14),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (post['size'] != null)
+                                      Text(
+                                        'Size: ${post['size']}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                );
-              },
-            ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
