@@ -13,7 +13,18 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  bool _isSearchBarFocused = false;
   String searchQuery = "";
+  List<dynamic> searchResults = [];
+  List<dynamic> recentSearches = [];
+  bool isLoading = false;
+  String? selectedTag;
+  String? _idToken;
+  String? _userId;
+  FocusNode _focusNode = FocusNode();
+
   List<String> tags = [
     'Jackets',
     'Pink',
@@ -23,11 +34,6 @@ class _SearchPageState extends State<SearchPage> {
     'Zara',
     'Denim'
   ];
-  List<dynamic> searchResults = [];
-  bool isLoading = false;
-  String? selectedTag;
-  String? _idToken;
-  String? _userId;
 
   List<Color> tagColors = [
     Colors.red,
@@ -43,11 +49,19 @@ class _SearchPageState extends State<SearchPage> {
   void initState() {
     super.initState();
     _loadUserData();
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        _loadRecentSearches();
+        _showOverlay();
+      }
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _focusNode.dispose();
+    _hideOverlay();
     super.dispose();
   }
 
@@ -73,7 +87,168 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
+  void _showOverlay() {
+    if (_overlayEntry != null || recentSearches.isEmpty) return;
+
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () {
+          _hideOverlay();
+        },
+        child: Stack(
+          children: [
+            Positioned(
+              width: size.width - 32,
+              child: CompositedTransformFollower(
+                link: _layerLink,
+                showWhenUnlinked: false,
+                offset: Offset(0, 60),
+                child: GestureDetector(
+                  onTap: () {}, // Prevent click from propagating to background
+                  child: Material(
+                    elevation: 8,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var search in recentSearches)
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Colors.grey[200]!,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: ListTile(
+                                onTap: () {
+                                  _searchController.text =
+                                      search['searchquery'];
+                                  searchQuery = search['searchquery'];
+                                  _performSearch(search['searchquery']);
+                                  _hideOverlay();
+                                },
+                                hoverColor: Colors.grey[200],
+                                title: Text(
+                                  search['searchquery'],
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                trailing: IconButton(
+                                  icon: Icon(Icons.close, size: 20),
+                                  onPressed: () async {
+                                    await _deleteSearch(
+                                        search['id'].toString());
+                                  },
+                                  splashRadius: 20,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  Future<void> _loadRecentSearches() async {
+    if (_idToken == null || _userId == null) return;
+
+    try {
+      final url = Uri.parse(
+        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/search/$_userId',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $_idToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          recentSearches = data['searches'] ?? [];
+        });
+
+        if (_overlayEntry != null) {
+          if (recentSearches.isEmpty) {
+            _hideOverlay();
+          } else {
+            _overlayEntry!.markNeedsBuild();
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading recent searches: $e');
+    }
+  }
+
+  Future<void> _deleteSearch(String searchId) async {
+    try {
+      final url = Uri.parse(
+        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/search/$_userId/$searchId',
+      );
+
+      final response = await http.delete(
+        url,
+        headers: {
+          'Authorization': 'Bearer $_idToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // Update the local state
+        setState(() {
+          recentSearches
+              .removeWhere((search) => search['id'].toString() == searchId);
+        });
+
+        // If there are no more searches, hide the overlay
+        if (recentSearches.isEmpty) {
+          _hideOverlay();
+        } else {
+          // Force overlay to rebuild
+          _overlayEntry?.markNeedsBuild();
+        }
+      }
+    } catch (e) {
+      print('Error deleting search: $e');
+    }
+  }
+
   Future<void> _performSearch(String query) async {
+    // Validate query before sending
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) {
+      print('Empty search query, skipping search');
+      return;
+    }
+
     if (_idToken == null || _userId == null) {
       print('No authentication token or user ID found');
       return;
@@ -94,7 +269,7 @@ class _SearchPageState extends State<SearchPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_idToken',
         },
-        body: json.encode({'searchQuery': query}),
+        body: json.encode({'searchQuery': trimmedQuery}),
       );
 
       if (response.statusCode == 201) {
@@ -102,6 +277,13 @@ class _SearchPageState extends State<SearchPage> {
         print('Search response: ${response.body}');
         setState(() {
           searchResults = data['posts'] ?? [];
+          isLoading = false;
+        });
+        // Only reload recent searches if the search was successful
+        _loadRecentSearches();
+      } else if (response.statusCode == 400) {
+        print('Invalid search query: ${response.body}');
+        setState(() {
           isLoading = false;
         });
       } else {
@@ -132,29 +314,36 @@ class _SearchPageState extends State<SearchPage> {
         children: [
           Padding(
             padding: EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  searchQuery = value;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Search for items...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30.0),
+            child: CompositedTransformTarget(
+              link: _layerLink,
+              child: TextField(
+                controller: _searchController,
+                focusNode: _focusNode,
+                onChanged: (value) {
+                  setState(() {
+                    searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search for items...',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30.0),
+                  ),
+                  filled: true,
+                  fillColor: Colors.deepOrange[100],
                 ),
-                filled: true,
-                fillColor: Colors.deepOrange[100],
+                textAlign: TextAlign.center,
+                onSubmitted: (value) {
+                  if (value.trim().isNotEmpty) {
+                    setState(() {
+                      selectedTag = null;
+                    });
+                    _performSearch(value);
+                    _focusNode.unfocus();
+                  }
+                },
               ),
-              textAlign: TextAlign.center,
-              onSubmitted: (value) {
-                setState(() {
-                  selectedTag = null;
-                });
-                _performSearch(value);
-              },
             ),
           ),
           Padding(
@@ -203,17 +392,17 @@ class _SearchPageState extends State<SearchPage> {
                         itemBuilder: (context, index) {
                           final post = searchResults[index];
                           return GestureDetector(
-                              onTap: () {
-                                print('Post tapped: ${post['id']}');
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => PostDetailPage(
-                                      postId: post['id'].toString(),
-                                    ),
+                            onTap: () {
+                              print('Post tapped: ${post['id']}');
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => PostDetailPage(
+                                    postId: post['id'].toString(),
                                   ),
-                                );
-                              },
+                                ),
+                              );
+                            },
                             child: Card(
                               elevation: 4.0,
                               child: Column(
