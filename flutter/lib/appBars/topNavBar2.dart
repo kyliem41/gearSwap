@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:sample/cart/cart.dart';
 import 'package:sample/main.dart';
 
-class PostDetailTopNavBar extends StatelessWidget
+class TopNavBar2 extends StatelessWidget
     implements PreferredSizeWidget {
   @override
   final Size preferredSize;
 
-  PostDetailTopNavBar({Key? key})
+  TopNavBar2({Key? key})
       : preferredSize = Size.fromHeight(60.0),
         super(key: key);
 

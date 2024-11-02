@@ -175,7 +175,7 @@ def createUser(event, context):
 
         # Create user in Cognito
         try:
-            # Create user with email as username
+            # Cognito user creation code remains the same
             cognito_response = cognito_client.admin_create_user(
                 UserPoolId=user_pool_id,
                 Username=email,
@@ -191,7 +191,6 @@ def createUser(event, context):
                 ForceAliasCreation=True
             )
 
-            # Set permanent password
             cognito_client.admin_set_user_password(
                 UserPoolId=user_pool_id,
                 Username=email,
@@ -199,7 +198,7 @@ def createUser(event, context):
                 Permanent=True
             )
 
-            # Create user in database
+            # Create database connection
             conn = psycopg2.connect(
                 host=db_host,
                 user=db_user,
@@ -207,22 +206,54 @@ def createUser(event, context):
                 port=db_port,
             )
 
-            insert_query = """
-            INSERT INTO users (firstName, lastName, username, email, password, profileInfo, joinDate, likeCount) 
-            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0)
-            RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
-            """
-
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(insert_query, (firstName, lastName, username, email, password, profile_info))
+                # First, insert the user
+                insert_user_query = """
+                INSERT INTO users (firstName, lastName, username, email, password, profileInfo, joinDate, likeCount) 
+                VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0)
+                RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
+                """
+                cursor.execute(insert_user_query, (firstName, lastName, username, email, password, profile_info))
                 new_user = cursor.fetchone()
+                
+                # Default values for user profile
+                default_bio = f"Hi, I'm {username}"
+                default_location = "I'm here"
+                default_profile_picture = "https://example.com/default-profile.jpg"  # Replace with your default image URL
+                
+                # Then, create the user profile with the returned user ID
+                insert_profile_query = """
+                INSERT INTO userProfile (userId, username, bio, location, profilePicture) 
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, userId, username, bio, location, profilePicture;
+                """
+                cursor.execute(insert_profile_query, (
+                    new_user['id'], 
+                    username, 
+                    default_bio,
+                    default_location,
+                    default_profile_picture
+                ))
+                new_profile = cursor.fetchone()
+                
+                # Update the user's profileInfo with the new profile ID
+                update_user_query = """
+                UPDATE users 
+                SET profileInfo = %s 
+                WHERE id = %s
+                RETURNING id, firstName, lastName, username, email, profileInfo, joinDate, likeCount;
+                """
+                cursor.execute(update_user_query, (new_profile['id'], new_user['id']))
+                updated_user = cursor.fetchone()
+                
                 conn.commit()
 
             return {
                 "statusCode": 201,
                 "body": json.dumps({
-                    "message": "User created successfully",
-                    "user": new_user,
+                    "message": "User and profile created successfully",
+                    "user": updated_user,
+                    "profile": new_profile,
                     "cognitoUser": cognito_response['User']
                 }, default=str)
             }

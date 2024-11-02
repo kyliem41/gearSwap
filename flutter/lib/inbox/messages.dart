@@ -1,68 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:sample/appBars/bottomNavBar.dart';
-import 'package:sample/appBars/topNavBar.dart';
-
-void main() {
-  runApp(const MessagePage());
-}
+import 'package:sample/appBars/topNavBar2.dart';
 
 class MessagePage extends StatelessWidget {
   const MessagePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        appBar: TopNavBar(),
-        body: Column(
-          children: [
-            // Recipient's Profile Picture and Username at the top right
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.grey[300],
-                    child: Text(
-                      'JD', // This is where the profile picture initials or image would go
-                      style: TextStyle(color: Colors.white),
-                    ),
+    return Scaffold(
+      appBar: TopNavBar2(),
+      body: Column(
+        children: [
+          // Recipient's Profile Picture and Username at the top right
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.grey[300],
+                  child: Text(
+                    'JD', // This is where the profile picture initials or image would go
+                    style: TextStyle(color: Colors.white),
                   ),
-                  SizedBox(width: 10),
-                  Text(
-                    'john_doe', // Username of the recipient
-                    style: TextStyle(
-                      fontSize: 18.0,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepOrange,
-                    ),
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'john_doe', // Username of the recipient
+                  style: TextStyle(
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepOrange,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(8.0),
-                children: const [
-                  MessageBubble(
-                    text: "Hi! I'm your AI stylist. How can I help you today?",
-                    isAI: true,
-                  ),
-                  MessageBubble(
-                    text: "I need help choosing an outfit for a party.",
-                    isAI: false,
-                  ),
-                  // Add more MessageBubbles as needed
-                ],
-              ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(8.0),
+              children: const [
+                MessageBubble(
+                  text: "Hi! I'm your AI stylist. How can I help you today?",
+                  isAI: true,
+                ),
+                MessageBubble(
+                  text: "I need help choosing an outfit for a party.",
+                  isAI: false,
+                ),
+                // Add more MessageBubbles as needed
+              ],
             ),
-            const MessageInput(),
-          ],
-        ),
-        bottomNavigationBar: BottomNavBar(),
+          ),
+          const MessageInput(),
+        ],
       ),
+      bottomNavigationBar: BottomNavBar(),
     );
   }
 }

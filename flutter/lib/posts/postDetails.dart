@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
-import 'package:sample/appBars/postDetailTopBar.dart';
+import 'package:sample/appBars/topNavBar2.dart';
+import 'package:sample/cart/cart.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -24,21 +25,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Map<String, dynamic>? post;
   bool isLiked = false;
   String? userId;
+  bool isInCart = false;
   TextEditingController messageController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadPostDetails();
-    _loadUserId();
+    _loadUserData();
   }
 
   Future<void> _loadPostDetails() async {
-    setState(() {
-      isLoading = true;
-      hasError = false;
-    });
-
     try {
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
@@ -47,13 +43,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
         throw Exception('No authentication token found');
       }
 
-      print('Loading details for post ${widget.postId}');
-
       final url = Uri.parse(
         'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/${widget.postId}',
       );
 
-      print('Requesting URL: $url');
+      print('Loading post details from: $url');
 
       final response = await http.get(
         url,
@@ -73,7 +67,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           isLoading = false;
         });
       } else {
-        throw Exception('Failed to load post details: ${response.statusCode}');
+        throw Exception('Failed to load post details');
       }
     } catch (e) {
       print('Error loading post details: $e');
@@ -84,21 +78,180 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  Future<void> _addToCart() async {
-    // Implement cart functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Added to cart')),
-    );
+  Future<void> _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userString = prefs.getString('user');
+
+      if (userString != null) {
+        final userJson = jsonDecode(userString);
+        setState(() {
+          userId = userJson['id'].toString();
+        });
+        print('Loaded userId from user data: $userId');
+        await Future.wait([
+          _loadPostDetails(),
+          _checkCartStatus(),
+        ]);
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    }
   }
 
-  Future<void> _loadUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      userId = prefs.getString('userId');
-    });
-    if (userId != null) {
-      _checkIfPostLiked();
+  Future<void> _checkCartStatus() async {
+    try {
+      if (userId == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
+
+      if (idToken == null) return;
+
+      final url = Uri.parse(
+        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/cart/$userId',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['cart'] != null) {
+          final cartItems = data['cart'] as List;
+          final isItemInCart = cartItems
+              .any((item) => item['postid'].toString() == widget.postId);
+
+          if (mounted) {
+            setState(() {
+              isInCart = isItemInCart;
+            });
+          }
+          print('Item in cart status: $isInCart');
+        }
+      }
+    } catch (e) {
+      print('Error checking cart status: $e');
     }
+  }
+
+  Future<void> _addToCart() async {
+    try {
+      if (userId == null) {
+        final prefs = await SharedPreferences.getInstance();
+        final userString = prefs.getString('user');
+
+        if (userString == null) {
+          print('No user data found');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please log in to add items to cart')),
+          );
+          return;
+        }
+
+        final userJson = jsonDecode(userString);
+        setState(() {
+          userId = userJson['id'].toString();
+        });
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
+
+      if (idToken == null) {
+        print('No authentication token found');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please log in to add items to cart')),
+        );
+        return;
+      }
+
+      print('Adding to cart for userId: $userId');
+      final url = Uri.parse(
+        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/cart/$userId',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: json.encode({
+          'postId': widget.postId,
+        }),
+      );
+
+      print('Add to cart response status: ${response.statusCode}');
+      print('Add to cart response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        setState(() {
+          isInCart = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Added to cart successfully')),
+        );
+      } else {
+        throw Exception('Failed to add to cart: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error adding to cart: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to add to cart')),
+      );
+    }
+  }
+
+  Future<void> _checkIfInCart() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userString = prefs.getString('user');
+      final idToken = prefs.getString('idToken');
+
+      if (userString == null || idToken == null) return;
+
+      final userJson = jsonDecode(userString);
+      final userId = userJson['id'].toString();
+
+      final url = Uri.parse(
+        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/cart/$userId',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['cart'] != null) {
+          final items = data['cart'] as List;
+          setState(() {
+            isInCart = items.any((item) =>
+                item['post'] != null &&
+                item['post']['id'].toString() == widget.postId);
+          });
+        }
+      }
+    } catch (e) {
+      print('Error checking cart status: $e');
+    }
+  }
+
+  void _navigateToCart() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => CartPage()),
+    ).then((_) {
+      _checkCartStatus();
+    });
   }
 
   Future<void> _checkIfPostLiked() async {
@@ -154,7 +307,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
         throw Exception('No authentication token found');
       }
 
-      final baseUrl = 'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/likedPosts';
+      final baseUrl =
+          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/likedPosts';
 
       if (!isLiked) {
         // Add like
@@ -203,7 +357,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
     } catch (e) {
       print('Error toggling like: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to ${isLiked ? 'unlike' : 'like'} post')),
+        SnackBar(
+            content: Text('Failed to ${isLiked ? 'unlike' : 'like'} post')),
       );
     }
   }
@@ -342,115 +497,130 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (isLoading) {
-      return Scaffold(
-        appBar: PostDetailTopNavBar(),
-        body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(),
-      );
-    }
-
-    if (hasError || post == null) {
-      return Scaffold(
-        appBar: PostDetailTopNavBar(),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Failed to load post details',
-                style: theme.textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.error,
-                  textStyle:
-                      theme.textTheme.bodyLarge?.copyWith(color: Colors.white),
-                ),
-                onPressed: _loadPostDetails,
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-        bottomNavigationBar: BottomNavBar(),
-      );
-    }
-
-    return Scaffold(
-      appBar: PostDetailTopNavBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildPhotoSection(),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '\$${post!['price']}',
-                    style: theme.textTheme.headlineMedium
-                        ?.copyWith(color: theme.colorScheme.primary),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    post!['description'] ?? 'No description provided',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  if (post!['size'] != null)
-                    Text(
-                      'Size: ${post!['size']}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                ],
-              ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _addToCart,
-                  icon: Icon(Icons.shopping_cart,
-                      color: theme.colorScheme.onPrimary),
-                  label: Text('Add to Cart', style: theme.textTheme.labelLarge),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    color:
-                        isLiked ? Colors.red : theme.colorScheme.onBackground,
-                  ),
-                  onPressed: _toggleLike,
-                ),
-                ElevatedButton.icon(
-                  onPressed: _messageUser,
-                  icon: Icon(Icons.message, color: theme.colorScheme.onPrimary),
-                  label: Text('Message', style: theme.textTheme.labelLarge),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                  ),
-                ),
-              ],
-            ),
-          ],
+  Widget _buildCartButton() {
+    return ElevatedButton.icon(
+      onPressed: isInCart ? _navigateToCart : _addToCart,
+      icon: Icon(
+        isInCart ? Icons.shopping_bag : Icons.shopping_cart,
+        color: Theme.of(context).colorScheme.onPrimary,
+      ),
+      label: Text(
+        isInCart ? 'View Cart' : 'Add to Cart',
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: Theme.of(context).colorScheme.onPrimary,
         ),
       ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: TopNavBar2(),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : hasError || post == null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Failed to load post details',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: _loadPostDetails,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildPhotoSection(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '\$${post!['price']}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              post!['description'] ?? 'No description provided',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            if (post!['size'] != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Size: ${post!['size']}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                            if (post!['category'] != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Category: ${post!['category']}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                            if (post!['clothingtype'] != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Type: ${post!['clothingtype']}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildCartButton(),
+                          IconButton(
+                            icon: Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: isLiked
+                                  ? Colors.red
+                                  : Theme.of(context).colorScheme.onBackground,
+                            ),
+                            onPressed: _toggleLike,
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _messageUser,
+                            icon: Icon(Icons.message,
+                                color: Theme.of(context).colorScheme.onPrimary),
+                            label: Text('Message',
+                                style: Theme.of(context).textTheme.labelLarge),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primary,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
       bottomNavigationBar: BottomNavBar(),
     );
   }

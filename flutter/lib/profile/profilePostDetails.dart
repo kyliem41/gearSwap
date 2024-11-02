@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
-import 'package:sample/appBars/postDetailTopBar.dart';
+import 'package:sample/cart/cart.dart';
 import 'package:sample/profile/editPost.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -499,51 +499,56 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Widget _buildPostMenu() {
-    if (!_canModifyPost()) return Container();
+  if (!_canModifyPost()) return Container();
 
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert),
-      onSelected: (value) {
-        switch (value) {
-          case 'edit':
-            _navigateToEditPost();
-            break;
-          case 'delete':
-            _showDeleteConfirmation();
-            break;
-          case 'sold':
-            _markAsSold();
-            break;
-        }
-      },
-      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        const PopupMenuItem<String>(
-          value: 'edit',
-          child: ListTile(
-            leading: Icon(Icons.edit),
-            title: Text('Edit Post'),
-          ),
+  return PopupMenuButton<String>(
+    icon: const Icon(
+      Icons.more_vert,
+      color: Color.fromARGB(248, 255, 255, 255),
+      size: 30,
+    ),
+    color: Color.fromARGB(248, 255, 255, 255),
+    onSelected: (value) {
+      switch (value) {
+        case 'edit':
+          _navigateToEditPost();
+          break;
+        case 'delete':
+          _showDeleteConfirmation();
+          break;
+        case 'sold':
+          _markAsSold();
+          break;
+      }
+    },
+    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+      const PopupMenuItem<String>(
+        value: 'edit',
+        child: ListTile(
+          leading: Icon(Icons.edit),
+          title: Text('Edit Post'),
         ),
-        PopupMenuItem<String>(
-          value: 'sold',
-          child: ListTile(
-            leading: Icon(Icons.check_circle_outline),
-            title: Text(
-                post?['isSold'] == true ? 'Mark as Available' : 'Mark as Sold'),
-          ),
+      ),
+      PopupMenuItem<String>(
+        value: 'sold',
+        child: ListTile(
+          leading: Icon(Icons.check_circle_outline),
+          title: Text(
+              post?['isSold'] == true ? 'Mark as Available' : 'Mark as Sold'),
         ),
-        const PopupMenuItem<String>(
-          value: 'delete',
-          child: ListTile(
-            leading: Icon(Icons.delete),
-            title: Text('Delete Post'),
-            textColor: Colors.red,
-            iconColor: Colors.red,
-          ),
+      ),
+      const PopupMenuItem<String>(
+        value: 'delete',
+        child: ListTile(
+          leading: Icon(Icons.delete),
+          title: Text('Delete Post'),
+          textColor: Colors.red,
+          iconColor: Colors.red,
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   void _showDeleteConfirmation() {
     showDialog(
@@ -571,66 +576,67 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   void _navigateToEditPost() {
-  // Log the original post details for debugging
-  print('Original post details:');
-  print('Size: ${post?['size']}');
-  print('Category: ${post?['category']}');
-  print('ClothingType: ${post?['clothingType']}'); // Fixed to match database column
-  print('Tags: ${post?['tags']}');
-  print('Photos: ${post?['photos']}');
+    // Log the original post details for debugging
+    print('Original post details:');
+    print('Size: ${post?['size']}');
+    print('Category: ${post?['category']}');
+    print(
+        'ClothingType: ${post?['clothingType']}'); // Fixed to match database column
+    print('Tags: ${post?['tags']}');
+    print('Photos: ${post?['photos']}');
 
-  // Ensure tags and photos are properly formatted
-  List<String> formattedTags = [];
-  if (post?['tags'] != null) {
-    if (post!['tags'] is String) {
-      try {
-        formattedTags = List<String>.from(json.decode(post!['tags']));
-      } catch (e) {
-        print('Error parsing tags: $e');
+    // Ensure tags and photos are properly formatted
+    List<String> formattedTags = [];
+    if (post?['tags'] != null) {
+      if (post!['tags'] is String) {
+        try {
+          formattedTags = List<String>.from(json.decode(post!['tags']));
+        } catch (e) {
+          print('Error parsing tags: $e');
+        }
+      } else if (post!['tags'] is List) {
+        formattedTags = List<String>.from(post!['tags']);
       }
-    } else if (post!['tags'] is List) {
-      formattedTags = List<String>.from(post!['tags']);
     }
-  }
 
-  List<String> formattedPhotos = [];
-  if (post?['photos'] != null) {
-    if (post!['photos'] is String) {
-      try {
-        formattedPhotos = List<String>.from(json.decode(post!['photos']));
-      } catch (e) {
-        print('Error parsing photos: $e');
+    List<String> formattedPhotos = [];
+    if (post?['photos'] != null) {
+      if (post!['photos'] is String) {
+        try {
+          formattedPhotos = List<String>.from(json.decode(post!['photos']));
+        } catch (e) {
+          print('Error parsing photos: $e');
+        }
+      } else if (post!['photos'] is List) {
+        formattedPhotos = List<String>.from(post!['photos']);
       }
-    } else if (post!['photos'] is List) {
-      formattedPhotos = List<String>.from(post!['photos']);
     }
-  }
 
-  final sanitizedDetails = {
-    'description': post?['description']?.toString() ?? '',
-    'price': post?['price']?.toString() ?? '',
-    'size': post?['size']?.toString(),
-    'category': post?['category']?.toString(),
-    'clothingType': post?['clothingType']?.toString(),
-    'tags': formattedTags,
-    'photos': formattedPhotos,
-  };
+    final sanitizedDetails = {
+      'description': post?['description']?.toString() ?? '',
+      'price': post?['price']?.toString() ?? '',
+      'size': post?['size']?.toString(),
+      'category': post?['category']?.toString(),
+      'clothingType': post?['clothingType']?.toString(),
+      'tags': formattedTags,
+      'photos': formattedPhotos,
+    };
 
-  print('Sanitized post details for edit:');
-  print(json.encode(sanitizedDetails));
+    print('Sanitized post details for edit:');
+    print(json.encode(sanitizedDetails));
 
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => EditPostPage(
-        postId: widget.postId,
-        postDetails: sanitizedDetails,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditPostPage(
+          postId: widget.postId,
+          postDetails: sanitizedDetails,
+        ),
       ),
-    ),
-  ).then((_) {
-    _loadPostDetails();
-  });
-}
+    ).then((_) {
+      _loadPostDetails();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -638,14 +644,61 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
     if (isLoading) {
       return Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.pop(context),
+        appBar: PreferredSize(
+          preferredSize: Size.fromHeight(60.0),
+          child: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: Colors.deepOrange,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                // Logo and title
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.swap_calls_rounded, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'GearSwap',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+                // Right side icons
+                Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.shopping_bag_outlined,
+                          color: Color.fromARGB(248, 255, 255, 255),
+                          size: 30,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CartPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    _buildPostMenu(),
+                  ],
+                ),
+              ],
+            ),
           ),
-          actions: [
-            _buildPostMenu(),
-          ],
         ),
         body: const Center(child: CircularProgressIndicator()),
         bottomNavigationBar: BottomNavBar(),
@@ -654,10 +707,60 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
     if (hasError || post == null) {
       return Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.pop(context),
+        appBar: PreferredSize(
+          preferredSize: Size.fromHeight(60.0),
+          child: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: Colors.deepOrange,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                // Logo and title
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.swap_calls_rounded, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'GearSwap',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+                // Right side icons
+                Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.shopping_bag_outlined,
+                          color: Color.fromARGB(248, 255, 255, 255),
+                          size: 30,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CartPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    _buildPostMenu(),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         body: Center(
@@ -686,14 +789,61 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(60.0),
+        child: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: Colors.deepOrange,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 30,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              // Logo and title
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.swap_calls_rounded, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    'GearSwap',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+              // Right side icons
+              Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16.0),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.shopping_bag_outlined,
+                        color: Color.fromARGB(248, 255, 255, 255),
+                        size: 30,
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CartPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  _buildPostMenu(),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          _buildPostMenu(),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -720,6 +870,18 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                   if (post!['size'] != null)
                     Text(
                       'Size: ${post!['size']}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  const SizedBox(height: 8),
+                  if (post!['category'] != null)
+                    Text(
+                      'Category: ${post!['category']}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  const SizedBox(height: 8),
+                  if (post!['clothingType'] != null)
+                    Text(
+                      'Type: ${post!['clothingType']}',
                       style: theme.textTheme.bodyMedium,
                     ),
                 ],

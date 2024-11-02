@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:sample/appBars/bottomNavBar.dart';
+import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/inbox/messages.dart';
 
 class InboxPage extends StatelessWidget {
@@ -29,10 +31,7 @@ class InboxPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Inbox'),
-        backgroundColor: Colors.deepOrange,
-      ),
+      appBar: TopNavBar(),
       body: ListView.builder(
         itemCount: messages.length,
         itemBuilder: (context, index) {
@@ -62,7 +61,7 @@ class InboxPage extends StatelessWidget {
               trailing: Icon(Icons.arrow_forward_ios, color: Colors.grey),
               onTap: () {
                 // Navigate to full message view (implement later)
-                Navigator.pushReplacement(
+                Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => MessagePage(),
@@ -73,6 +72,7 @@ class InboxPage extends StatelessWidget {
           );
         },
       ),
+      bottomNavigationBar: BottomNavBar(),
     );
   }
 }
