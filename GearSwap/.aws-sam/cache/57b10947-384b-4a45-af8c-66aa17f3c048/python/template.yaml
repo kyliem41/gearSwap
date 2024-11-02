@@ -4,7 +4,7 @@ Description: GearSwap - Streamlined SAM Template
 
 Globals:
   Function:
-    Timeout: 520
+    Timeout: 30
     MemorySize: 256
     Runtime: python3.12
     Architectures: 
@@ -443,6 +443,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /users/{Id}
             Method: DELETE
+        FollowUser:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/follow/{Id}
+            Method: POST
         GetUsersFollowing:
           Type: Api
           Properties:

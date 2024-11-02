@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/cart/cart.dart';
 import 'package:sample/profile/editPost.dart';
+import 'package:sample/profile/profile.dart';
+import 'package:sample/profile/sellerProfile.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -499,56 +501,56 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Widget _buildPostMenu() {
-  if (!_canModifyPost()) return Container();
+    if (!_canModifyPost()) return Container();
 
-  return PopupMenuButton<String>(
-    icon: const Icon(
-      Icons.more_vert,
+    return PopupMenuButton<String>(
+      icon: const Icon(
+        Icons.more_vert,
+        color: Color.fromARGB(248, 255, 255, 255),
+        size: 30,
+      ),
       color: Color.fromARGB(248, 255, 255, 255),
-      size: 30,
-    ),
-    color: Color.fromARGB(248, 255, 255, 255),
-    onSelected: (value) {
-      switch (value) {
-        case 'edit':
-          _navigateToEditPost();
-          break;
-        case 'delete':
-          _showDeleteConfirmation();
-          break;
-        case 'sold':
-          _markAsSold();
-          break;
-      }
-    },
-    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-      const PopupMenuItem<String>(
-        value: 'edit',
-        child: ListTile(
-          leading: Icon(Icons.edit),
-          title: Text('Edit Post'),
+      onSelected: (value) {
+        switch (value) {
+          case 'edit':
+            _navigateToEditPost();
+            break;
+          case 'delete':
+            _showDeleteConfirmation();
+            break;
+          case 'sold':
+            _markAsSold();
+            break;
+        }
+      },
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        const PopupMenuItem<String>(
+          value: 'edit',
+          child: ListTile(
+            leading: Icon(Icons.edit),
+            title: Text('Edit Post'),
+          ),
         ),
-      ),
-      PopupMenuItem<String>(
-        value: 'sold',
-        child: ListTile(
-          leading: Icon(Icons.check_circle_outline),
-          title: Text(
-              post?['isSold'] == true ? 'Mark as Available' : 'Mark as Sold'),
+        PopupMenuItem<String>(
+          value: 'sold',
+          child: ListTile(
+            leading: Icon(Icons.check_circle_outline),
+            title: Text(
+                post?['isSold'] == true ? 'Mark as Available' : 'Mark as Sold'),
+          ),
         ),
-      ),
-      const PopupMenuItem<String>(
-        value: 'delete',
-        child: ListTile(
-          leading: Icon(Icons.delete),
-          title: Text('Delete Post'),
-          textColor: Colors.red,
-          iconColor: Colors.red,
+        const PopupMenuItem<String>(
+          value: 'delete',
+          child: ListTile(
+            leading: Icon(Icons.delete),
+            title: Text('Delete Post'),
+            textColor: Colors.red,
+            iconColor: Colors.red,
+          ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
   void _showDeleteConfirmation() {
     showDialog(
@@ -850,6 +852,85 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            GestureDetector(
+              onTap: () async {
+                try {
+                  final prefs = await SharedPreferences.getInstance();
+                  final userStr = prefs.getString('user');
+                  final idToken = prefs.getString('idToken');
+
+                  if (userStr != null && idToken != null) {
+                    final userData = jsonDecode(userStr);
+                    final currentUserId = userData['id'].toString();
+                    final postUserId = post!['userid'].toString();
+
+                    if (currentUserId == postUserId) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ProfilePage()),
+                      );
+                    } else {
+                      final url = Uri.parse(
+                        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/$postUserId',
+                      );
+
+                      final response = await http.get(
+                        url,
+                        headers: {
+                          'Authorization': 'Bearer $idToken',
+                        },
+                      );
+
+                      if (response.statusCode == 200) {
+                        final data = jsonDecode(response.body);
+                        final sellerUserData = data['user'];
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SellerProfilePage(
+                              sellerId: postUserId,
+                            ),
+                          ),
+                        );
+                      } else {
+                        throw Exception('Failed to fetch seller data');
+                      }
+                    }
+                  }
+                } catch (e) {
+                  print('Error navigating to profile: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to load profile')),
+                  );
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 15,
+                      child: Text(
+                        post!['firstname'][0].toUpperCase(),
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      backgroundColor: Colors.deepOrange,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '@${post!['username']}',
+                      style: TextStyle(
+                        color: Colors.deepOrange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             _buildPhotoSection(),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),

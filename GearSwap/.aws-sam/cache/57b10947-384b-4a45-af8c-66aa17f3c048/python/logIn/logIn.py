@@ -17,12 +17,9 @@ def lambda_handler(event, context):
     
     try:
         # Parse request body
-        print("Attempting to parse request body")
         body = json.loads(event['body'])
         email = body['email']
         password = body['password']
-        print(f"Parsed email: {email}")
-        print("Password length:", len(password))  # Don't log actual password
     except (KeyError, json.JSONDecodeError) as e:
         print(f"Error parsing request body: {str(e)}")
         return {
@@ -31,7 +28,6 @@ def lambda_handler(event, context):
         }
 
     # Initialize Cognito client
-    print("Initializing Cognito client")
     cognito_client = boto3.client('cognito-idp')
     user_pool_id = os.environ['COGNITO_USER_POOL_ID']
     client_id = os.environ['COGNITO_CLIENT_ID']
@@ -40,7 +36,6 @@ def lambda_handler(event, context):
 
     try:
         # Verify user exists
-        print(f"Verifying user existence for email: {email}")
         try:
             user = cognito_client.admin_get_user(
                 UserPoolId=user_pool_id,
@@ -58,7 +53,6 @@ def lambda_handler(event, context):
             raise
 
         # Attempt authentication
-        print("Attempting authentication")
         try:
             auth_response = cognito_client.admin_initiate_auth(
                 UserPoolId=user_pool_id,
@@ -70,7 +64,6 @@ def lambda_handler(event, context):
                 }
             )
             print("Authentication successful")
-            print("Auth response keys:", auth_response.keys())
         except ClientError as e:
             if e.response['Error']['Code'] == 'NotAuthorizedException':
                 print(f"Authentication failed: {str(e)}")
@@ -89,9 +82,7 @@ def lambda_handler(event, context):
 
         # Get user info from database if authentication successful
         if 'AuthenticationResult' in auth_response:
-            print("Getting user info from database")
             user_info = get_user_info_from_db(email)
-            print("Retrieved user info:", json.dumps(user_info, cls=DateTimeEncoder))
             
             response_body = {
                 'message': 'Login successful',
@@ -102,14 +93,12 @@ def lambda_handler(event, context):
                 'expiresIn': auth_response['AuthenticationResult'].get('ExpiresIn', 3600),
                 'user': user_info
             }
-            print("Preparing successful response")
             
             return {
                 'statusCode': 200,
                 'body': json.dumps(response_body, cls=DateTimeEncoder)
             }
         
-        print("No AuthenticationResult in response")
         return {
             'statusCode': 401,
             'body': json.dumps('Login failed')
@@ -128,24 +117,20 @@ def lambda_handler(event, context):
         }
 
 def get_user_info_from_db(email):
-    print(f"Starting database query for email: {email}")
     db_host = os.environ['DB_HOST']
     db_user = os.environ['DB_USER']
-    db_port = os.environ['DB_PORT']
-    print(f"Database connection details - Host: {db_host}, User: {db_user}, Port: {db_port}")
-    
+    db_port = os.environ['DB_PORT']    
     conn = None
+    
     try:
-        print("Attempting database connection")
         conn = psycopg2.connect(
             host=db_host,
             user=db_user,
             password=os.environ['DB_PASSWORD'],
             port=db_port,
             
-            connect_timeout=5
+            connect_timeout=10
         )
-        print("Database connection successful")
         
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             query = "SELECT id, firstName, lastName, username, email, profileInfo, joinDate, likeCount FROM users WHERE email = %s"

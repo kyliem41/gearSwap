@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:sample/logIn/logIn.dart';
 import 'dart:convert';
 import 'package:sample/profile/profile.dart';
 
@@ -34,6 +35,78 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _profilePictureController.dispose();
     super.dispose();
   }
+
+  Future<void> _deleteAccount() async {
+    // Show confirmation dialog
+    final bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Delete Account'),
+          content: Text('Are you sure you want to delete your account? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: Text('Delete'),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmDelete == true) {
+      setState(() => _isLoading = true);
+
+      try {
+        final url = Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/${widget.userData.id}');
+        
+        final response = await http.delete(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${widget.idToken}',
+          },
+        );
+
+        if (response.statusCode == 200) {
+          // Successfully deleted account
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Account deleted successfully')),
+            );
+            // Navigate to login page and clear navigation stack
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => loginUser()),
+              (Route<dynamic> route) => false,
+            );
+          }
+        } else {
+          throw Exception('Failed to delete account');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting account: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
 
   Future<void> _saveProfile() async {
     setState(() => _isLoading = true);
@@ -153,6 +226,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                     )
                   : Text('Save Changes', style: TextStyle(fontSize: 16)),
+            ),
+          SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _deleteAccount,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                padding: EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: Text('Delete Account', style: TextStyle(fontSize: 16)),
             ),
           ],
         ),

@@ -22,6 +22,9 @@ class UserData {
   String? location;
   String? profilePicture;
   List<dynamic> posts = [];
+  List<dynamic> followers = [];
+  List<dynamic> following = [];
+  bool isFollowedByCurrentUser;
 
   UserData({
     required this.id,
@@ -35,7 +38,15 @@ class UserData {
     this.bio,
     this.location,
     this.profilePicture,
-  });
+    List<dynamic>? posts,
+    List<dynamic>? followers,
+    List<dynamic>? following,
+    this.isFollowedByCurrentUser = false,
+  }) {
+    this.posts = posts ?? [];
+    this.followers = followers ?? [];
+    this.following = following ?? [];
+  }
 
   factory UserData.fromJson(Map<String, dynamic> json) {
     return UserData(
@@ -50,7 +61,17 @@ class UserData {
       bio: json['bio'],
       location: json['location'],
       profilePicture: json['profilepicture'],
+      followers: json['followers'] ?? [],  // Default to empty list if null
+      following: json['following'] ?? [],  // Default to empty list if null
     );
+  }
+
+  int get followersCount {
+    return followers.length;
+  }
+  
+  int get followingCount {
+    return following.length;
   }
 }
 
@@ -74,35 +95,35 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Future<void> _loadUserDataAndProfile() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final userString = prefs.getString('user');
-    final idToken = prefs.getString('idToken');
-    
-    print('Loading user data...');
-    print('User string exists: ${userString != null}');
-    print('ID token exists: ${idToken != null}');
-    
-    if (userString != null && idToken != null) {
-      final userJson = jsonDecode(userString);
-      print('User ID from stored data: ${userJson['id']}');
-      
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userString = prefs.getString('user');
+      final idToken = prefs.getString('idToken');
+
+      print('Loading user data...');
+      print('User string exists: ${userString != null}');
+      print('ID token exists: ${idToken != null}');
+
+      if (userString != null && idToken != null) {
+        final userJson = jsonDecode(userString);
+        print('User ID from stored data: ${userJson['id']}');
+
+        setState(() {
+          _idToken = idToken;
+          userData = UserData.fromJson(userJson);
+        });
+
+        await _fetchUserProfile();
+        await _fetchUserPosts();
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    } finally {
       setState(() {
-        _idToken = idToken;
-        userData = UserData.fromJson(userJson);
+        isLoading = false;
       });
-      
-      await _fetchUserProfile();
-      await _fetchUserPosts();
     }
-  } catch (e) {
-    print('Error loading user data: $e');
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
   }
-}
 
   Future<void> _fetchUserProfile() async {
     try {
@@ -129,37 +150,38 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Future<void> _fetchUserPosts() async {
-  try {
-    // Get the user's posts where userid matches
-    var postsUrl = Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts');
-    
-    print('Fetching posts for user ID: ${userData!.id}');
-    var response = await http.get(
-      postsUrl,
-      headers: {
-        'Authorization': 'Bearer $_idToken',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    );
+    try {
+      // Get the user's posts where userid matches
+      var postsUrl = Uri.parse(
+          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts');
 
-    print('Posts response status: ${response.statusCode}');
-    print('Posts response: ${response.body}');
+      print('Fetching posts for user ID: ${userData!.id}');
+      var response = await http.get(
+        postsUrl,
+        headers: {
+          'Authorization': 'Bearer $_idToken',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      var data = json.decode(response.body);
-      setState(() {
-        // Filter posts where userid matches current user's id
-        userData!.posts = (data['posts'] as List).where((post) => 
-          post['userid'] == userData!.id
-        ).toList();
-      });
-      print('Found ${userData!.posts.length} posts for user ${userData!.id}');
+      print('Posts response status: ${response.statusCode}');
+      print('Posts response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        var data = json.decode(response.body);
+        setState(() {
+          // Filter posts where userid matches current user's id
+          userData!.posts = (data['posts'] as List)
+              .where((post) => post['userid'] == userData!.id)
+              .toList();
+        });
+        print('Found ${userData!.posts.length} posts for user ${userData!.id}');
+      }
+    } catch (e) {
+      print('Error fetching user posts: $e');
     }
-  } catch (e) {
-    print('Error fetching user posts: $e');
   }
-}
 
   void _navigateToEditProfile() async {
     final result = await Navigator.push(
@@ -267,13 +289,15 @@ class _ProfilePageState extends State<ProfilePage>
                       style: TextStyle(fontSize: 16),
                     ),
                   ),
-                if (userData!.location != null && userData!.location!.isNotEmpty)
+                if (userData!.location != null &&
+                    userData!.location!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                        Icon(Icons.location_on,
+                            size: 16, color: Colors.grey[600]),
                         SizedBox(width: 4),
                         Text(
                           userData!.location!,
@@ -287,8 +311,12 @@ class _ProfilePageState extends State<ProfilePage>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildStatColumn('Likes', userData!.likeCount),
-                    const SizedBox(width: 40),
+                    const SizedBox(width: 30),
                     _buildStatColumn('Items', userData!.posts.length),
+                    const SizedBox(width: 30),
+                    _buildStatColumn('Followers', userData!.followers.length),
+                    const SizedBox(width: 30),
+                    _buildStatColumn('Following', userData!.following.length),
                   ],
                 ),
               ],
@@ -335,7 +363,8 @@ class _ProfilePageState extends State<ProfilePage>
                                   color: Colors.grey[200],
                                   child: Center(
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         if (post['photos'] != null &&
                                             post['photos'].isNotEmpty)

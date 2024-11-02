@@ -249,10 +249,16 @@ def getPostById(event, context):
     try:
         postId = event['pathParameters']['postId']
         
+        get_post_query = """
+            SELECT p.*, u.username, u.firstname, u.lastname 
+            FROM posts p
+            JOIN users u ON p.userid = u.id
+            WHERE p.id = %s
+            """
+        
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                get_query = "SELECT * FROM posts WHERE id = %s"
-                cursor.execute(get_query, (postId))
+                cursor.execute(get_post_query, (postId))
                 post = cursor.fetchone()
 
                 if post:
@@ -278,40 +284,6 @@ def getPostById(event, context):
     finally:
         if conn:
             conn.close()
-# def getPostById(event, context):
-#     try:
-#         userId = event['pathParameters']['userId']
-#         postId = event['pathParameters']['postId']
-        
-#         with get_db_connection() as conn:
-#             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-#                 get_query = "SELECT * FROM posts WHERE id = %s AND userId = %s"
-#                 cursor.execute(get_query, (postId, userId))
-#                 post = cursor.fetchone()
-
-#                 if post:
-#                     return {
-#                         "statusCode": 200,
-#                         "body": json.dumps({
-#                             "message": "Post retrieved successfully",
-#                             "post": post
-#                         }, default=json_serial)
-#                     }
-#                 else:
-#                     return {
-#                         "statusCode": 404,
-#                         "body": json.dumps("Post not found")
-#                     }
-                
-#     except Exception as e:
-#         print(f"Error in getPostById: {str(e)}")
-#         return {
-#             "statusCode": 500,
-#             "body": json.dumps(f"Error getting post: {str(e)}"),
-#         }
-#     finally:
-#         if conn:
-#             conn.close()
 
 ############
 # GET /posts/filter/{userId}?clothingType=shirt&size=M&minPrice=20&maxPrice=50&page=1&page_size=10

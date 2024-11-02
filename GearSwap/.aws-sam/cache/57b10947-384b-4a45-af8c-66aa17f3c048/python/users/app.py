@@ -46,6 +46,8 @@ def lambda_handler(event, context):
             return putUser(event, context)
         elif http_method == 'DELETE':
             return deleteUser(event, context)
+    elif resource_path == '/users/follow/{Id}':
+            return followUser(event, context)
     elif resource_path == '/users/following/{Id}':
         return getUsersFollowing(event, context)
     elif resource_path == '/users/followers/{Id}':
@@ -446,6 +448,82 @@ def deleteUser(event, context):
         if conn:
             conn.close()
 
+####################
+def followUser(event, context):
+    db_host = os.environ['DB_HOST']
+    db_user = os.environ['DB_USER']
+    db_password = os.environ['DB_PASSWORD']
+    db_port = os.environ['DB_PORT']
+    
+    followed_id = event['pathParameters']['Id']
+    follower_id = json.loads(event['body'])['followerId']
+    
+    try:
+        conn = psycopg2.connect(
+            host=db_host,
+            user=db_user,
+            password=db_password,
+            port=db_port,
+        )
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Check if already following
+            check_query = """
+            SELECT * FROM follows 
+            WHERE followerId = %s AND followedId = %s
+            """
+            cursor.execute(check_query, (follower_id, followed_id))
+            existing = cursor.fetchone()
+
+            if not existing:
+                # If not following, create follow relationship
+                follow_query = """
+                INSERT INTO follows (followerId, followedId)
+                VALUES (%s, %s)
+                RETURNING followerId, followedId;
+                """
+                cursor.execute(follow_query, (follower_id, followed_id))
+                follow_record = cursor.fetchone()
+                
+                conn.commit()
+                
+                return {
+                    "statusCode": 201,
+                    "body": json.dumps({
+                        "message": "User followed successfully",
+                        "followRecord": follow_record
+                    }, default=json_serial)
+                }
+            else:
+                # If already following, delete the relationship
+                unfollow_query = """
+                DELETE FROM follows 
+                WHERE followerId = %s AND followedId = %s
+                RETURNING followerId, followedId;
+                """
+                cursor.execute(unfollow_query, (follower_id, followed_id))
+                unfollow_record = cursor.fetchone()
+                
+                conn.commit()
+                
+                return {
+                    "statusCode": 200,
+                    "body": json.dumps({
+                        "message": "User unfollowed successfully",
+                        "unfollowRecord": unfollow_record
+                    }, default=json_serial)
+                }
+    
+    except Exception as e:
+        print(f"Failed to follow/unfollow user. Error: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps(f"Error following/unfollowing user: {str(e)}")
+        }
+    finally:
+        if conn:
+            conn.close()
+
 ##########
 def getUsersFollowing(event, context):
     db_host = os.environ['DB_HOST']
@@ -458,8 +536,8 @@ def getUsersFollowing(event, context):
     get_following_query = """
     SELECT u.id, u.firstName, u.lastName, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount
     FROM users u
-    INNER JOIN follows f ON u.id = f.followed_id
-    WHERE f.follower_id = %s;
+    INNER JOIN follows f ON u.id = f.followedId
+    WHERE f.followerId = %s;
     """
     
     try:
@@ -479,7 +557,7 @@ def getUsersFollowing(event, context):
             "body": json.dumps({
                 "message": "Following users retrieved successfully",
                 "following": following
-            }, default=str)  # Use str as a fallback serializer
+            }, default=str)
         }
         
     except Exception as e:
@@ -505,8 +583,8 @@ def getUsersFollowers(event, context):
     get_followers_query = """
     SELECT u.id, u.firstName, u.lastName, u.username, u.email, u.profileInfo, u.joinDate, u.likeCount
     FROM users u
-    INNER JOIN follows f ON u.id = f.follower_id
-    WHERE f.followed_id = %s;
+    INNER JOIN follows f ON u.id = f.followerId
+    WHERE f.followedId = %s;
     """
     
     try:
@@ -526,7 +604,7 @@ def getUsersFollowers(event, context):
             "body": json.dumps({
                 "message": "Followers retrieved successfully",
                 "followers": followers
-            }, default=str)  # Use str as a fallback serializer
+            }, default=str)
         }
         
     except Exception as e:
