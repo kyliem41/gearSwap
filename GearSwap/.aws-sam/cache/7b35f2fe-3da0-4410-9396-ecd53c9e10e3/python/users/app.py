@@ -46,6 +46,8 @@ def lambda_handler(event, context):
             return putUser(event, context)
         elif http_method == 'DELETE':
             return deleteUser(event, context)
+    elif resource_path == '/users/password/{Id}':
+        return updatePassword(event, context)
     elif resource_path == '/users/follow/{Id}':
             return followUser(event, context)
     elif resource_path == '/users/following/{Id}':
@@ -395,6 +397,95 @@ def putUser(event, context):
             "statusCode": 500,
             "body": json.dumps(f"Error updating username: {str(e)}")
         }
+    finally:
+        if conn:
+            conn.close()
+            
+###############
+def updatePassword(event, context):
+    db_host = os.environ['DB_HOST']
+    db_user = os.environ['DB_USER']
+    db_password = os.environ['DB_PASSWORD']
+    db_port = os.environ['DB_PORT']
+    user_pool_id = os.environ['COGNITO_USER_POOL_ID']
+    
+    conn = None
+    cognito_client = boto3.client('cognito-idp')
+
+    try:
+        body = json.loads(event['body']) if isinstance(event.get('body'), str) else event.get('body', {})
+        user_id = event['pathParameters']['Id']
+        new_password = body.get('password')
+
+        if not new_password:
+            return {
+                "statusCode": 400,
+                "body": json.dumps("Missing required field: password")
+            }
+
+        conn = psycopg2.connect(
+            host=db_host,
+            user=db_user,
+            password=db_password,
+            port=db_port,
+        )
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Get user email
+            get_email_query = "SELECT email FROM users WHERE id = %s"
+            cursor.execute(get_email_query, (user_id,))
+            user = cursor.fetchone()
+            
+            if not user:
+                return {
+                    "statusCode": 404,
+                    "body": json.dumps("User not found")
+                }
+
+            user_email = user['email']
+
+            # Update password in database
+            update_query = """
+            UPDATE users 
+            SET password = %s 
+            WHERE id = %s 
+            RETURNING id, email;
+            """
+            cursor.execute(update_query, (new_password, user_id))
+            updated_user = cursor.fetchone()
+            conn.commit()
+
+        # Update password in Cognito
+        try:
+            cognito_client.admin_set_user_password(
+                UserPoolId=user_pool_id,
+                Username=user_email,
+                Password=new_password,
+                Permanent=True
+            )
+
+            return {
+                "statusCode": 200,
+                "body": json.dumps({
+                    "message": "Password updated successfully",
+                    "userId": updated_user['id']
+                })
+            }
+
+        except Exception as e:
+            print(f"Cognito error: {str(e)}")
+            return {
+                "statusCode": 500,
+                "body": json.dumps(f"Error updating Cognito password: {str(e)}")
+            }
+
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps(f"Error updating password: {str(e)}")
+        }
+
     finally:
         if conn:
             conn.close()
