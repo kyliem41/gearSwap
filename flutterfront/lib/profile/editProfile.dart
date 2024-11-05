@@ -21,18 +21,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _profilePictureController;
   bool _isLoading = false;
   String? baseUrl;
+  late Future<void> _initializationFuture;
 
   @override
   void initState() {
     super.initState();
-    _initialize();
+    _initializationFuture = _initialize();
   }
 
   Future<void> _initialize() async {
     baseUrl = await ConfigUtils.getBaseUrl();
     _bioController = TextEditingController(text: widget.userData.bio);
     _locationController = TextEditingController(text: widget.userData.location);
-    _profilePictureController = TextEditingController(text: widget.userData.profilePicture);
+    _profilePictureController =
+        TextEditingController(text: widget.userData.profilePicture);
   }
 
   @override
@@ -57,7 +59,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Delete Account'),
-          content: Text('Are you sure you want to delete your account? This action cannot be undone.'),
+          content: Text(
+              'Are you sure you want to delete your account? This action cannot be undone.'),
           actions: <Widget>[
             TextButton(
               child: Text('Cancel'),
@@ -80,7 +83,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       try {
         final url = Uri.parse('$baseUrl/users/${widget.userData.id}');
-        
+
         final response = await http.delete(
           url,
           headers: {
@@ -162,11 +165,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
           );
           Navigator.pop(context, true);
         } else {
-          throw Exception('Unexpected response message: ${responseData['message']}');
+          throw Exception(
+              'Unexpected response message: ${responseData['message']}');
         }
       } else {
         final errorMessage = response.body;
-        throw Exception('Server returned ${response.statusCode}: $errorMessage');
+        throw Exception(
+            'Server returned ${response.statusCode}: $errorMessage');
       }
     } catch (e) {
       print('Error details: $e');
@@ -187,78 +192,94 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Edit Profile'),
-        backgroundColor: Colors.deepOrange,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_isLoading)
-              Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            TextField(
-              controller: _bioController,
-              decoration: InputDecoration(
-                labelText: 'Bio',
-                hintText: 'Tell us about yourself',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
+    return FutureBuilder(
+      future: _initializationFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(child: Text('Error: ${snapshot.error}')),
+          );
+        }
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('Edit Profile'),
+            backgroundColor: Colors.deepOrange,
+          ),
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_isLoading)
+                  Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                TextField(
+                  controller: _bioController,
+                  decoration: InputDecoration(
+                    labelText: 'Bio',
+                    hintText: 'Tell us about yourself',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: _locationController,
+                  decoration: InputDecoration(
+                    labelText: 'Location',
+                    hintText: 'Where are you located?',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: _profilePictureController,
+                  decoration: InputDecoration(
+                    labelText: 'Profile Picture URL',
+                    hintText: 'Enter the URL of your profile picture',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _saveProfile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepOrange,
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: _isLoading
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text('Save Changes', style: TextStyle(fontSize: 16)),
+                ),
+                SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _deleteAccount,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text('Delete Account', style: TextStyle(fontSize: 16)),
+                ),
+              ],
             ),
-            SizedBox(height: 16),
-            TextField(
-              controller: _locationController,
-              decoration: InputDecoration(
-                labelText: 'Location',
-                hintText: 'Where are you located?',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: _profilePictureController,
-              decoration: InputDecoration(
-                labelText: 'Profile Picture URL',
-                hintText: 'Enter the URL of your profile picture',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _saveProfile,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepOrange,
-                padding: EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: _isLoading
-                  ? SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text('Save Changes', style: TextStyle(fontSize: 16)),
-            ),
-            SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _deleteAccount,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                padding: EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: Text('Delete Account', style: TextStyle(fontSize: 16)),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
