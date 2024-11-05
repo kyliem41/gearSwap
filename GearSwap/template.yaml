@@ -24,11 +24,16 @@ Globals:
         WORKOS_API_KEY: "sk_test_a2V5XzAxSkE2N0g4UllEODUxMEVSVkFCRjJEN1czLGNISXJXdmsyck84QjJoZVJ2c0dNdGx4SmY"
         COGNITO_USER_POOL_ID: !Ref UserPool #"us-east-2_y5z7hsmC1"
         COGNITO_CLIENT_ID: !Ref UserPoolClient #"1u996ubaotokbh9aq9rg3771ku"
+    # VpcConfig:
+    #   SecurityGroupIds: 
+    #     - sg-07e026f3fb32eb128
+    #     - !Ref LambdaSecurityGroup
+    #   SubnetIds: !Ref SubnetIds
     VpcConfig:
       SecurityGroupIds: 
         - sg-07e026f3fb32eb128
         - !Ref LambdaSecurityGroup
-      SubnetIds: !Ref SubnetIds
+      SubnetIds: !Split [",", !Select [0, !Ref SubnetIds]]
     Layers:
       - !Ref DependenciesLayer
 

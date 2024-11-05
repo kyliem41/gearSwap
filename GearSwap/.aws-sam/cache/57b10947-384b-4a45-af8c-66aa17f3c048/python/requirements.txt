@@ -1,9 +1,0 @@
-boto3
-botocore
-bcrypt==4.0.1
-psycopg2-binary==2.9.9
-PyJWT==2.8.0
-requests==2.31.0
-cryptography==42.0.0
-PyJWT[crypto]==2.8.0
-pika==1.3.2

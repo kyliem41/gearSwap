@@ -405,6 +405,8 @@ def deleteUser(event, context):
     db_user = os.environ['DB_USER']
     db_password = os.environ['DB_PASSWORD']
     db_port = os.environ['DB_PORT']
+    user_pool_id = os.environ['COGNITO_USER_POOL_ID']    
+    cognito_client = boto3.client('cognito-idp')
     
     user_id = event['pathParameters']['Id']
 
@@ -419,24 +421,49 @@ def deleteUser(event, context):
         )
         
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            get_email_query = "SELECT email FROM users WHERE id = %s"
+            cursor.execute(get_email_query, (user_id,))
+            user_record = cursor.fetchone()
+            
+            if not user_record:
+                return {
+                    "statusCode": 404,
+                    "body": json.dumps("User not found")
+                }
+            
+            user_email = user_record['email']
+            
+            delete_query = "DELETE FROM users WHERE id = %s RETURNING id;"
             cursor.execute(delete_query, (user_id,))
             deleted_user = cursor.fetchone()
             
             conn.commit()
-        
-        if deleted_user:
+
+        try:
+            cognito_client.admin_delete_user(
+                UserPoolId=user_pool_id,
+                Username=user_email
+            )
+        except cognito_client.exceptions.UserNotFoundException:
+            print(f"User {user_email} not found in Cognito")
+        except Exception as cognito_error:
+            print(f"Error deleting user from Cognito: {str(cognito_error)}")
             return {
-                "statusCode": 200,
+                "statusCode": 207,
                 "body": json.dumps({
-                    "message": "User deleted successfully",
-                    "deletedUserId": deleted_user['id']
+                    "message": "User deleted from database but failed to delete from Cognito",
+                    "deletedUserId": deleted_user['id'],
+                    "cognitoError": str(cognito_error)
                 })
             }
-        else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("User not found")
-            }
+        
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "message": "User deleted successfully from both database and Cognito",
+                "deletedUserId": deleted_user['id']
+            })
+        }
         
     except Exception as e:
         print(f"Failed to delete user. Error: {str(e)}")

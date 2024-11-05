@@ -35,48 +35,41 @@ class _SignUpPageState extends State<SignUpPage> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   String _errorMessage = '';
 
   Future<void> _signUpUser() async {
-  if (!_formKey.currentState!.validate()) {
-    return;
-  }
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-  setState(() {
-    _isLoading = true;
-    _errorMessage = '';
-  });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
 
-  final Map<String, dynamic> requestBody = {
-    'firstName': _firstNameController.text.trim(),  // Changed from firstname
-    'lastName': _lastNameController.text.trim(),    // Changed from lastname
-    'username': _usernameController.text.trim(),
-    'email': _emailController.text.trim(),
-    'password': _passwordController.text,
-  };
+    final Map<String, dynamic> requestBody = {
+      'firstName': _firstNameController.text.trim(),
+      'lastName': _lastNameController.text.trim(),
+      'username': _usernameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'password': _passwordController.text,
+    };
 
-  try {
-    final response = await http.post(
-      Uri.parse(
-          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode(requestBody),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse(
+            'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      );
 
-    // Debug prints
-    print('Request body sent: ${jsonEncode(requestBody)}');
-    print('Response status: ${response.statusCode}');
-    print('Response body: ${response.body}');
-
-    if (response.statusCode == 201) {  // Changed from 200 to 201 to match Lambda
-      try {
+      if (response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        print('Parsed response data: $responseData');
-
         if (responseData['message'] != null) {
           if (mounted) {
             _showSuccessDialog();
@@ -87,62 +80,35 @@ class _SignUpPageState extends State<SignUpPage> {
           });
           _showErrorDialog(_errorMessage);
         }
-      } catch (parseError) {
-        print('Error parsing response: $parseError');
-        setState(() {
-          _errorMessage = 'Error processing server response.';
-        });
-        _showErrorDialog(_errorMessage);
-      }
-    } else {
-      try {
+      } else {
         var errorMsg = '';
         try {
           final responseData = jsonDecode(response.body);
-          if (responseData is String) {
-            errorMsg = responseData;
-          } else {
-            errorMsg = responseData['message'] ?? 
-                      responseData['body'] ?? 
-                      'Sign up failed. Please try again.';
-          }
+          errorMsg = responseData['message'] ??
+              responseData['body'] ??
+              'Sign up failed. Please try again.';
         } catch (e) {
           errorMsg = response.body;
-        }
-
-        // Handle specific error messages
-        if (errorMsg.toLowerCase().contains('already exists')) {
-          errorMsg = 'An account with this email or username already exists.';
         }
 
         setState(() {
           _errorMessage = errorMsg;
         });
         _showErrorDialog(_errorMessage);
-      } catch (e) {
-        print('Error parsing error response: $e');
+      }
+    } catch (e, stackTrace) {
+      setState(() {
+        _errorMessage = 'Network error. Please check your connection.';
+      });
+      _showErrorDialog(_errorMessage);
+    } finally {
+      if (mounted) {
         setState(() {
-          _errorMessage = 'Sign up failed. Please try again.';
+          _isLoading = false;
         });
-        _showErrorDialog(_errorMessage);
       }
     }
-  } catch (e, stackTrace) {
-    print('Sign up error: $e');
-    print('Stack trace: $stackTrace');
-
-    setState(() {
-      _errorMessage = 'Network error. Please check your connection.';
-    });
-    _showErrorDialog(_errorMessage);
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
-}
 
   void _showSuccessDialog() {
     showDialog(
@@ -197,6 +163,7 @@ class _SignUpPageState extends State<SignUpPage> {
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -328,40 +295,34 @@ class _SignUpPageState extends State<SignUpPage> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 30),
-                      _isLoading
-                          ? const CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.deepOrange),
-                            )
-                          : ElevatedButton(
-                              onPressed: _signUpUser,
-                              style: ElevatedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                backgroundColor: Colors.deepOrange,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(32.0),
-                                ),
-                              ),
-                              child: const Text('Sign Up'),
-                            ),
-                      const SizedBox(height: 20),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const loginUser(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'Already have an account? Log in',
-                          style: TextStyle(
-                            color: Colors.deepOrange,
-                            decoration: TextDecoration.underline,
-                          ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _confirmPasswordController,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          labelText: 'Confirm Password',
+                          filled: true,
+                          fillColor: Colors.white,
                         ),
+                        obscureText: true,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please confirm your password';
+                          }
+                          if (value != _passwordController.text) {
+                            return 'Passwords do not match';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _signUpUser,
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : const Text('Sign Up'),
                       ),
                     ],
                   ),

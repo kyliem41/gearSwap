@@ -296,7 +296,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Future<void> _toggleLike() async {
     if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in to like posts')),
+        const SnackBar(content: Text('Please log in to save posts')),
       );
       return;
     }
@@ -330,10 +330,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
             isLiked = true;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Post liked')),
+            const SnackBar(content: Text('Post saved to wishlist')),
           );
         } else {
-          throw Exception('Failed to like post: ${response.statusCode}');
+          throw Exception('Failed to save post: ${response.statusCode}');
         }
       } else {
         // Remove like
