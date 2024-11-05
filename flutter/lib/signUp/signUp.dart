@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:sample/login/login.dart';
+import 'package:sample/logIn/logIn.dart';
 
 void signUp() {
   runApp(const signUpUser());
