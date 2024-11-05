@@ -8,7 +8,7 @@ import 'package:sample/profile/sellerProfile.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:carousel_slider/carousel_slider.dart';
+import 'package:carousel_slider/carousel_slider.dart' hide CarouselController;
 
 class PostDetailPage extends StatefulWidget {
   final String postId;
@@ -460,11 +460,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
         height: 300,
         viewportFraction: 1.0,
         enableInfiniteScroll: false,
+        autoPlay: false, // explicitly set this
       ),
       items: photoList.map((photo) {
         return Builder(
           builder: (BuildContext context) {
-            // If photos are not yet implemented as URLs, show placeholder
+            // Rest of your builder code remains the same
             if (photo is! String || !Uri.tryParse(photo)!.hasScheme ?? true) {
               return Container(
                 width: MediaQuery.of(context).size.width,
@@ -475,7 +476,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
               );
             }
 
-            // If it's a valid URL, try to load the image
             return Image.network(
               photo,
               fit: BoxFit.cover,
@@ -560,7 +560,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
                                       builder: (context) => ProfilePage()),
                                 );
                               } else {
-                                final url = Uri.parse('$baseUrl/users/$postUserId');
+                                final url =
+                                    Uri.parse('$baseUrl/users/$postUserId');
 
                                 final response = await http.get(
                                   url,

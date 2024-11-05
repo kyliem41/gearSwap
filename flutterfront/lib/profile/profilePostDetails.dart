@@ -8,7 +8,7 @@ import 'package:sample/profile/sellerProfile.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:carousel_slider/carousel_slider.dart';
+import 'package:carousel_slider/carousel_slider.dart' hide CarouselController;
 
 class ProfilePostDetailPage extends StatefulWidget {
   final String postId;
@@ -92,7 +92,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           post = data['post'];
           isLoading = false;
         });
-        print('Post loaded. Post user ID: ${post!['userid']}, Current user ID: $userId');
+        print(
+            'Post loaded. Post user ID: ${post!['userid']}, Current user ID: $userId');
       } else {
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
@@ -180,7 +181,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   Future<void> _toggleLike() async {
     if (baseUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Configuration error. Please try again later.')),
+        const SnackBar(
+            content: Text('Configuration error. Please try again later.')),
       );
       return;
     }
@@ -482,11 +484,12 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         height: 300,
         viewportFraction: 1.0,
         enableInfiniteScroll: false,
+        autoPlay: false, // explicitly set this
       ),
       items: photoList.map((photo) {
         return Builder(
           builder: (BuildContext context) {
-            // If photos are not yet implemented as URLs, show placeholder
+            // Rest of your builder code remains the same
             if (photo is! String || !Uri.tryParse(photo)!.hasScheme ?? true) {
               return Container(
                 width: MediaQuery.of(context).size.width,
@@ -497,7 +500,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
               );
             }
 
-            // If it's a valid URL, try to load the image
             return Image.network(
               photo,
               fit: BoxFit.cover,
@@ -875,7 +877,9 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
               onTap: () async {
                 if (baseUrl == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Configuration error. Please try again later.')),
+                    SnackBar(
+                        content: Text(
+                            'Configuration error. Please try again later.')),
                   );
                   return;
                 }
