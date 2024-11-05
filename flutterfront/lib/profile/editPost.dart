@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,6 +58,7 @@ class _EditPostPageState extends State<EditPostPage> {
   List<String> photos = [];
   bool _isLoading = false;
   String? userId;
+  String? baseUrl;
 
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
@@ -64,7 +66,12 @@ class _EditPostPageState extends State<EditPostPage> {
   @override
   void initState() {
     super.initState();
-    _loadUserId();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
+    await _loadUserId();
     _initializeFormData();
   }
 
@@ -78,8 +85,7 @@ class _EditPostPageState extends State<EditPostPage> {
     setState(() {
       selectedSize = widget.postDetails['size']?.toString();
       selectedCategory = widget.postDetails['category']?.toString();
-      selectedClothingType = widget.postDetails['clothingType']
-          ?.toString(); // Match database column case
+      selectedClothingType = widget.postDetails['clothingType']?.toString();
 
       // Validate dropdown values against available options
       if (selectedSize != null &&
@@ -145,6 +151,11 @@ class _EditPostPageState extends State<EditPostPage> {
   Future<void> _updatePost() async {
     if (!_validateInputs()) return;
 
+    if (baseUrl == null) {
+      _showErrorDialog('Configuration error. Please try again later.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -170,9 +181,7 @@ class _EditPostPageState extends State<EditPostPage> {
       print('Updating post with data:');
       print(json.encode(requestBody));
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/update/$userId/${widget.postId}',
-      );
+      final url = Uri.parse('$baseUrl/posts/update/$userId/${widget.postId}');
 
       final response = await http.put(
         url,

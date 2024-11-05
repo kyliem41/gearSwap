@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sample/logIn/logIn.dart';
+import 'package:sample/shared/config_utils.dart';
 
 void signUp() {
   runApp(const signUpUser());
@@ -38,9 +39,28 @@ class _SignUpPageState extends State<SignUpPage> {
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   String _errorMessage = '';
+  String? baseUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeBaseUrl();
+  }
+
+  Future<void> _initializeBaseUrl() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
+  }
 
   Future<void> _signUpUser() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (baseUrl == null) {
+      setState(() {
+        _errorMessage = 'Configuration error. Please try again later.';
+      });
+      _showErrorDialog(_errorMessage);
       return;
     }
 
@@ -59,8 +79,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
     try {
       final response = await http.post(
-        Uri.parse(
-            'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users'),
+        Uri.parse('$baseUrl/users'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:sample/shared/config_utils.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
@@ -15,6 +16,17 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   bool _isLoading = false;
   String? _errorMessage;
   String? _successMessage;
+  String? baseUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeBaseUrl();
+  }
+
+  Future<void> _initializeBaseUrl() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
+  }
 
   @override
   void dispose() {
@@ -27,6 +39,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       return;
     }
 
+    if (baseUrl == null) {
+      setState(() {
+        _errorMessage = 'Configuration error. Please try again later.';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -35,7 +54,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/password-reset/request'),
+        Uri.parse('$baseUrl/users/password-reset/request'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),

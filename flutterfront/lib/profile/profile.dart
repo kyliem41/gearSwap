@@ -5,6 +5,7 @@ import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/outfits/outfits.dart';
 import 'package:sample/profile/editProfile.dart';
 import 'package:sample/profile/profilePostDetails.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'package:sample/wishlist/wishlist.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -61,8 +62,8 @@ class UserData {
       bio: json['bio'],
       location: json['location'],
       profilePicture: json['profilepicture'],
-      followers: json['followers'] ?? [],  // Default to empty list if null
-      following: json['following'] ?? [],  // Default to empty list if null
+      followers: json['followers'] ?? [],
+      following: json['following'] ?? [],
     );
   }
 
@@ -86,11 +87,17 @@ class _ProfilePageState extends State<ProfilePage>
   UserData? userData;
   bool isLoading = true;
   String? _idToken;
+  String? baseUrl;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
     _loadUserDataAndProfile();
   }
 
@@ -126,10 +133,11 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Future<void> _fetchUserProfile() async {
+    if (baseUrl == null) return;
+
     try {
       final response = await http.get(
-        Uri.parse(
-            'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/userProfile/${userData!.id}'),
+        Uri.parse('$baseUrl/userProfile/${userData!.id}'),
         headers: {
           'Authorization': 'Bearer $_idToken',
         },
@@ -150,10 +158,10 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Future<void> _fetchUserPosts() async {
+    if (baseUrl == null) return;
+
     try {
-      // Get the user's posts where userid matches
-      var postsUrl = Uri.parse(
-          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts');
+      var postsUrl = Uri.parse('$baseUrl/posts');
 
       print('Fetching posts for user ID: ${userData!.id}');
       var response = await http.get(
@@ -171,7 +179,6 @@ class _ProfilePageState extends State<ProfilePage>
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
         setState(() {
-          // Filter posts where userid matches current user's id
           userData!.posts = (data['posts'] as List)
               .where((post) => post['userid'] == userData!.id)
               .toList();

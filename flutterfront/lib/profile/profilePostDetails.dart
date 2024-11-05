@@ -5,6 +5,7 @@ import 'package:sample/cart/cart.dart';
 import 'package:sample/profile/editPost.dart';
 import 'package:sample/profile/profile.dart';
 import 'package:sample/profile/sellerProfile.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -27,14 +28,20 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   Map<String, dynamic>? post;
   bool isLiked = false;
   String? userId;
+  String? baseUrl;
   TextEditingController messageController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadPostDetails();
-    _loadUserId();
-    _verifyCurrentUser();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
+    await _loadUserId();
+    await _loadPostDetails();
+    await _verifyCurrentUser();
   }
 
   Future<void> _verifyCurrentUser() async {
@@ -47,6 +54,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Future<void> _loadPostDetails() async {
+    if (baseUrl == null) return;
+
     setState(() {
       isLoading = true;
       hasError = false;
@@ -62,9 +71,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
       print('Loading details for post ${widget.postId}');
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/${widget.postId}',
-      );
+      final url = Uri.parse('$baseUrl/posts/${widget.postId}');
 
       print('Requesting URL: $url');
 
@@ -85,8 +92,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           post = data['post'];
           isLoading = false;
         });
-        print(
-            'Post loaded. Post user ID: ${post!['userid']}, Current user ID: $userId');
+        print('Post loaded. Post user ID: ${post!['userid']}, Current user ID: $userId');
       } else {
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
@@ -135,6 +141,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Future<void> _checkIfPostLiked() async {
+    if (baseUrl == null) return;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
@@ -143,9 +151,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         throw Exception('No authentication token or user ID found');
       }
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/likedPosts/$userId/${widget.postId}',
-      );
+      final url = Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}');
 
       final response = await http.get(
         url,
@@ -172,6 +178,13 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Future<void> _toggleLike() async {
+    if (baseUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Configuration error. Please try again later.')),
+      );
+      return;
+    }
+
     if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please log in to save posts')),
@@ -187,13 +200,10 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         throw Exception('No authentication token found');
       }
 
-      final baseUrl =
-          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/likedPosts';
-
       if (!isLiked) {
         // Add like
         final response = await http.post(
-          Uri.parse('$baseUrl/$userId'),
+          Uri.parse('$baseUrl/likedPosts/$userId'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
@@ -216,7 +226,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       } else {
         // Remove like
         final response = await http.delete(
-          Uri.parse('$baseUrl/$userId/${widget.postId}'),
+          Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
@@ -239,6 +249,134 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text('Failed to ${isLiked ? 'unlike' : 'like'} post')),
+      );
+    }
+  }
+
+  Future<void> _markAsSold() async {
+    if (baseUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Configuration error. Please try again later.')),
+      );
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
+      final userStr = prefs.getString('user');
+
+      if (idToken == null || userStr == null) {
+        throw Exception('No authentication data found');
+      }
+
+      final userData = json.decode(userStr);
+      final userId = userData['id']?.toString();
+
+      if (userId == null) {
+        throw Exception('User ID not found in stored data');
+      }
+
+      final url = Uri.parse('$baseUrl/posts/update/$userId/${widget.postId}');
+
+      final response = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: json.encode({
+          'isSold': true,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          post!['isSold'] = true;
+        });
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post marked as sold')),
+        );
+      } else {
+        throw Exception('Failed to update post: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error marking post as sold: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to mark post as sold: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _deletePost() async {
+    if (baseUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Configuration error. Please try again later.')),
+      );
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
+      final userStr = prefs.getString('user');
+
+      if (idToken == null) {
+        throw Exception('No authentication token found');
+      }
+      if (userStr == null) {
+        throw Exception('No user data found');
+      }
+
+      final userData = json.decode(userStr);
+      final userId = userData['id']?.toString();
+
+      if (userId == null) {
+        throw Exception('User ID not found in stored data');
+      }
+
+      print('Attempting to delete post with ID: ${widget.postId}');
+      print('User ID from stored data: $userId');
+      print('Post user ID: ${post?['userid']}');
+
+      // Make sure the userId matches before attempting to delete
+      if (post?['userid'].toString() != userId) {
+        throw Exception('Not authorized to delete this post');
+      }
+
+      final url = Uri.parse('$baseUrl/posts/delete/$userId/${widget.postId}');
+
+      print('Delete URL: $url');
+
+      final response = await http.delete(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+
+      print('Delete response status: ${response.statusCode}');
+      print('Delete response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post deleted successfully')),
+        );
+        Navigator.of(context).pop(); // Return to previous screen
+      } else {
+        final responseData = json.decode(response.body);
+        throw Exception(responseData['error'] ??
+            'Failed to delete post: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error deleting post: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete post: ${e.toString()}')),
       );
     }
   }
@@ -377,124 +515,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     );
   }
 
-  Future<void> _markAsSold() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final idToken = prefs.getString('idToken');
-      final userStr = prefs.getString('user');
-
-      if (idToken == null || userStr == null) {
-        throw Exception('No authentication data found');
-      }
-
-      final userData = json.decode(userStr);
-      final userId = userData['id']?.toString();
-
-      if (userId == null) {
-        throw Exception('User ID not found in stored data');
-      }
-
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/update/$userId/${widget.postId}',
-      );
-
-      final response = await http.put(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: json.encode({
-          'isSold': true,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          post!['isSold'] = true;
-        });
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post marked as sold')),
-        );
-      } else {
-        throw Exception('Failed to update post: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error marking post as sold: $e');
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to mark post as sold: ${e.toString()}')),
-      );
-    }
-  }
-
-  Future<void> _deletePost() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final idToken = prefs.getString('idToken');
-      final userStr = prefs.getString('user');
-
-      if (idToken == null) {
-        throw Exception('No authentication token found');
-      }
-      if (userStr == null) {
-        throw Exception('No user data found');
-      }
-
-      final userData = json.decode(userStr);
-      final userId = userData['id']?.toString();
-
-      if (userId == null) {
-        throw Exception('User ID not found in stored data');
-      }
-
-      print('Attempting to delete post with ID: ${widget.postId}');
-      print('User ID from stored data: $userId');
-      print('Post user ID: ${post?['userid']}');
-
-      // Make sure the userId matches before attempting to delete
-      if (post?['userid'].toString() != userId) {
-        throw Exception('Not authorized to delete this post');
-      }
-
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/delete/$userId/${widget.postId}',
-      );
-
-      print('Delete URL: $url');
-
-      final response = await http.delete(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-      );
-
-      print('Delete response status: ${response.statusCode}');
-      print('Delete response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post deleted successfully')),
-        );
-        Navigator.of(context).pop(); // Return to previous screen
-      } else {
-        final responseData = json.decode(response.body);
-        throw Exception(responseData['error'] ??
-            'Failed to delete post: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error deleting post: $e');
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete post: ${e.toString()}')),
-      );
-    }
-  }
-
   bool _canModifyPost() {
     if (post == null || userId == null) return false;
     return post!['userid'].toString() == userId.toString();
@@ -582,8 +602,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     print('Original post details:');
     print('Size: ${post?['size']}');
     print('Category: ${post?['category']}');
-    print(
-        'ClothingType: ${post?['clothingType']}'); // Fixed to match database column
+    print('ClothingType: ${post?['clothingType']}');
     print('Tags: ${post?['tags']}');
     print('Photos: ${post?['photos']}');
 
@@ -854,6 +873,13 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           children: [
             GestureDetector(
               onTap: () async {
+                if (baseUrl == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Configuration error. Please try again later.')),
+                  );
+                  return;
+                }
+
                 try {
                   final prefs = await SharedPreferences.getInstance();
                   final userStr = prefs.getString('user');
@@ -870,9 +896,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                         MaterialPageRoute(builder: (context) => ProfilePage()),
                       );
                     } else {
-                      final url = Uri.parse(
-                        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/$postUserId',
-                      );
+                      final url = Uri.parse('$baseUrl/users/$postUserId');
 
                       final response = await http.get(
                         url,

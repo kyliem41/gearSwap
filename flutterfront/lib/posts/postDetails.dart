@@ -5,9 +5,11 @@ import 'package:sample/appBars/topNavBar2.dart';
 import 'package:sample/cart/cart.dart';
 import 'package:sample/profile/profile.dart';
 import 'package:sample/profile/sellerProfile.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 class PostDetailPage extends StatefulWidget {
   final String postId;
@@ -29,10 +31,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
   String? userId;
   bool isInCart = false;
   TextEditingController messageController = TextEditingController();
+  String? baseUrl;
 
   @override
   void initState() {
     super.initState();
+    _initializeBaseUrl();
+  }
+
+  Future<void> _initializeBaseUrl() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
     _loadUserData();
   }
 
@@ -45,9 +53,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         throw Exception('No authentication token found');
       }
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/${widget.postId}',
-      );
+      final url = Uri.parse('$baseUrl/posts/${widget.postId}');
 
       print('Loading post details from: $url');
 
@@ -110,9 +116,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
       if (idToken == null) return;
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/cart/$userId',
-      );
+      final url = Uri.parse('$baseUrl/cart/$userId');
 
       final response = await http.get(
         url,
@@ -173,9 +177,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       }
 
       print('Adding to cart for userId: $userId');
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/cart/$userId',
-      );
+      final url = Uri.parse('$baseUrl/cart/$userId');
 
       final response = await http.post(
         url,
@@ -220,9 +222,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       final userJson = jsonDecode(userString);
       final userId = userJson['id'].toString();
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/cart/$userId',
-      );
+      final url = Uri.parse('$baseUrl/cart/$userId');
 
       final response = await http.get(
         url,
@@ -265,9 +265,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         throw Exception('No authentication token or user ID found');
       }
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/likedPosts/$userId/${widget.postId}',
-      );
+      final url = Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}');
 
       final response = await http.get(
         url,
@@ -309,13 +307,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
         throw Exception('No authentication token found');
       }
 
-      final baseUrl =
-          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/likedPosts';
-
       if (!isLiked) {
         // Add like
         final response = await http.post(
-          Uri.parse('$baseUrl/$userId'),
+          Uri.parse('$baseUrl/likedPosts/$userId'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
@@ -338,7 +333,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       } else {
         // Remove like
         final response = await http.delete(
-          Uri.parse('$baseUrl/$userId/${widget.postId}'),
+          Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
@@ -566,9 +561,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                                       builder: (context) => ProfilePage()),
                                 );
                               } else {
-                                final url = Uri.parse(
-                                  'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/$postUserId',
-                                );
+                                final url = Uri.parse('$baseUrl/users/$postUserId');
 
                                 final response = await http.get(
                                   url,
@@ -616,7 +609,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                               ),
                               SizedBox(width: 8),
                               Text(
-                                '@${post!['username']}', // This will now use the joined username from users table
+                                '@${post!['username']}',
                                 style: TextStyle(
                                   color: Colors.deepOrange,
                                   fontWeight: FontWeight.bold,

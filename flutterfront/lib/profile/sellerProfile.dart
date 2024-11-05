@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:sample/profile/profile.dart';
@@ -24,10 +25,16 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
   String? _idToken;
   String? _currentUserId;
   bool _isFollowing = false;
+  String? baseUrl;
 
   @override
   void initState() {
     super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
     _loadTokenAndData();
   }
 
@@ -58,49 +65,52 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
   }
 
   Future<void> _loadSellerData() async {
-  try {
-    // Get user data
-    final userResponse = await http.get(
-      Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/${widget.sellerId}'),
-      headers: {'Authorization': 'Bearer $_idToken'},
-    );
+    if (baseUrl == null) return;
 
-    // Get followers data
-    final followersResponse = await http.get(
-      Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/followers/${widget.sellerId}'),
-      headers: {'Authorization': 'Bearer $_idToken'},
-    );
+    try {
+      // Get user data
+      final userResponse = await http.get(
+        Uri.parse('$baseUrl/users/${widget.sellerId}'),
+        headers: {'Authorization': 'Bearer $_idToken'},
+      );
 
-    // Get following data
-    final followingResponse = await http.get(
-      Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/following/${widget.sellerId}'),
-      headers: {'Authorization': 'Bearer $_idToken'},
-    );
+      // Get followers data
+      final followersResponse = await http.get(
+        Uri.parse('$baseUrl/users/followers/${widget.sellerId}'),
+        headers: {'Authorization': 'Bearer $_idToken'},
+      );
 
-    if (userResponse.statusCode == 200) {
-      final userData = json.decode(userResponse.body);
-      final followersData = json.decode(followersResponse.body);
-      final followingData = json.decode(followingResponse.body);
+      // Get following data
+      final followingResponse = await http.get(
+        Uri.parse('$baseUrl/users/following/${widget.sellerId}'),
+        headers: {'Authorization': 'Bearer $_idToken'},
+      );
 
-      // Create user data with followers and following
-      final userJson = userData['user'];
-      userJson['followers'] = followersData['followers'];
-      userJson['following'] = followingData['following'];
+      if (userResponse.statusCode == 200) {
+        final userData = json.decode(userResponse.body);
+        final followersData = json.decode(followersResponse.body);
+        final followingData = json.decode(followingResponse.body);
 
-      setState(() {
-        sellerData = UserData.fromJson(userJson);
-      });
+        // Create user data with followers and following
+        final userJson = userData['user'];
+        userJson['followers'] = followersData['followers'];
+        userJson['following'] = followingData['following'];
+
+        setState(() {
+          sellerData = UserData.fromJson(userJson);
+        });
+      }
+    } catch (e) {
+      print('Error loading seller data: $e');
     }
-  } catch (e) {
-    print('Error loading seller data: $e');
   }
-}
 
   Future<void> _fetchSellerProfile() async {
+    if (baseUrl == null) return;
+
     try {
       final response = await http.get(
-        Uri.parse(
-            'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/userProfile/${widget.sellerId}'),
+        Uri.parse('$baseUrl/userProfile/${widget.sellerId}'),
         headers: {'Authorization': 'Bearer $_idToken'},
       );
 
@@ -119,10 +129,11 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
   }
 
   Future<void> _fetchSellerPosts() async {
+    if (baseUrl == null) return;
+
     try {
       final response = await http.get(
-        Uri.parse(
-            'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts'),
+        Uri.parse('$baseUrl/posts'),
         headers: {
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
@@ -145,14 +156,15 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
   }
 
   Future<void> _checkFollowStatus() async {
+    if (baseUrl == null) return;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
       if (idToken == null) return;
 
       final response = await http.get(
-        Uri.parse(
-            'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/following/$_currentUserId'),
+        Uri.parse('$baseUrl/users/following/$_currentUserId'),
         headers: {
           'Authorization': 'Bearer $idToken',
         },
@@ -172,16 +184,21 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
   }
 
   Future<void> _toggleFollow() async {
+    if (baseUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Configuration error. Please try again later.')),
+      );
+      return;
+    }
+
     try {
-      setState(() => isLoading = true); // Set loading state
+      setState(() => isLoading = true);
 
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
       if (idToken == null) return;
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/follow/${widget.sellerId}',
-      );
+      final url = Uri.parse('$baseUrl/users/follow/${widget.sellerId}');
 
       final response = await http.post(
         url,
@@ -224,7 +241,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
       }
     } finally {
       if (mounted) {
-        setState(() => isLoading = false); // Reset loading state
+        setState(() => isLoading = false);
       }
     }
   }
@@ -256,7 +273,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.deepOrange,
-          title: Text('${sellerData!.username}\'s Profile'),
+          title: Text('${sellerData?.username ?? "Seller"}\'s Profile'),
         ),
         body: Center(child: CircularProgressIndicator()),
         bottomNavigationBar: BottomNavBar(),
@@ -267,7 +284,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.deepOrange,
-          title: Text('${sellerData!.username}\'s Profile'),
+          title: Text('Seller Profile'),
         ),
         body: Center(child: Text('No seller data available')),
         bottomNavigationBar: BottomNavBar(),

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/cartNavBar.dart';
 import 'package:sample/posts/postDetails.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,10 +17,16 @@ class _CartPageState extends State<CartPage> {
   Map<String, Map<String, dynamic>> sellerInfo = {};
   Map<String, List<Map<String, dynamic>>> cartItems = {};
   String? userId;
+  String? baseUrl;
 
   @override
   void initState() {
     super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
     _loadUserIdAndCart();
   }
 
@@ -54,11 +61,9 @@ class _CartPageState extends State<CartPage> {
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
 
-      if (idToken == null) return;
+      if (idToken == null || baseUrl == null) return;
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/userProfile/$sellerId',
-      );
+      final url = Uri.parse('$baseUrl/userProfile/$sellerId');
 
       final response = await http.get(
         url,
@@ -84,6 +89,10 @@ class _CartPageState extends State<CartPage> {
     try {
       setState(() => isLoading = true);
 
+      if (baseUrl == null) {
+        throw Exception('Configuration not initialized');
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
 
@@ -93,9 +102,7 @@ class _CartPageState extends State<CartPage> {
 
       print('Loading cart items for user: $userId');
 
-      final cartUrl = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/cart/$userId',
-      );
+      final cartUrl = Uri.parse('$baseUrl/cart/$userId');
 
       final cartResponse = await http.get(
         cartUrl,
@@ -118,9 +125,7 @@ class _CartPageState extends State<CartPage> {
           for (var cartItem in cartList) {
             final postId = cartItem['postid'];
 
-            final postUrl = Uri.parse(
-              'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/$postId',
-            );
+            final postUrl = Uri.parse('$baseUrl/posts/$postId');
 
             final postResponse = await http.get(
               postUrl,
@@ -178,6 +183,10 @@ class _CartPageState extends State<CartPage> {
 
   Future<void> _removeFromCart(String postId) async {
     try {
+      if (baseUrl == null) {
+        throw Exception('Configuration not initialized');
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
 
@@ -185,9 +194,7 @@ class _CartPageState extends State<CartPage> {
         throw Exception('No authentication token found');
       }
 
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/cart/$userId',
-      );
+      final url = Uri.parse('$baseUrl/cart/$userId');
 
       print('Removing item from cart... URL: $url');
       final response = await http.delete(

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:sample/logIn/resetPass.dart';
 import 'package:sample/signUp/signUp.dart';
+import 'package:sample/shared/config_utils.dart';
 import '../main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -39,92 +40,111 @@ class _MyLoginPageState extends State<MyLoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   String _errorMessage = '';
+  String? baseUrl;
 
-  Future<void> _logIn() async {
-  setState(() {
-    _isLoading = true;
-    _errorMessage = '';
-  });
-
-  if (!_validateInputs()) {
-    setState(() {
-      _isLoading = false;
-    });
-    return;
+  @override
+  void initState() {
+    super.initState();
+    _initializeBaseUrl();
   }
 
-  var url = Uri.parse(
-      'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/login');
-  
-  try {
-    var response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'email': _emailController.text.trim(),
-        'password': _passwordController.text,
-      }),
-    );
+  Future<void> _initializeBaseUrl() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
+  }
 
-    // Print the raw response body for debugging
-    print("Raw response: ${response.body}");
-    
-    var data = jsonDecode(response.body);
-    
-    // Handle error response
-    if (response.statusCode != 200) {
+  Future<void> _logIn() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    if (!_validateInputs()) {
       setState(() {
-        _errorMessage = data['body'] ?? 'Login failed. Please try again.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    if (baseUrl == null) {
+      setState(() {
+        _errorMessage = 'Configuration error. Please try again later.';
+        _isLoading = false;
       });
       _showErrorDialog(_errorMessage);
       return;
     }
 
-    // Handle successful response
-    if (data['message'] == 'Login successful') {
-      // Save the tokens
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('accessToken', data['accessToken']);
-      await prefs.setString('idToken', data['idToken']);
-      await prefs.setString('refreshToken', data['refreshToken']);
+    var url = Uri.parse('$baseUrl/login');
+    
+    try {
+      var response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text,
+        }),
+      );
+
+      // Print the raw response body for debugging
+      print("Raw response: ${response.body}");
       
-      // Save user info if present
-      if (data['user'] != null) {
-        await prefs.setString('user', jsonEncode(data['user']));
-      }
+      var data = jsonDecode(response.body);
       
-      // Navigate to home page
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MyHomePage(title: 'GearSwap'),
-          ),
-        );
+      // Handle error response
+      if (response.statusCode != 200) {
+        setState(() {
+          _errorMessage = data['body'] ?? 'Login failed. Please try again.';
+        });
+        _showErrorDialog(_errorMessage);
+        return;
       }
-    } else {
+
+      // Handle successful response
+      if (data['message'] == 'Login successful') {
+        // Save the tokens
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('accessToken', data['accessToken']);
+        await prefs.setString('idToken', data['idToken']);
+        await prefs.setString('refreshToken', data['refreshToken']);
+        
+        // Save user info if present
+        if (data['user'] != null) {
+          await prefs.setString('user', jsonEncode(data['user']));
+        }
+        
+        // Navigate to home page
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MyHomePage(title: 'GearSwap'),
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'Login failed. Please try again.';
+        });
+        _showErrorDialog(_errorMessage);
+      }
+    } catch (e, stackTrace) {
+      print('Login error: $e');
+      print('Stack trace: $stackTrace');
       setState(() {
-        _errorMessage = 'Login failed. Please try again.';
+        _errorMessage = 'An error occurred. Please try again.';
       });
       _showErrorDialog(_errorMessage);
-    }
-  } catch (e, stackTrace) {
-    print('Login error: $e');
-    print('Stack trace: $stackTrace');
-    setState(() {
-      _errorMessage = 'An error occurred. Please try again.';
-    });
-    _showErrorDialog(_errorMessage);
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
-}
 
   bool _validateInputs() {
     if (_emailController.text.trim().isEmpty) {

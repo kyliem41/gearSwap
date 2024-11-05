@@ -5,6 +5,7 @@ import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/logIn/logIn.dart';
 import 'package:sample/posts/postDetails.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -41,10 +42,16 @@ class _MyHomePageState extends State<MyHomePage> {
   bool isLoading = true;
   bool hasError = false;
   List<dynamic> posts = [];
+  String? baseUrl;
 
   @override
   void initState() {
     super.initState();
+    _initializeBaseUrl();
+  }
+
+  Future<void> _initializeBaseUrl() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
     _getPosts();
   }
 
@@ -55,6 +62,10 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
+      if (baseUrl == null) {
+        throw Exception('Configuration not initialized');
+      }
+
       // Get the stored tokens
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
@@ -68,8 +79,7 @@ class _MyHomePageState extends State<MyHomePage> {
         return;
       }
 
-      var url = Uri.parse(
-          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts');
+      var url = Uri.parse('$baseUrl/posts');
 
       print('Fetching posts with token...');
       var response = await http.get(

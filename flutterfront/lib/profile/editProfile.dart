@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/logIn/logIn.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:sample/profile/profile.dart';
 
@@ -19,10 +20,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _locationController;
   late TextEditingController _profilePictureController;
   bool _isLoading = false;
+  String? baseUrl;
 
   @override
   void initState() {
     super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
     _bioController = TextEditingController(text: widget.userData.bio);
     _locationController = TextEditingController(text: widget.userData.location);
     _profilePictureController = TextEditingController(text: widget.userData.profilePicture);
@@ -37,6 +44,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _deleteAccount() async {
+    if (baseUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Configuration error. Please try again later.')),
+      );
+      return;
+    }
+
     // Show confirmation dialog
     final bool? confirmDelete = await showDialog<bool>(
       context: context,
@@ -65,7 +79,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       setState(() => _isLoading = true);
 
       try {
-        final url = Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/${widget.userData.id}');
+        final url = Uri.parse('$baseUrl/users/${widget.userData.id}');
         
         final response = await http.delete(
           url,
@@ -107,12 +121,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-
   Future<void> _saveProfile() async {
+    if (baseUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Configuration error. Please try again later.')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final url = Uri.parse('https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/userProfile/${widget.userData.id}');
+      final url = Uri.parse('$baseUrl/userProfile/${widget.userData.id}');
       final body = {
         'bio': _bioController.text,
         'location': _locationController.text,
@@ -227,7 +247,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     )
                   : Text('Save Changes', style: TextStyle(fontSize: 16)),
             ),
-          SizedBox(height: 32),
+            SizedBox(height: 32),
             ElevatedButton(
               onPressed: _isLoading ? null : _deleteAccount,
               style: ElevatedButton.styleFrom(

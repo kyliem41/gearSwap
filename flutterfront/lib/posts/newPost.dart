@@ -3,6 +3,7 @@ import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/main.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -43,9 +44,20 @@ class _NewPostPageState extends State<NewPostPage> {
   String? selectedColor;
   List<String> photos = [];
   bool _isLoading = false;
+  String? baseUrl;
 
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
+  }
 
   void _showErrorDialog(String message) {
     showDialog(
@@ -68,20 +80,24 @@ class _NewPostPageState extends State<NewPostPage> {
   Future<void> _addPost() async {
     if (!_validateInputs()) return;
 
+    if (baseUrl == null) {
+      _showErrorDialog('Configuration error. Please try again later.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final prefs = await SharedPreferences.getInstance();
       final userStr = prefs.getString('user');
       final accessToken = prefs.getString('accessToken');
-      final idToken = prefs.getString('idToken'); // Add this line
+      final idToken = prefs.getString('idToken');
 
       print('User string: $userStr');
       print('Access token available: ${accessToken != null}');
       print('ID token available: ${idToken != null}');
 
       if (userStr == null || idToken == null) {
-        // Changed to check idToken
         _showErrorDialog('Please log in to create a post');
         return;
       }
@@ -102,16 +118,14 @@ class _NewPostPageState extends State<NewPostPage> {
       };
 
       print('Request body: ${json.encode(requestBody)}');
-      final url =
-          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/posts/create/$userId';
+      final url = '$baseUrl/posts/create/$userId';
       print('Endpoint URL: $url');
 
       final response = await http.post(
         Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization':
-              'Bearer $idToken', // Changed to use idToken instead of accessToken
+          'Authorization': 'Bearer $idToken',
           'Accept': 'application/json',
         },
         body: json.encode(requestBody),
@@ -122,7 +136,6 @@ class _NewPostPageState extends State<NewPostPage> {
       print('Response body: ${response.body}');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        // Added 200 as acceptable
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -152,7 +165,7 @@ class _NewPostPageState extends State<NewPostPage> {
           final errorData = json.decode(response.body);
           errorMessage = errorData is String
               ? errorData
-              : (errorData['error'] ?? // Added error field check
+              : (errorData['error'] ??
                   errorData['message'] ??
                   errorData['body'] ??
                   'Failed to create post');
@@ -228,7 +241,6 @@ class _NewPostPageState extends State<NewPostPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Photo Upload Section
                   Container(
                     height: 150,
                     decoration: BoxDecoration(
@@ -255,7 +267,6 @@ class _NewPostPageState extends State<NewPostPage> {
                   ),
                   SizedBox(height: 16.0),
 
-                  // Description Field
                   TextField(
                     controller: descriptionController,
                     decoration: InputDecoration(
@@ -266,7 +277,6 @@ class _NewPostPageState extends State<NewPostPage> {
                   ),
                   SizedBox(height: 16.0),
 
-                  // Price Field
                   TextField(
                     controller: priceController,
                     decoration: InputDecoration(
@@ -279,7 +289,6 @@ class _NewPostPageState extends State<NewPostPage> {
                   ),
                   SizedBox(height: 16.0),
 
-                  // Size Dropdown
                   DropdownButtonFormField<String>(
                     value: selectedSize,
                     decoration: InputDecoration(
@@ -296,7 +305,6 @@ class _NewPostPageState extends State<NewPostPage> {
                   ),
                   SizedBox(height: 16.0),
 
-                  // Category Dropdown
                   DropdownButtonFormField<String>(
                     value: selectedCategory,
                     decoration: InputDecoration(
@@ -314,7 +322,6 @@ class _NewPostPageState extends State<NewPostPage> {
                   ),
                   SizedBox(height: 16.0),
 
-                  // Clothing Type Dropdown
                   DropdownButtonFormField<String>(
                     value: selectedClothingType,
                     decoration: InputDecoration(
@@ -332,7 +339,6 @@ class _NewPostPageState extends State<NewPostPage> {
                   ),
                   SizedBox(height: 16.0),
 
-                  // Tags Selection
                   Text("Tags (select up to 5):",
                       style: TextStyle(fontSize: 16)),
                   Wrap(
@@ -356,7 +362,6 @@ class _NewPostPageState extends State<NewPostPage> {
                   ),
                   SizedBox(height: 24.0),
 
-                  // Submit Button
                   ElevatedButton(
                     onPressed: _isLoading ? null : _addPost,
                     style: ElevatedButton.styleFrom(

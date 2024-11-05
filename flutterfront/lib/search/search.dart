@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/posts/postDetails.dart';
+import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SearchPage extends StatefulWidget {
@@ -23,6 +24,7 @@ class _SearchPageState extends State<SearchPage> {
   String? selectedTag;
   String? _idToken;
   String? _userId;
+  String? baseUrl;
   FocusNode _focusNode = FocusNode();
 
   List<String> tags = [
@@ -48,13 +50,18 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _initialize();
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) {
         _loadRecentSearches();
         _showOverlay();
       }
     });
+  }
+
+  Future<void> _initialize() async {
+    baseUrl = await ConfigUtils.getBaseUrl();
+    _loadUserData();
   }
 
   @override
@@ -175,12 +182,10 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _loadRecentSearches() async {
-    if (_idToken == null || _userId == null) return;
+    if (_idToken == null || _userId == null || baseUrl == null) return;
 
     try {
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/search/$_userId',
-      );
+      final url = Uri.parse('$baseUrl/search/$_userId');
 
       final response = await http.get(
         url,
@@ -209,10 +214,10 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _deleteSearch(String searchId) async {
+    if (baseUrl == null) return;
+
     try {
-      final url = Uri.parse(
-        'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/search/$_userId/$searchId',
-      );
+      final url = Uri.parse('$baseUrl/search/$_userId/$searchId');
 
       final response = await http.delete(
         url,
@@ -249,8 +254,8 @@ class _SearchPageState extends State<SearchPage> {
       return;
     }
 
-    if (_idToken == null || _userId == null) {
-      print('No authentication token or user ID found');
+    if (_idToken == null || _userId == null || baseUrl == null) {
+      print('No authentication token, user ID, or configuration found');
       return;
     }
 
@@ -260,8 +265,7 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     try {
-      var searchUrl = Uri.parse(
-          'https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/search/$_userId');
+      var searchUrl = Uri.parse('$baseUrl/search/$_userId');
 
       var response = await http.post(
         searchUrl,
