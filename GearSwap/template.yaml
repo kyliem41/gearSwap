@@ -7,6 +7,7 @@ Globals:
     Timeout: 30
     MemorySize: 256
     Runtime: python3.12
+    
     Architectures: 
       - x86_64
     Environment:
@@ -20,8 +21,8 @@ Globals:
         RABBITMQ_USER: "myguest"
         RABBITMQ_PASSWORD: "Guest1234!@#"
         SES_SENDER_EMAIL: !Ref SESSenderEmail
-        COGNITO_USER_POOL_ID: !Ref UserPool #"us-east-2_y5z7hsmC1"
-        COGNITO_CLIENT_ID: !Ref UserPoolClient #"1u996ubaotokbh9aq9rg3771ku"
+        COGNITO_USER_POOL_ID: !Ref UserPool
+        COGNITO_CLIENT_ID: !Ref UserPoolClient
     VpcConfig:
       SecurityGroupIds: 
         - sg-07e026f3fb32eb128
@@ -133,7 +134,6 @@ Resources:
                   - cognito-idp:DescribeUserPoolClient
                   - cognito-idp:ListUsers
                 Resource: 
-                  # - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/us-east-2_y5z7hsmC1
                   - !GetAtt UserPool.Arn
                   - !Sub ${UserPool.Arn}/client/*
         - PolicyName: AmazonMQAccess
@@ -173,8 +173,6 @@ Resources:
       VpcId: vpc-0bb7af1b6c9530541
       SecurityGroupEgress:
         - IpProtocol: -1
-          # FromPort: -1
-          # ToPort: -1
           CidrIp: 0.0.0.0/0
 
   DependenciesLayer:
@@ -322,7 +320,7 @@ Resources:
 
   SESConfigurationSetResource:
     Type: AWS::SES::ConfigurationSet
-    Condition: CreateConfigSet  # Only create if configuration set name is provided
+    Condition: CreateConfigSet
     Properties:
       Name: !Ref SESConfigurationSet
       
@@ -362,6 +360,14 @@ Resources:
             Method: POST
             Auth:
               Authorizer: NONE
+        LoginOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /login
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
 
   # Email Verification Function
   EmailServiceFunction:
@@ -392,12 +398,28 @@ Resources:
             Method: POST
             Auth:
               Authorizer: NONE
+        RequestPasswordResetOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/password-reset/request
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
         VerifyPasswordReset:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /users/password-reset/verify
             Method: POST
+            Auth:
+              Authorizer: NONE
+        VerifyPasswordResetOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/password-reset/verify
+            Method: OPTIONS
             Auth:
               Authorizer: NONE
 
@@ -417,6 +439,14 @@ Resources:
             Method: POST
             Auth:
               Authorizer: NONE
+        UserOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
         GetAllUsers:
           Type: Api
           Properties:
@@ -429,6 +459,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /users/{Id}
             Method: GET
+        UserByIdOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/{Id}
+            Method: OPTIONS
         UpdateUser:
           Type: Api
           Properties:
@@ -441,6 +477,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /users/password/{Id}
             Method: PUT
+        UpdateUserPasswordOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/password/{Id}
+            Method: OPTIONS
         DeleteUser:
           Type: Api
           Properties:
@@ -453,18 +495,36 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /users/follow/{Id}
             Method: POST
+        FollowUserOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/follow/{Id}
+            Method: OPTIONS
         GetUsersFollowing:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /users/following/{Id}
             Method: GET
+        GetUsersFollowingOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/following/{Id}
+            Method: OPTIONS
         GetUsersFollowers:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /users/followers/{Id}
             Method: GET
+        GetUsersFollowersOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/followers/{Id}
+            Method: OPTIONS
 
   # UserProfile Functions
   UserProfileFunctions:
@@ -480,6 +540,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /userProfile/{Id}
             Method: POST
+        ProfileOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /userProfile/{Id}
+            Method: OPTIONS
         GetProfile:
           Type: Api
           Properties:
@@ -507,25 +573,31 @@ Resources:
       Handler: app.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
-        CreateProfile:
+        CreateCart:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /cart/{Id}
             Method: POST
-        GetProfile:
+        CartOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}
+            Method: OPTIONS
+        GetCart:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /cart/{Id}
             Method: GET
-        UpdateProfile:
+        UpdateCart:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /cart/{Id}
             Method: PUT
-        DeleteProfile:
+        DeleteCart:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
@@ -546,36 +618,72 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /posts/create/{userId}
             Method: POST
+        CreatePostOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/create/{userId}
+            Method: OPTIONS
         GetAllPosts:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /posts
             Method: GET
+        GetAllPostsOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts
+            Method: OPTIONS
         GetPostById:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /posts/{postId}
             Method: GET
+        GetPostByIdOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{postId}
+            Method: OPTIONS
         UpdatePost:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /posts/update/{userId}/{postId}
             Method: PUT
+        UpdatePostOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/update/{userId}/{postId}
+            Method: OPTIONS
         DeletePost:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /posts/delete/{userId}/{postId}
             Method: DELETE
+        DeletePostOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/delete/{userId}/{postId}
+            Method: OPTIONS
         GetPostsByFilter:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /posts/filter/{userId}
             Method: GET
+        GetPostsByFilterOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/filter/{userId}
+            Method: OPTIONS
 
   # Search Functions
   SearchFunctions:
@@ -591,6 +699,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /search/{userId}
             Method: POST
+        SearchOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /search/{userId}
+            Method: OPTIONS
         GetSearchHistory:
           Type: Api
           Properties:
@@ -603,6 +717,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /search/{userId}/{searchId}
             Method: DELETE
+        DeleteSearchOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /search/{userId}/{searchId}
+            Method: OPTIONS
 
   # LikedPost Functions
   LikedPostFunctions:
@@ -618,6 +738,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /likedPosts/{userId}
             Method: POST
+        LikedPostOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /likedPosts/{userId}
+            Method: OPTIONS
         GetLikedPosts:
           Type: Api
           Properties:
@@ -630,12 +756,24 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /likedPosts/{userId}/{postId}
             Method: DELETE
+        RemoveLikedPostOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /likedPosts/{userId}/{postId}
+            Method: OPTIONS
         GetLikedPostById:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /likedPosts/{userId}/{postId}
             Method: GET
+        GetLikedPostByIdOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /likedPosts/{userId}/{postId}
+            Method: OPTIONS
   
   # Outfit Functions
   OutfitFunctions:
@@ -651,6 +789,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /outfit/{userId}
             Method: POST
+        OutfitOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/{userId}
+            Method: OPTIONS
         GetOutfits:
           Type: Api
           Properties:
@@ -663,6 +807,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /outfit/{userId}/{outfitId}
             Method: PUT
+        PutOutfitOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/{userId}/{outfitId}
+            Method: OPTIONS
         DeleteOutfit:
           Type: Api
           Properties:
@@ -681,6 +831,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /outfit/item/{userId}/{outfitId}
             Method: POST
+        AddItemByOutfitIdOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /outfit/item/{userId}/{outfitId}
+            Method: OPTIONS
         RemoveItemByOutfitId:
           Type: Api
           Properties:
@@ -702,6 +858,12 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /styler/{userId}
             Method: POST
+        StylerOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/{userId}
+            Method: OPTIONS
         GetStyleTips:
           Type: Api
           Properties:
@@ -714,42 +876,84 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /styler/wardrobe/{userId}
             Method: POST
+        GenerateOutfitByWardrobeOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/wardrobe/{userId}
+            Method: OPTIONS
         GetSimilarItems:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /styler/similar/{postId}
             Method: GET
+        GetSimilarItemsOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/similar/{postId}
+            Method: OPTIONS
         GetTrendingItems:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /styler/trending
             Method: GET
+        GetTrendingItemsOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/trending
+            Method: OPTIONS
         GetStyleAnalysis:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /styler/analysis/{userId}
             Method: GET
+        GetStyleAnalysisOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/analysis/{userId}
+            Method: OPTIONS
         GenerateOutfitRec:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /styler/outfit/{userId}
             Method: POST
+        GenerateOutfitRecOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/outfit/{userId}
+            Method: OPTIONS
         GenerateItemRec:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /styler/item/{userId}
             Method: POST
+        GenerateItemRecOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/item/{userId}
+            Method: OPTIONS
         GetStylePreferences:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap
             Path: /styler/preferences/{userId}
             Method: GET
+        GetStylePreferencesOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/preferences/{userId}
+            Method: OPTIONS
         PutStylePreferences:
           Type: Api
           Properties:

@@ -9,26 +9,36 @@ import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
 
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
+
 def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+    
     http_method = event['httpMethod']
     resource_path = event['resource']
     
     try:
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
-            return {
-                'statusCode': 401,
-                'body': json.dumps({'error': 'No authorization header'})
-            }
+            return cors_response(401, {'error': 'No authorization header'})
 
         # Extract token from Bearer authentication
         token = auth_header.split(' ')[-1]
         verify_token(token)
     except Exception as e:
-        return {
-            'statusCode': 401,
-            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
-        }
+        return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
 
     if resource_path == '/likedPosts/{userId}':
         if http_method == 'POST':
@@ -41,10 +51,7 @@ def lambda_handler(event, context):
         elif http_method == 'GET':
             return getLikedPostById(event, context)
 
-    return {
-        'statusCode': 400,
-        'body': json.dumps('Unsupported route')
-    }
+    return cors_response(400, {'error': 'Unsupported route'})
     
 ########################
 #AUTH
@@ -116,10 +123,7 @@ def addLikedPost(event, context):
         postId = body.get('postId')
         
         if not postId:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "Missing required field: postId"})
-            }
+            return cors_response(400, {"error": "Missing required field: postId"})
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -133,20 +137,14 @@ def addLikedPost(event, context):
                 new_liked_post = cursor.fetchone()
                 conn.commit()
 
-        return {
-            "statusCode": 201,
-            "body": json.dumps({
-                "message": "Post liked successfully",
-                "likedPost": new_liked_post
-            }, default=json_serial)
-        }
+        return cors_response(201, {
+            "message": "Post liked successfully",
+            "likedPost": new_liked_post
+        })
 
     except Exception as e:
         print(f"Failed to add liked post. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": f"Error adding liked post: {str(e)}"})
-        }
+        return cors_response(500, {"error": f"Error adding liked post: {str(e)}"})
 
 ################
 def getLikedPosts(event, context):
@@ -154,10 +152,7 @@ def getLikedPosts(event, context):
         userId = event['pathParameters']['userId']
         
         if not userId:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "User ID is required"})
-            }
+            return cors_response(400, {"error": "User ID is required"})
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -176,20 +171,15 @@ def getLikedPosts(event, context):
                     if 'price' in post and isinstance(post['price'], Decimal):
                         post['price'] = float(post['price'])
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Liked posts retrieved",
-                "posts": likedPosts
-            }, default=json_serial)
-        }
+        return cors_response(200, {
+            "message": "Liked posts retrieved",
+            "posts": likedPosts
+        })
             
     except Exception as e:
         print(f"Error getting liked posts: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": f"Error getting posts: {str(e)}"})
-        }
+        return cors_response(500, {"error": f"Error getting liked posts: {str(e)}"})
+
     finally:
         if conn:
             conn.close()
@@ -201,16 +191,10 @@ def removeLikedPost(event, context):
         postId = event['pathParameters']['postId']
         
         if not postId:
-            return {
-                "statusCode": 400,
-                "body": json.dumps("Missing postId in path parameters")
-            }
+            return cors_response(400, {"error": "Missing postId in path parameters"})
         
     except KeyError as e:
-        return {
-            "statusCode": 400,
-            "body": json.dumps(f"Missing required parameter: {str(e)}")
-        }
+        return cors_response(400, {"error": f"Missing required parameter: {str(e)}"})
         
     delete_query = "DELETE FROM likedPost WHERE postId = %s AND userId = %s RETURNING id;"
 
@@ -222,25 +206,17 @@ def removeLikedPost(event, context):
                 conn.commit()
         
         if removed_search:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Post removed successfully",
-                    "removedPostId": removed_search['id']
-                })
-            }
+            return cors_response(200, {
+                "message": "Post removed successfully",
+                "removedPostId": removed_search['id']
+            })
+            
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("Post not found or does not belong to the user")
-            }
+            return cors_response(404, {"error": "Post not found or does not belong to the user"})
         
     except Exception as e:
         print(f"Failed to remove post. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error removing post: {str(e)}")
-        }
+        return cors_response(500, {"error": f"Error removing post: {str(e)}"})
         
     finally:
         if conn:
@@ -254,10 +230,7 @@ def getLikedPostById(event, context):
         postId = event['pathParameters']['postId']
         
         if not userId or not postId:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "Both User ID and Post ID are required"})
-            }
+            return cors_response(400, {"error": "Both User ID and Post ID are required"})
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -269,25 +242,18 @@ def getLikedPostById(event, context):
                 likedPost = cursor.fetchone()
 
         if likedPost:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Liked post retrieved successfully",
-                    "post": likedPost
-                }, default=json_serial)
-            }
+            return cors_response(200, {
+                "message": "Liked post retrieved successfully",
+                "post": likedPost
+            })
+
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps({"message": "Liked post not found"})
-            }
+            return cors_response(404, {"error": "Liked post not found"})
             
     except Exception as e:
         print(f"Error in getLikedPostById: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": "An error occurred while retrieving the liked post"})
-        }
+        return cors_response(500, {"error": f"An error occurred while retrieving the liked post: {str(e)}"})
+
     finally:
         if conn:
             conn.close()
