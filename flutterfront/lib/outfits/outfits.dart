@@ -33,8 +33,7 @@ class _OutfitsPageState extends State<OutfitsPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-        length: 3, vsync: this, initialIndex: 2);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: 2);
   }
 
   @override
@@ -73,10 +72,7 @@ class _OutfitsPageState extends State<OutfitsPage>
               if (index == 0) {
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                      builder: (context) => WishlistPage(
-                            username: 'john',
-                          )),
+                  MaterialPageRoute(builder: (context) => WishlistPage()),
                 );
               } else if (index == 1) {
                 Navigator.pushReplacement(

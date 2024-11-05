@@ -162,23 +162,30 @@ def getLikedPosts(event, context):
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 get_query = """
-                    SELECT * FROM likedPost 
-                    WHERE userId = %s 
-                    ORDER BY dateLiked DESC 
+                    SELECT p.*, lp.dateLiked
+                    FROM likedPost lp
+                    JOIN posts p ON lp.postId = p.id
+                    WHERE lp.userId = %s 
+                    ORDER BY lp.dateLiked DESC 
                 """
                 cursor.execute(get_query, (userId,))
                 likedPosts = cursor.fetchall()
 
+                # Convert decimal values to float for JSON serialization
+                for post in likedPosts:
+                    if 'price' in post and isinstance(post['price'], Decimal):
+                        post['price'] = float(post['price'])
+
         return {
             "statusCode": 200,
             "body": json.dumps({
-                "message": "Recent posts retrieved",
-                "posts": likedPosts,
-                "total_count": len(likedPosts)
+                "message": "Liked posts retrieved",
+                "posts": likedPosts
             }, default=json_serial)
         }
             
     except Exception as e:
+        print(f"Error getting liked posts: {str(e)}")
         return {
             "statusCode": 500,
             "body": json.dumps({"error": f"Error getting posts: {str(e)}"})

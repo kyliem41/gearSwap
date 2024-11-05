@@ -88,8 +88,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userString = prefs.getString('user');
+      final idToken = prefs.getString('idToken');
 
-      if (userString != null) {
+      if (userString != null && idToken != null) {
         final userJson = jsonDecode(userString);
         setState(() {
           userId = userJson['id'].toString();
@@ -97,7 +98,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         print('Loaded userId from user data: $userId');
         await Future.wait([
           _loadPostDetails(),
-          _checkCartStatus(),
+          _checkIfLiked(), // Add this to check liked status
         ]);
       }
     } catch (e) {
@@ -254,7 +255,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     });
   }
 
-  Future<void> _checkIfPostLiked() async {
+  Future<void> _checkIfLiked() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
@@ -264,28 +265,26 @@ class _PostDetailPageState extends State<PostDetailPage> {
       }
 
       final url = Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}');
+      print('Checking like status at: $url');
 
       final response = await http.get(
         url,
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
       );
 
-      if (response.statusCode == 200) {
-        setState(() {
-          isLiked = true;
-        });
-      } else if (response.statusCode == 404) {
-        setState(() {
-          isLiked = false;
-        });
-      } else {
-        throw Exception('Failed to check like status: ${response.statusCode}');
-      }
+      print('Like check response status: ${response.statusCode}');
+      print('Like check response body: ${response.body}');
+
+      setState(() {
+        isLiked = response.statusCode == 200;
+      });
     } catch (e) {
       print('Error checking like status: $e');
+      setState(() {
+        isLiked = false;
+      });
     }
   }
 
@@ -307,8 +306,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
       if (!isLiked) {
         // Add like
+        final url = Uri.parse('$baseUrl/likedPosts/$userId');
+        
         final response = await http.post(
-          Uri.parse('$baseUrl/likedPosts/$userId'),
+          url,
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
@@ -317,6 +318,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
             'postId': widget.postId,
           }),
         );
+
+        print('Like response status: ${response.statusCode}');
+        print('Like response body: ${response.body}');
 
         if (response.statusCode == 201) {
           setState(() {
@@ -330,30 +334,35 @@ class _PostDetailPageState extends State<PostDetailPage> {
         }
       } else {
         // Remove like
+        final url = Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}');
+        
         final response = await http.delete(
-          Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}'),
+          url,
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
           },
         );
+
+        print('Unlike response status: ${response.statusCode}');
+        print('Unlike response body: ${response.body}');
 
         if (response.statusCode == 200) {
           setState(() {
             isLiked = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Post unliked')),
+            const SnackBar(content: Text('Post removed from wishlist')),
           );
         } else {
-          throw Exception('Failed to unlike post: ${response.statusCode}');
+          throw Exception('Failed to remove post: ${response.statusCode}');
         }
       }
     } catch (e) {
       print('Error toggling like: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('Failed to ${isLiked ? 'unlike' : 'like'} post')),
+          content: Text('Failed to ${isLiked ? 'remove from' : 'add to'} wishlist'),
+        ),
       );
     }
   }
@@ -663,11 +672,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           IconButton(
                             icon: Icon(
                               isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: isLiked
-                                  ? Colors.red
-                                  : Theme.of(context).colorScheme.onBackground,
+                              color: isLiked ? Colors.red : Colors.grey,
+                              size: 28,
                             ),
-                            onPressed: _toggleLike,
+                            onPressed: () => _toggleLike().then((_) {
+                              _checkIfLiked();
+                            }),
                           ),
                           ElevatedButton.icon(
                             onPressed: _messageUser,

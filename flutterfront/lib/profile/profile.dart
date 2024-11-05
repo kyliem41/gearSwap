@@ -70,7 +70,7 @@ class UserData {
   int get followersCount {
     return followers.length;
   }
-  
+
   int get followingCount {
     return following.length;
   }
@@ -218,6 +218,21 @@ class _ProfilePageState extends State<ProfilePage>
             unselectedLabelColor: Colors.grey,
             indicatorColor: Colors.deepOrange,
             indicatorWeight: 3,
+            onTap: (index) {
+              if (index == 0) {
+                // Navigate to WishlistPage
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => WishlistPage()),
+                );
+              } else if (index == 2) {
+                // Navigate to OutfitsPage
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => OutfitsPage()),
+                );
+              }
+            },
             tabs: const [
               Tab(text: "Wishlist"),
               Tab(text: "My Swap"),
