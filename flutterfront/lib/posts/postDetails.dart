@@ -9,7 +9,6 @@ import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:flutter/services.dart' show rootBundle;
 
 class PostDetailPage extends StatefulWidget {
   final String postId;
