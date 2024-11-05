@@ -8,7 +8,6 @@ import 'package:sample/profile/sellerProfile.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:carousel_slider/carousel_slider.dart' hide CarouselController;
 
 class PostDetailPage extends StatefulWidget {
   final String postId;
@@ -425,7 +424,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _buildPhotoSection() {
-    // Check if photos exist and are in a valid format
     if (post?['photos'] == null || post!['photos'].isEmpty) {
       return Container(
         height: 300,
@@ -436,10 +434,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
     }
 
-    // Handle both string and list formats for photos
     List<dynamic> photoList = [];
     if (post!['photos'] is String) {
-      // If photos is a single string
       photoList.add(post!['photos']);
     } else if (post!['photos'] is List) {
       photoList = post!['photos'];
@@ -455,41 +451,35 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
     }
 
-    return CarouselSlider(
-      options: CarouselOptions(
-        height: 300,
-        viewportFraction: 1.0,
-        enableInfiniteScroll: false,
-        autoPlay: false, // explicitly set this
-      ),
-      items: photoList.map((photo) {
-        return Builder(
-          builder: (BuildContext context) {
-            // Rest of your builder code remains the same
-            if (photo is! String || !Uri.tryParse(photo)!.hasScheme ?? true) {
-              return Container(
-                width: MediaQuery.of(context).size.width,
-                color: Colors.grey[200],
-                child: const Center(
-                  child: Icon(Icons.image, size: 100, color: Colors.grey),
-                ),
-              );
-            }
-
-            return Image.network(
-              photo,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                width: MediaQuery.of(context).size.width,
-                color: Colors.grey[200],
-                child: const Center(
-                  child: Icon(Icons.image, size: 100, color: Colors.grey),
-                ),
+    return SizedBox(
+      height: 300,
+      child: PageView.builder(
+        itemCount: photoList.length,
+        itemBuilder: (context, index) {
+          final photo = photoList[index];
+          if (photo is! String || !Uri.tryParse(photo)!.hasScheme ?? true) {
+            return Container(
+              width: MediaQuery.of(context).size.width,
+              color: Colors.grey[200],
+              child: const Center(
+                child: Icon(Icons.image, size: 100, color: Colors.grey),
               ),
             );
-          },
-        );
-      }).toList(),
+          }
+
+          return Image.network(
+            photo,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: MediaQuery.of(context).size.width,
+              color: Colors.grey[200],
+              child: const Center(
+                child: Icon(Icons.image, size: 100, color: Colors.grey),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
