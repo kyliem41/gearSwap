@@ -11,26 +11,36 @@ import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
 
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
+
 def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+    
     http_method = event['httpMethod']
     resource_path = event['resource']
     
     try:
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
-            return {
-                'statusCode': 401,
-                'body': json.dumps({'error': 'No authorization header'})
-            }
+            return cors_response(401, {'error': 'No authorization header'})
 
         # Extract token from Bearer authentication
         token = auth_header.split(' ')[-1]
         verify_token(token)
     except Exception as e:
-        return {
-            'statusCode': 401,
-            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
-        }
+        return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
 
     if resource_path == '/styler/{userId}':
         if http_method == 'POST':
@@ -60,10 +70,8 @@ def lambda_handler(event, context):
             return getStylePreferences(event, context)
         elif http_method == 'PUT':
             return putStylePreferences(event, context)
-    return {
-        'statusCode': 400,
-        'body': json.dumps('Unsupported route')
-    }
+        
+    return cors_response(200, {'message': 'Unsupported method'})
 
 ########################
 #AUTH
@@ -128,10 +136,7 @@ def validate_integer(value, name):
 
 ##########
 def error_response(status_code, message):
-    return {
-        "statusCode": status_code,
-        "body": json.dumps({"error": message})
-    }
+    return cors_response(status_code, {"error": message})
     
 #########
 def get_db_connection():
@@ -182,17 +187,14 @@ def putStylePreferences(event, context):
                 updated_preferences = cursor.fetchone()
                 conn.commit()
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Style preferences updated successfully",
-                "preferences": updated_preferences
-            }, default=json_serial)
-        }
+        return cors_response(200, {
+            "message": "Style preferences updated successfully",
+            "preferences": updated_preferences
+        })
 
     except Exception as e:
         print(f"Error in putStylePreferences: {str(e)}")
-        return error_response(500, f"Error updating style preferences: {str(e)}")
+        return cors_response(500, {"error": f"Error updating style preferences: {str(e)}"})
 
 ##############
 def getStylePreferences(event, context):
@@ -210,26 +212,23 @@ def getStylePreferences(event, context):
                 preferences = cursor.fetchone()
 
         if preferences:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Style preferences retrieved successfully",
-                    "preferences": preferences
-                }, default=json_serial)
-            }
+            return cors_response(200, {
+                "message": "Style preferences retrieved successfully",
+                "preferences": preferences
+            })
         else:
-            return error_response(404, "Style preferences not found for this user")
+            return cors_response(404, {"error": "Style preferences not found for this user"})
 
     except Exception as e:
         print(f"Error in getStylePreferences: {str(e)}")
-        return error_response(500, f"Error retrieving style preferences: {str(e)}")
+        return cors_response(500, {"error": f"Error retrieving style preferences: {str(e)}"})
 
 ############
 def generateOutfitRec(event, context):
     try:        
         userId = event['pathParameters'].get('userId')
         if not userId:
-            return error_response(400, "userId is required in path parameters")
+            return cors_response(400, "userId is required in path parameters")
         
         body = event.get('body', '{}')
         if isinstance(body, str):
@@ -247,7 +246,7 @@ def generateOutfitRec(event, context):
                 user_preferences_row = cursor.fetchone()
 
                 if not user_preferences_row:
-                    return error_response(404, "User preferences not found")
+                    return cors_response(404, "User preferences not found")
 
                 user_preferences = user_preferences_row.get('preferences', {})
 
@@ -260,29 +259,26 @@ def generateOutfitRec(event, context):
                 wardrobe = cursor.fetchall()
 
                 if not wardrobe:
-                    return error_response(404, "User has no liked posts to generate outfit from")
+                    return cors_response(404, "User has no liked posts to generate outfit from")
 
                 # Here you would implement your outfit generation logic
                 # For this example, we'll just return a random selection of items
                 outfit = random.sample(wardrobe, min(2, len(wardrobe)))
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Outfit recommendation generated",
-                "outfit": outfit
-            }, default=json_serial)
-        }
+        return cors_response(200, {
+            "message": "Outfit recommendation generated",
+            "outfit": outfit
+        })
 
     except Exception as e:
-        return error_response(500, f"Error generating outfit recommendation: {str(e)}")
+        return cors_response(500, f"Error generating outfit recommendation: {str(e)}")
     
 ############
 def generateItemRec(event, context):
     try:        
         userId = event['pathParameters'].get('userId')
         if not userId:
-            return error_response(400, "userId is required in path parameters")
+            return cors_response(400, "userId is required in path parameters")
         
         body = event.get('body', '{}')
         if isinstance(body, str):
@@ -292,7 +288,7 @@ def generateItemRec(event, context):
         
         category = body.get('category')
         if not category:
-            return error_response(400, "category is required in request body")
+            return cors_response(400, "category is required in request body")
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -301,7 +297,7 @@ def generateItemRec(event, context):
                 user_preferences_row = cursor.fetchone()
 
                 if not user_preferences_row:
-                    return error_response(404, "User preferences not found")
+                    return cors_response(404, "User preferences not found")
 
                 user_preferences = user_preferences_row.get('preferences', {})
 
@@ -316,16 +312,13 @@ def generateItemRec(event, context):
                 cursor.execute(query, (category, userId))
                 recommended_items = cursor.fetchall()
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Item recommendations generated",
-                "items": recommended_items
-            }, default=json_serial)
-        }
+        return cors_response(200, {
+            "message": "Item recommendations generated",
+            "items": recommended_items
+        })
 
     except Exception as e:
-        return error_response(500, f"Error generating item recommendations: {str(e)}")
+        return cors_response(500, f"Error generating item recommendations: {str(e)}")
 
 ############
 def getStyleAnalysis(event, context):
@@ -353,18 +346,15 @@ def getStyleAnalysis(event, context):
                     "liked_categories": list(set(post['category'] for post in liked_posts)),
                     # Add more analysis as needed
                 }
-
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Style analysis generated",
-                "analysis": analysis
-            }, default=json_serial)
-        }
+                
+        return cors_response(200, {
+            "message": "Style analysis generated",
+            "analysis": analysis
+        })
 
     except Exception as e:
         print(f"Error in getStyleAnalysis: {str(e)}")
-        return error_response(500, f"Error generating style analysis: {str(e)}")
+        return cors_response(500, f"Error generating style analysis: {str(e)}")
 
 ############
 def getTrendingItems(event, context):
@@ -379,17 +369,14 @@ def getTrendingItems(event, context):
                 cursor.execute(query)
                 trending_items = cursor.fetchall()
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Trending items retrieved",
-                "items": trending_items
-            }, default=json_serial)
-        }
+        return cors_response(200, {
+            "message": "Trending items retrieved",
+            "items": trending_items
+        })
 
     except Exception as e:
         print(f"Error in getTrendingItems: {str(e)}")
-        return error_response(500, f"Error retrieving trending items: {str(e)}")
+        return cors_response(500, f"Error retrieving trending items: {str(e)}")
 
 ############
 def getSimilarItems(event, context):
@@ -397,7 +384,7 @@ def getSimilarItems(event, context):
         postId = event['pathParameters']['postId']
 
         if not postId:
-            return error_response(400, "postId is required")
+            return cors_response(400, "postId is required")
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -406,7 +393,7 @@ def getSimilarItems(event, context):
                 original_post = cursor.fetchone()
 
                 if not original_post:
-                    return error_response(404, "Original post not found")
+                    return cors_response(404, "Original post not found")
 
                 # Get similar items based on tags and category
                 query = """
@@ -420,24 +407,21 @@ def getSimilarItems(event, context):
                 cursor.execute(query, (postId, original_post['category'], original_post['tags']))
                 similar_items = cursor.fetchall()
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Similar items retrieved",
-                "items": similar_items
-            }, default=json_serial)
-        }
+        return cors_response(200, {
+            "message": "Similar items retrieved",
+            "items": similar_items
+        })
 
     except Exception as e:
         print(f"Error in getSimilarItems: {str(e)}")
-        return error_response(500, f"Error retrieving similar items: {str(e)}")
+        return cors_response(500, f"Error retrieving similar items: {str(e)}")
 
 ###########
 def generateOutfitByWardrobe(event, context):
     try:        
         userId = event['pathParameters'].get('userId')
         if not userId:
-            return error_response(400, "userId is required in path parameters")
+            return cors_response(400, "userId is required in path parameters")
         
         body = event.get('body', '{}')
         if body is not None:
@@ -460,24 +444,21 @@ def generateOutfitByWardrobe(event, context):
                 wardrobe = cursor.fetchall()
 
                 if not wardrobe:
-                    return error_response(404, "User has no liked posts to generate outfit from")
+                    return cors_response(404, "User has no liked posts to generate outfit from")
 
                 # Here you would implement your outfit generation logic
                 # For this example, we'll just return a random selection of items
                 outfit = random.sample(wardrobe, min(2, len(wardrobe)))
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Outfit generated from wardrobe",
-                "outfit": outfit
-            }, default=json_serial)
-        }
+        return cors_response(200, {
+            "message": "Outfit generated from wardrobe",
+            "outfit": outfit
+        })
 
     except json.JSONDecodeError as e:
-        return error_response(400, f"Invalid JSON in request body: {str(e)}")
+        return cors_response(400, f"Invalid JSON in request body: {str(e)}")
     except Exception as e:
-        return error_response(500, f"Error generating outfit from wardrobe: {str(e)}")
+        return cors_response(500, f"Error generating outfit from wardrobe: {str(e)}")
 
 ##############
 def getStyleTips(event, context):
@@ -491,7 +472,7 @@ def getStyleTips(event, context):
                 user_preferences = cursor.fetchone()
 
                 if not user_preferences:
-                    return error_response(404, "User preferences not found")
+                    return cors_response(404, "User preferences not found")
 
                 # Generate style tips based on user preferences
                 # This is a placeholder - implement your own logic for generating tips
@@ -502,18 +483,15 @@ def getStyleTips(event, context):
                     "Try accessorizing with statement pieces",
                     "Invest in versatile, classic pieces"
                 ]
-
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Style tips retrieved",
-                "tips": tips
-            }, default=json_serial)
-        }
+        
+        return cors_response(200, {
+            "message": "Style tips retrieved",
+            "tips": tips
+        })
 
     except Exception as e:
         print(f"Error in getStyleTips: {str(e)}")
-        return error_response(500, f"Error retrieving style tips: {str(e)}")
+        return cors_response(500, f"Error retrieving style tips: {str(e)}")
 
 ###########
 def refreshStyler(event, context):
@@ -552,14 +530,11 @@ def refreshStyler(event, context):
                 updated_styler = cursor.fetchone()
                 conn.commit()
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Styler refreshed successfully",
-                "updatedStyler": updated_styler
-            }, default=json_serial)
-        }
+        return cors_response(200, {
+            "message": "Styler refreshed successfully",
+            "updatedStyler": updated_styler
+        })
 
     except Exception as e:
         print(f"Error in refreshStyler: {str(e)}")
-        return error_response(500, f"Error refreshing styler: {str(e)}")
+        return cors_response(500, f"Error refreshing styler: {str(e)}")

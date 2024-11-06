@@ -8,26 +8,36 @@ import boto3
 import requests
 from jwt.algorithms import RSAAlgorithm
 
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
+
 def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+    
     http_method = event['httpMethod']
     resource_path = event['resource']
     
     try:
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
-            return {
-                'statusCode': 401,
-                'body': json.dumps({'error': 'No authorization header'})
-            }
+            return cors_response(401, {'error': 'No authorization header'})
 
         # Extract token from Bearer authentication
         token = auth_header.split(' ')[-1]
         verify_token(token)
     except Exception as e:
-        return {
-            'statusCode': 401,
-            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
-        }
+        return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
 
     if resource_path == '/cart/{Id}':
         user_id = event['pathParameters']['Id']
@@ -40,10 +50,7 @@ def lambda_handler(event, context):
         elif http_method == 'DELETE':
             return remove_from_cart(event, user_id)
 
-    return {
-        'statusCode': 400,
-        'body': json.dumps('Unsupported route')
-    }
+    return cors_response(400, {'error': 'Unsupported route'})
     
 ########################
 #AUTH
@@ -121,32 +128,20 @@ def add_to_cart(event, user_id):
                 new_item = cursor.fetchone()
                 conn.commit()
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Item added to cart successfully",
-                "item": new_item
-            })
-        }
+        return cors_response(200, {
+            "message": "Item added to cart successfully",
+            "item": new_item
+        })
 
     except Exception as e:
         print(f"Failed to add item to cart. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error adding item to cart: {str(e)}")
-        }
+        return cors_response(500, {"error": f"Error adding item to cart: {str(e)}"})
 
 ########################
 def get_cart(user_id):
     try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # cursor.execute("""
-                #     SELECT c.*, p.title, p.price 
-                #     FROM cart c
-                #     JOIN posts p ON c.postId = p.id
-                #     WHERE c.userId = %s
-                # """, (user_id,))
                 cursor.execute("""
                                SELECT *
                                FROM cart
@@ -154,20 +149,14 @@ def get_cart(user_id):
                                """, (user_id))
                 cart_items = cursor.fetchall()
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Cart retrieved successfully",
-                "cart": cart_items
-            })
-        }
+        return cors_response(200, {
+            "message": "Cart retrieved successfully",
+            "cart": cart_items
+        })
 
     except Exception as e:
         print(f"Failed to get cart. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting cart: {str(e)}")
-        }
+        return cors_response(500, {"error": f"Error getting cart: {str(e)}"})
 
 ########################
 def update_cart_item(event, user_id):
@@ -184,25 +173,17 @@ def update_cart_item(event, user_id):
                 conn.commit()
 
         if updated_item:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Cart item updated successfully",
-                    "item": updated_item
-                })
-            }
+            return cors_response(200, {
+                "message": "Cart item updated successfully",
+                "item": updated_item
+            })
+            
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("Cart item not found")
-            }
+            return cors_response(404, {"error": "Cart item not found"})
 
     except Exception as e:
         print(f"Failed to update cart item. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error updating cart item: {str(e)}")
-        }
+        return cors_response(500, {"error": f"Error updating cart item: {str(e)}"})
 
 ########################
 def remove_from_cart(event, user_id):
@@ -217,22 +198,14 @@ def remove_from_cart(event, user_id):
                 conn.commit()
 
         if deleted_item:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Item removed from cart successfully",
-                    "item": deleted_item
-                })
-            }
+            return cors_response(200, {
+                "message": "Item removed from cart successfully",
+                "item": deleted_item
+            })
+
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("Cart item not found")
-            }
+            return cors_response(404, {"error": "Cart item not found"})
 
     except Exception as e:
         print(f"Failed to remove item from cart. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error removing item from cart: {str(e)}")
-        }
+        return cors_response(500, {"error": f"Error removing item from cart: {str(e)}"})

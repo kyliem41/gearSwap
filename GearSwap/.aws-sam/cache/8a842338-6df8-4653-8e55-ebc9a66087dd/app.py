@@ -9,7 +9,23 @@ import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
 
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
+
 def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+    
     http_method = event['httpMethod']
     resource_path = event['resource']
 
@@ -21,39 +37,38 @@ def lambda_handler(event, context):
     try:        
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
-            return {
-                'statusCode': 401,
-                'body': json.dumps({'error': 'No authorization header'})
-            }
+            return cors_response(401, {'error': 'No authorization header'})
 
         # Extract token from Bearer authentication
         token = auth_header.split(' ')[-1]        
         verify_token(token)
     except Exception as e:
-        return {
-            'statusCode': 401,
-            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
-        }
+        return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
 
-    # Handle the authenticated routes
-    if resource_path == '/users':
-        if http_method == 'GET':
-            return getUsers(event, context)
-    elif resource_path == '/users/{Id}':
-        if http_method == 'GET':
-            return getUserById(event, context)
-        elif http_method == 'PUT':
-            return putUser(event, context)
-        elif http_method == 'DELETE':
-            return deleteUser(event, context)
-    elif resource_path == '/users/password/{Id}':
-        return updatePassword(event, context)
-    elif resource_path == '/users/follow/{Id}':
-            return followUser(event, context)
-    elif resource_path == '/users/following/{Id}':
-        return getUsersFollowing(event, context)
-    elif resource_path == '/users/followers/{Id}':
-        return getUsersFollowers(event, context)
+    try:
+        if resource_path == '/users':
+            if http_method == 'GET':
+                return getUsers(event, context)
+        elif resource_path == '/users/{Id}':
+            if http_method == 'GET':
+                return getUserById(event, context)
+            elif http_method == 'PUT':
+                return putUser(event, context)
+            elif http_method == 'DELETE':
+                return deleteUser(event, context)
+        elif resource_path == '/users/password/{Id}':
+            return updatePassword(event, context)
+        elif resource_path == '/users/follow/{Id}':
+                return followUser(event, context)
+        elif resource_path == '/users/following/{Id}':
+            return getUsersFollowing(event, context)
+        elif resource_path == '/users/followers/{Id}':
+            return getUsersFollowers(event, context)
+
+        return cors_response(404, {'error': 'Route not found'})
+        
+    except Exception as e:
+        return cors_response(500, {'error': str(e)})
 
 ########################
 #AUTH
@@ -124,23 +139,19 @@ def getUsers(event, context):
             get_query = "SELECT * FROM users ORDER BY id"
             cursor.execute(get_query)
             users = cursor.fetchall()
-
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "All users retrieved",
-                "users": users,
-                "total_count": len(users)
-            }, default=json_serial)
-        }
             
+        return cors_response(200, {
+            "message": "All users retrieved",
+            "users": users,
+            "total_count": len(users)
+        })
+        
     except Exception as e:
         print(f"Failed to get users. Error: {str(e)}")
-        print(f"Connection details: host={db_host}, user={db_user}, port={db_port}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting users: {str(e)}"),
-        }
+        return cors_response(500, {
+            "error": f"Error getting users: {str(e)}"
+        })
+        
     finally:
         if conn:
             conn.close()
@@ -170,16 +181,11 @@ def createUser(event, context):
         password = body.get('password')
 
         if not firstName or not lastName or not username or not email or not password:
-            return {
-                "statusCode": 400,
-                "body": json.dumps("Missing required fields: firstname, lastname, username, email, or password")
-            }
+            return cors_response(400, "Missing required fields: firstname, lastname, username, email, or password")
 
         profile_info = body.get('profileInfo')
 
-        # Create user in Cognito
         try:
-            # Cognito user creation code remains the same
             cognito_response = cognito_client.admin_create_user(
                 UserPoolId=user_pool_id,
                 Username=email,
@@ -252,37 +258,20 @@ def createUser(event, context):
                 
                 conn.commit()
 
-            return {
-                "statusCode": 201,
-                "body": json.dumps({
-                    "message": "User and profile created successfully",
-                    "user": updated_user,
-                    "profile": new_profile,
-                    "cognitoUser": cognito_response['User']
-                }, default=str)
-            }
+            return cors_response(201, {
+            "message": "User and profile created successfully",
+            "user": updated_user,
+            "profile": new_profile,
+            "cognitoUser": cognito_response['User']
+        })
 
         except ClientError as e:
             print(f"Cognito error: {str(e)}")
-            return {
-                "statusCode": 400,
-                "body": json.dumps(f"Error creating Cognito user: {str(e)}")
-            }
+            return cors_response(400, f"Error creating Cognito user: {str(e)}")
 
     except Exception as e:
         print(f"Error: {str(e)}")
-        # Clean up Cognito user if it was created
-        try:
-            cognito_client.admin_delete_user(
-                UserPoolId=user_pool_id,
-                Username=email
-            )
-        except:
-            pass
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error creating user: {str(e)}")
-        }
+        return cors_response(500, f"Error creating user: {str(e)}")
 
     finally:
         if conn:
@@ -306,10 +295,7 @@ def getUserById(event, context):
         )
         
         if not conn:
-            return {
-                "statusCode": 500,
-                "body": json.dumps("Failed to connect to database")
-            }
+            return cors_response(500, "Failed to connect to database")
             
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             get_query = "SELECT * FROM users WHERE id = %s"
@@ -317,26 +303,18 @@ def getUserById(event, context):
             user = cursor.fetchone()
 
         if user:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "User retrieved successfully",
-                    "user": user
-                }, default=json_serial)
-            }
+            return cors_response(200, {
+            "message": "User retrieved successfully",
+            "user": user
+            })
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("User not found")
-            }
+            return cors_response(404, "User not found")
             
     except Exception as e:
         print(f"Failed to get user. Error: {str(e)}")
         print(f"Connection details: host={db_host}, user={db_user}, port={db_port}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting user: {str(e)}"),
-        }
+        return cors_response(500, f"Error getting user: {str(e)}")
+
     finally:
         if conn:
             conn.close()
@@ -373,30 +351,20 @@ def putUser(event, context):
             conn.commit()
         
         if updated_user:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Username updated successfully",
-                    "user": updated_user
-                }, default=str)  # Use str as a fallback serializer
-            }
+            return cors_response(200, {
+                "message": "Username updated successfully",
+                "user": updated_user
+            })
+
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("User not found")
-            }
+            return cors_response(404, "User not found")
         
     except psycopg2.IntegrityError as e:
-        return {
-            "statusCode": 400,
-            "body": json.dumps("Username already exists")
-        }
+        return cors_response(400, "Username already exists")
     except Exception as e:
         print(f"Failed to update username. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error updating username: {str(e)}")
-        }
+        return cors_response(500, f"Error updating username: {str(e)}")
+
     finally:
         if conn:
             conn.close()
@@ -418,10 +386,7 @@ def updatePassword(event, context):
         new_password = body.get('password')
 
         if not new_password:
-            return {
-                "statusCode": 400,
-                "body": json.dumps("Missing required field: password")
-            }
+            return cors_response(400, "Missing required field: password")
 
         conn = psycopg2.connect(
             host=db_host,
@@ -437,10 +402,7 @@ def updatePassword(event, context):
             user = cursor.fetchone()
             
             if not user:
-                return {
-                    "statusCode": 404,
-                    "body": json.dumps("User not found")
-                }
+                return cors_response(404, "User not found")
 
             user_email = user['email']
 
@@ -464,27 +426,18 @@ def updatePassword(event, context):
                 Permanent=True
             )
 
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Password updated successfully",
-                    "userId": updated_user['id']
-                })
-            }
+            return cors_response(200, {
+                "message": "Password updated successfully",
+                "userId": updated_user['id']
+            })
 
         except Exception as e:
             print(f"Cognito error: {str(e)}")
-            return {
-                "statusCode": 500,
-                "body": json.dumps(f"Error updating Cognito password: {str(e)}")
-            }
+            return cors_response(500, f"Error updating Cognito password: {str(e)}")
 
     except Exception as e:
         print(f"Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error updating password: {str(e)}")
-        }
+        return cors_response(500, f"Error updating password: {str(e)}")
 
     finally:
         if conn:
@@ -517,10 +470,7 @@ def deleteUser(event, context):
             user_record = cursor.fetchone()
             
             if not user_record:
-                return {
-                    "statusCode": 404,
-                    "body": json.dumps("User not found")
-                }
+                return cors_response(404, "User not found")
             
             user_email = user_record['email']
             
@@ -539,29 +489,21 @@ def deleteUser(event, context):
             print(f"User {user_email} not found in Cognito")
         except Exception as cognito_error:
             print(f"Error deleting user from Cognito: {str(cognito_error)}")
-            return {
-                "statusCode": 207,
-                "body": json.dumps({
-                    "message": "User deleted from database but failed to delete from Cognito",
-                    "deletedUserId": deleted_user['id'],
-                    "cognitoError": str(cognito_error)
-                })
-            }
-        
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "User deleted successfully from both database and Cognito",
-                "deletedUserId": deleted_user['id']
+            return cors_response(207, {
+                "message": "User deleted from database but failed to delete from Cognito",
+                "deletedUserId": deleted_user['id'],
+                "cognitoError": str(cognito_error)
             })
-        }
+        
+        return cors_response(200, {
+            "message": "User deleted successfully from both database and Cognito",
+            "deletedUserId": deleted_user['id']
+        })
         
     except Exception as e:
         print(f"Failed to delete user. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error deleting user: {str(e)}")
-        }
+        return cors_response(500, f"Error deleting user: {str(e)}")
+
     finally:
         if conn:
             conn.close()
@@ -605,13 +547,11 @@ def followUser(event, context):
                 
                 conn.commit()
                 
-                return {
-                    "statusCode": 201,
-                    "body": json.dumps({
-                        "message": "User followed successfully",
-                        "followRecord": follow_record
-                    }, default=json_serial)
-                }
+                return cors_response(201, {
+                    "message": "User followed successfully",
+                    "followRecord": follow_record
+                })
+
             else:
                 # If already following, delete the relationship
                 unfollow_query = """
@@ -624,20 +564,15 @@ def followUser(event, context):
                 
                 conn.commit()
                 
-                return {
-                    "statusCode": 200,
-                    "body": json.dumps({
-                        "message": "User unfollowed successfully",
-                        "unfollowRecord": unfollow_record
-                    }, default=json_serial)
-                }
+                return cors_response(200, {
+                    "message": "User unfollowed successfully",
+                    "unfollowRecord": unfollow_record
+                })
     
     except Exception as e:
         print(f"Failed to follow/unfollow user. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error following/unfollowing user: {str(e)}")
-        }
+        return cors_response(500, f"Error following/unfollowing user: {str(e)}")
+
     finally:
         if conn:
             conn.close()
@@ -670,20 +605,14 @@ def getUsersFollowing(event, context):
             cursor.execute(get_following_query, (user_id,))
             following = cursor.fetchall()
         
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Following users retrieved successfully",
-                "following": following
-            }, default=str)
-        }
+        return cors_response(200, {
+            "message": "Following users retrieved successfully",
+            "following": following
+        })
         
     except Exception as e:
         print(f"Failed to get following users. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting following users: {str(e)}")
-        }
+        return cors_response(500, f"Error getting following users: {str(e)}")
         
     finally:
         if conn:
@@ -717,20 +646,15 @@ def getUsersFollowers(event, context):
             cursor.execute(get_followers_query, (user_id,))
             followers = cursor.fetchall()
         
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Followers retrieved successfully",
-                "followers": followers
-            }, default=str)
-        }
+        return cors_response(200, {
+            "message": "Followers retrieved successfully",
+            "followers": followers
+        })
         
     except Exception as e:
         print(f"Failed to get followers. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting followers: {str(e)}")
-        }
+        return cors_response(500, f"Error getting followers: {str(e)}")
+
     finally:
         if conn:
             conn.close()

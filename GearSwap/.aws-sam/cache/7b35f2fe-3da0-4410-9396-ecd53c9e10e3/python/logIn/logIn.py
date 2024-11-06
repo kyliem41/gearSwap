@@ -11,23 +11,34 @@ class DateTimeEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super(DateTimeEncoder, self).default(obj)
+    
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
 
 def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+    
     print("Starting lambda_handler with event:", json.dumps(event))
     
     try:
-        # Parse request body
         body = json.loads(event['body'])
         email = body['email']
         password = body['password']
     except (KeyError, json.JSONDecodeError) as e:
         print(f"Error parsing request body: {str(e)}")
-        return {
-            'statusCode': 400,
-            'body': json.dumps('Invalid request body')
-        }
+        return cors_response(400, {'error': 'Invalid request body'})
 
-    # Initialize Cognito client
     cognito_client = boto3.client('cognito-idp')
     user_pool_id = os.environ['COGNITO_USER_POOL_ID']
     client_id = os.environ['COGNITO_CLIENT_ID']
@@ -44,10 +55,8 @@ def lambda_handler(event, context):
             print("User found in Cognito:", json.dumps(user, default=str))
         except cognito_client.exceptions.UserNotFoundException:
             print(f"User not found in Cognito for email: {email}")
-            return {
-                'statusCode': 404,
-                'body': json.dumps('User not found')
-            }
+            return cors_response(404, {'error': 'User not found'})
+        
         except Exception as e:
             print(f"Unexpected error during user verification: {str(e)}")
             raise
@@ -67,15 +76,10 @@ def lambda_handler(event, context):
         except ClientError as e:
             if e.response['Error']['Code'] == 'NotAuthorizedException':
                 print(f"Authentication failed: {str(e)}")
-                return {
-                    'statusCode': 401,
-                    'body': json.dumps({
-                        'message': 'Login failed',
-                        'body': 'Incorrect username or password'
-                    })
-                }
+                return cors_response(401, {'message': 'Login failed.','body': 'Incorrect username or password'})
             print(f"Unexpected ClientError during authentication: {str(e)}")
             raise e
+        
         except Exception as e:
             print(f"Unexpected error during authentication: {str(e)}")
             raise
@@ -94,15 +98,9 @@ def lambda_handler(event, context):
                 'user': user_info
             }
             
-            return {
-                'statusCode': 200,
-                'body': json.dumps(response_body, cls=DateTimeEncoder)
-            }
+            return cors_response(200, response_body)
         
-        return {
-            'statusCode': 401,
-            'body': json.dumps('Login failed')
-        }
+        return cors_response(401, {'error': 'Login failed'})
 
     except Exception as e:
         print(f"Error in main try block: {str(e)}")
@@ -111,10 +109,7 @@ def lambda_handler(event, context):
             import traceback
             print("Full traceback:")
             print(traceback.format_exc())
-        return {
-            'statusCode': 500,
-            'body': json.dumps(f'An error occurred during login: {str(e)}')
-        }
+        return cors_response(500, {'error': f'An error occurred during login: {str(e)}'})
 
 def get_user_info_from_db(email):
     db_host = os.environ['DB_HOST']

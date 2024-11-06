@@ -9,26 +9,36 @@ import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
 
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
+
 def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+    
     http_method = event['httpMethod']
     resource_path = event['resource']
     
     try:
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
-            return {
-                'statusCode': 401,
-                'body': json.dumps({'error': 'No authorization header'})
-            }
+            return cors_response(401, {'error': 'No authorization header'})
 
         # Extract token from Bearer authentication
         token = auth_header.split(' ')[-1]
         verify_token(token)
     except Exception as e:
-        return {
-            'statusCode': 401,
-            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
-        }
+        return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
 
     print(f"HTTP Method: {http_method}")
     print(f"Resource Path: {resource_path}")
@@ -46,10 +56,7 @@ def lambda_handler(event, context):
     elif resource_path == '/posts/{postId}':
         return getPostById(event, context)
 
-    return {
-        'statusCode': 400,
-        'body': json.dumps('Unsupported route')
-    }
+    return cors_response(400, {'error': 'Unsupported route'})
     
 ########################
 #AUTH
@@ -136,16 +143,10 @@ def createPost(event, context):
         required_fields = ['price', 'description', 'size', 'category', 'clothingType']
         for field in required_fields:
             if field not in body:
-                return {
-            "statusCode": 400,
-            "body": json.dumps(f"Missing required field: {field}")
-            }
+                return cors_response(400, f"Missing required field: {field}")
 
     except json.JSONDecodeError:
-        return {
-            "statusCode": 400,
-            "body": json.dumps("Invalid JSON format in request body")
-        }
+        return cors_response(400, "Invalid JSON format in request body")
 
     try:
         with get_db_connection() as conn:
@@ -154,10 +155,7 @@ def createPost(event, context):
                 cursor.execute("SELECT username FROM users WHERE id = %s", (userId,))
                 user = cursor.fetchone()
                 if not user:
-                    return {
-                        "statusCode": 404,
-                        "body": json.dumps("User not found")
-                    }
+                    return cors_response(404, "User not found")
 
                 insert_query = """
                 INSERT INTO posts (userId, price, description, size, category, clothingType, tags, photos) 
@@ -174,20 +172,14 @@ def createPost(event, context):
 
                 conn.commit()
 
-        return {
-            "statusCode": 201,
-            "body": json.dumps({
-                "message": "Post created successfully",
-                "profile": new_post
-            }, default=json_serial)
-        }
+        return cors_response(201, {
+            "message": "Post created successfully",
+            "profile": new_post
+        })
 
     except Exception as e:
         print(f"Failed to create Post. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error creating post: {str(e)}")
-        }
+        return cors_response(500, f"Error creating post: {str(e)}")
 
 ################
 def getPosts(event, context):
@@ -220,29 +212,21 @@ def getPosts(event, context):
         total_pages = -(-total_posts // page_size)  # Ceiling division
 
         if posts:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Posts retrieved successfully",
-                    "posts": posts,
-                    "page": page,
-                    "page_size": page_size,
-                    "total_posts": total_posts,
-                    "total_pages": total_pages
-                }, default=json_serial)
-            }
+            return cors_response(200, {
+                "message": "Posts retrieved successfully",
+                "posts": posts,
+                "page": page,
+                "page_size": page_size,
+                "total_posts": total_posts,
+                "total_pages": total_pages
+            })
+
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("No posts found for this page")
-            }
+            return cors_response(404, "No posts found for this page")
             
     except Exception as e:
         print(f"Failed to get posts. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting posts: {str(e)}"),
-        }
+        return cors_response(500, f"Error getting posts: {str(e)}")
 
 ############
 def getPostById(event, context):
@@ -262,25 +246,18 @@ def getPostById(event, context):
                 post = cursor.fetchone()
 
                 if post:
-                    return {
-                        "statusCode": 200,
-                        "body": json.dumps({
-                            "message": "Post retrieved successfully",
-                            "post": post
-                        }, default=json_serial)
-                    }
+                    return cors_response(200, {
+                        "message": "Post retrieved successfully",
+                        "post": post
+                    })
+                    
                 else:
-                    return {
-                        "statusCode": 404,
-                        "body": json.dumps("Post not found")
-                    }
+                    return cors_response(404, "Post not found")
                 
     except Exception as e:
         print(f"Error in getPostById: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting post: {str(e)}"),
-        }
+        return cors_response(500, f"Error getting post: {str(e)}")
+
     finally:
         if conn:
             conn.close()
@@ -337,35 +314,27 @@ def getPostsByFilter(event, context):
                 cursor.execute(get_query, params)
                 posts = cursor.fetchall()
 
-                cursor.execute(count_query, params[:-2])  # Exclude LIMIT and OFFSET params
+                cursor.execute(count_query, params[:-2])
                 total_posts = cursor.fetchone()['count']
 
-        total_pages = -(-total_posts // page_size)  # Ceiling division
+        total_pages = -(-total_posts // page_size)
 
         if posts:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Posts retrieved successfully",
-                    "posts": posts,
-                    "page": page,
-                    "page_size": page_size,
-                    "total_posts": total_posts,
-                    "total_pages": total_pages
-                }, default=json_serial)
-            }
+            return cors_response(200, {
+                "message": "Posts retrieved successfully",
+                "posts": posts,
+                "page": page,
+                "page_size": page_size,
+                "total_posts": total_posts,
+                "total_pages": total_pages
+            })
+
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("No posts found matching the filters")
-            }
+            return cors_response(404, "No posts found matching the filters")
 
     except Exception as e:
         print(f"Failed to get filtered posts. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting filtered posts: {str(e)}"),
-        }
+        return cors_response(500, f"Error getting filtered posts: {str(e)}")
 
 ############
 def putPost(event, context):
@@ -386,10 +355,7 @@ def putPost(event, context):
         photos = body.get('photos')
         
     except json.JSONDecodeError:
-        return {
-            "statusCode": 400,
-            "body": json.dumps("Invalid JSON format in request body")
-        }
+        return cors_response(400, "Invalid JSON format in request body")
 
     update_query = """
         UPDATE posts    
@@ -421,25 +387,17 @@ def putPost(event, context):
                 conn.commit()
         
         if updated_post:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Post updated successfully",
-                    "post": updated_post
-                }, default=json_serial)
-            }
+            return cors_response(200, {
+                "message": "Post updated successfully",
+                "post": updated_post
+            })
+
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("Post not found or does not belong to the user")
-            }
+            return cors_response(404, "Post not found or does not belong to the user")
         
     except Exception as e:
         print(f"Failed to update post. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error updating post: {str(e)}")
-        }
+        return cors_response(500, f"Error updating post: {str(e)}")
 
 ############
 def deletePost(event, context):
@@ -448,16 +406,10 @@ def deletePost(event, context):
         postId = event['pathParameters']['postId']
         
         if not postId:
-            return {
-                "statusCode": 400,
-                "body": json.dumps("Missing postId in path parameters")
-            }
+            return cors_response(400, "Missing postId in path parameters")
         
     except KeyError as e:
-        return {
-            "statusCode": 400,
-            "body": json.dumps(f"Missing required parameter: {str(e)}")
-        }
+        return cors_response(400, f"Missing required parameter: {str(e)}")
         
     delete_query = "DELETE FROM posts WHERE id = %s AND userId = %s RETURNING id;"
 
@@ -469,25 +421,17 @@ def deletePost(event, context):
                 conn.commit()
         
         if deleted_post:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Post deleted successfully",
-                    "deletedPostId": deleted_post['id']
-                })
-            }
+            return cors_response(200, {
+                "message": "Post deleted successfully",
+                "deletedPostId": deleted_post['id']
+            })
+            
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("Post not found or does not belong to the user")
-            }
+            return cors_response(404, "Post not found or does not belong to the user")
         
     except Exception as e:
         print(f"Failed to delete post. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error deleting post: {str(e)}")
-        }
+        return cors_response(500, f"Error deleting post: {str(e)}")
     
     finally:
         if conn:

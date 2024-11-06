@@ -7,7 +7,23 @@ import secrets
 from psycopg2.extras import RealDictCursor
 from send import EmailService, EmailProvider
 
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
+
 def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+
     try:
         print("Received event:", json.dumps(event))
         
@@ -16,20 +32,15 @@ def lambda_handler(event, context):
         elif event['resource'] == '/users/password-reset/verify':
             return handle_reset_verification(event)
         else:
-            return {
-                'statusCode': 400,
-                'body': json.dumps({'error': 'Invalid endpoint'})
-            }
+            return cors_response(400, {'error': 'Invalid endpoint'})
+
     except Exception as e:
         print("Error:", str(e))
         print("Traceback:", traceback.format_exc())
-        return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'error': 'Internal server error',
-                'details': str(e)
-            })
-        }
+        return cors_response(500, {
+            'error': 'Internal server error',
+            'details': str(e)
+        })
 
 def get_db_connection():
     return psycopg2.connect(
@@ -47,10 +58,7 @@ def handle_reset_request(event):
         email = body.get('email')
 
         if not email:
-            return {
-                'statusCode': 400,
-                'body': json.dumps({'error': 'Email is required'})
-            }
+            return cors_response(400, {'error': 'Email is required'})
 
         conn = get_db_connection()
         
@@ -63,10 +71,7 @@ def handle_reset_request(event):
             user = cursor.fetchone()
 
             if not user:
-                return {
-                    'statusCode': 404,
-                    'body': json.dumps({'error': 'No account found with this email address'})
-                }
+                return cors_response(404, {'error': 'No account found with this email address'})
 
             # Generate and store reset token
             reset_token = secrets.token_urlsafe(32)
@@ -95,22 +100,14 @@ def handle_reset_request(event):
                 )
             except Exception as e:
                 print(f"Failed to send reset email: {str(e)}")
-                return {
-                    'statusCode': 500,
-                    'body': json.dumps({'error': 'Failed to send reset email'})
-                }
+                return cors_response(500, {'error': 'Failed to send reset email'})
 
-            return {
-                'statusCode': 200,
-                'body': json.dumps({'message': 'Password reset instructions sent'})
-            }
+            return cors_response(200, {'message': 'Password reset instructions sent'})
 
     except Exception as e:
         print(f"Error in reset request: {str(e)}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': str(e)})
-        }
+        return cors_response(500, {'error': str(e)})
+
     finally:
         if conn:
             conn.close()
@@ -122,10 +119,7 @@ def handle_reset_verification(event):
         new_password = body.get('new_password')
 
         if not token or not new_password:
-            return {
-                'statusCode': 400,
-                'body': json.dumps({'error': 'Token and new password are required'})
-            }
+            return cors_response(400, {'error': 'Token and new password are required'})
 
         conn = get_db_connection()
         
@@ -141,16 +135,10 @@ def handle_reset_verification(event):
             result = cursor.fetchone()
             
             if not result:
-                return {
-                    'statusCode': 400,
-                    'body': json.dumps({'error': 'Invalid reset token'})
-                }
+                return cors_response(400, {'error': 'Invalid reset token'})
 
             if result['expiration'] < datetime.utcnow():
-                return {
-                    'statusCode': 400,
-                    'body': json.dumps({'error': 'Reset token has expired'})
-                }
+                return cors_response(400, {'error': 'Reset token has expired'})
 
             # Update password
             cursor.execute("""
@@ -167,17 +155,12 @@ def handle_reset_verification(event):
 
             conn.commit()
 
-            return {
-                'statusCode': 200,
-                'body': json.dumps({'message': 'Password updated successfully'})
-            }
+            return cors_response(200, {'message': 'Password updated successfully'})
 
     except Exception as e:
         print(f"Error in reset verification: {str(e)}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': str(e)})
-        }
+        return cors_response(500, {'error': str(e)})
+
     finally:
         if conn:
             conn.close()

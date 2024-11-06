@@ -8,26 +8,36 @@ import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
 
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
+    
 def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+    
     http_method = event['httpMethod']
     resource_path = event['resource']
     
     try:
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
-            return {
-                'statusCode': 401,
-                'body': json.dumps({'error': 'No authorization header'})
-            }
+            return cors_response(401, {'error': 'No authorization header'})
 
         # Extract token from Bearer authentication
         token = auth_header.split(' ')[-1]
         verify_token(token)
     except Exception as e:
-        return {
-            'statusCode': 401,
-            'body': json.dumps({'error': f'Authentication failed: {str(e)}'})
-        }
+        return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
 
     if resource_path == '/userProfile/{Id}':
         if http_method == 'POST':
@@ -39,10 +49,7 @@ def lambda_handler(event, context):
         elif http_method == 'DELETE':
             return deleteUserProfile(event, context)
 
-    return {
-        'statusCode': 400,
-        'body': json.dumps('Unsupported route')
-    }
+    return cors_response (400, {'error': 'Unsupported route'})
     
 ########################
 #AUTH
@@ -119,10 +126,7 @@ def createProfile(event, context):
         profilePicture = body.get('profilePicture')
 
     except json.JSONDecodeError:
-        return {
-            "statusCode": 400,
-            "body": json.dumps("Invalid JSON format in request body")
-        }
+        return cors_response(400, "Invalid JSON format in request body")
 
     try:
         with get_db_connection() as conn:
@@ -131,10 +135,7 @@ def createProfile(event, context):
                 cursor.execute("SELECT username FROM users WHERE id = %s", (user_id,))
                 user = cursor.fetchone()
                 if not user:
-                    return {
-                        "statusCode": 404,
-                        "body": json.dumps("User not found")
-                    }
+                    return cors_response(404, "User not found")
                 username = user['username']
 
                 # Insert a new profile into the userProfile table
@@ -157,26 +158,17 @@ def createProfile(event, context):
                 # Commit both the insertion and the update
                 conn.commit()
 
-        return {
-            "statusCode": 201,
-            "body": json.dumps({
-                "message": "UserProfile created successfully and user profileInfo updated",
-                "profile": new_profile
-            }, default=json_serial)
-        }
+        return cors_response(201, {
+            "message": "UserProfile created successfully and user profileInfo updated",
+            "profile": new_profile
+        })
 
     except psycopg2.IntegrityError as e:
         print(f"IntegrityError: {str(e)}")
-        return {
-            "statusCode": 400,
-            "body": json.dumps("UserProfile for this user already exists")
-        }
+        return cors_response(400, "UserProfile for this user already exists")
     except Exception as e:
         print(f"Failed to create profile. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error creating profile: {str(e)}")
-        }
+        return cors_response(500, f"Error creating profile: {str(e)}")
 
 ################
 def getUserProfile(event, context):
@@ -196,25 +188,16 @@ def getUserProfile(event, context):
                 userProfile = cursor.fetchone()
 
         if userProfile:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "UserProfile retrieved successfully, hey bebyy",
-                    "userProfile": userProfile
-                }, default=json_serial)
-            }
+            return cors_response(200, {
+                "message": "UserProfile retrieved successfully",
+                "userProfile": userProfile
+            })
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("UserProfile not found")
-            }
+            return cors_response(404, "UserProfile not found")
             
     except Exception as e:
         print(f"Failed to get profile. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error getting profile: {str(e)}"),
-        }
+        return cors_response(500, f"Error getting profile: {str(e)}")
 
 ############
 def putUserProfile(event, context):
@@ -230,10 +213,7 @@ def putUserProfile(event, context):
         profilePicture = body.get('profilePicture')
 
     except json.JSONDecodeError:
-        return {
-            "statusCode": 400,
-            "body": json.dumps("Invalid JSON format in request body")
-        }
+        return cors_response(400, "Invalid JSON format in request body")
 
     update_query = """
     UPDATE userProfile    
@@ -260,26 +240,17 @@ def putUserProfile(event, context):
                 conn.commit()
         
         if updated_userProfile:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "UserProfile updated successfully",
-                    "updated_userProfile": updated_userProfile
-                }, default=json_serial)
-            }
+            return cors_response(200, {
+                "message": "UserProfile updated successfully",
+                "updated_userProfile": updated_userProfile
+            })
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("UserProfile not found")
-            }
+            return cors_response(404, "UserProfile not found")
         
     except Exception as e:
         print(f"Failed to update UserProfile. Error: {str(e)}")
         print(f"Error type: {type(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error updating UserProfile: {str(e)}")
-        }
+        return cors_response(500, f"Error updating UserProfile: {str(e)}")
 
 ##########
 def deleteUserProfile(event, context):
@@ -295,22 +266,14 @@ def deleteUserProfile(event, context):
                 conn.commit()
         
         if deleted_userProfile:
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "UserProfile deleted successfully",
-                    "deletedProfileId": deleted_userProfile['id']
-                })
-            }
+            return cors_response(200, {
+                "message": "UserProfile deleted successfully",
+                "deletedProfileId": deleted_userProfile['id']
+            })
+
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps("UserProfile not found")
-            }
+            return cors_response(404, "UserProfile not found")
         
     except Exception as e:
         print(f"Failed to delete UserProfile. Error: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error deleting UserProfile: {str(e)}")
-        }
+        return cors_response(500, f"Error deleting UserProfile: {str(e)}")

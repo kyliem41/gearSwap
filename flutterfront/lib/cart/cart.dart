@@ -154,7 +154,6 @@ class _CartPageState extends State<CartPage> {
             isLoading = false;
           });
 
-          // Fetch seller information for each unique seller
           for (String sellerId in fetchedSellerIds) {
             await _fetchSellerInfo(sellerId);
           }
