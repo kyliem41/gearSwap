@@ -6,6 +6,7 @@ from typing import List, Dict, Any
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import traceback
 
 class FashionGPTRecommender:
     def __init__(self, db_connection):
@@ -127,7 +128,7 @@ class FashionGPTRecommender:
                     WHERE userId = %s
                 """, (user_id,))
                 styler_prefs = cursor.fetchone()
-    
+
             # Prepare context for the model
             user_context = {
                 "style_preferences": styler_prefs['preferences'] if styler_prefs else {},
@@ -139,22 +140,20 @@ class FashionGPTRecommender:
                     } for post in recent_likes
                 ]
             }
-    
-            # Get recommendation from model
-            response = await self.openai.ChatCompletion.acreate(
+
+            # Get recommendation from model using new OpenAI API format
+            response = await self.client.chat.completions.create(
                 model=self.fine_tuned_model,
                 messages=[
                     {"role": "system", "content": "You are a fashion AI stylist with expertise in personal style recommendations."},
                     {"role": "user", "content": message},
                     {"role": "assistant", "content": f"I'll help you with your {request_type} request. Here's what I know about your style: {json.dumps(user_context)}"}
-                ],
-                temperature=0.7,
-                max_tokens=500
+                ]
             )
-    
-            # Extract the response text
+
+            # Extract the response text - updated for new API format
             recommendation = response.choices[0].message.content
-    
+
             return {
                 'recommendation': recommendation,
                 'context': {
@@ -166,7 +165,7 @@ class FashionGPTRecommender:
             
         except Exception as e:
             print(f"Error in get_recommendation: {str(e)}")
-            traceback.print_exc()  # Add this to get full error trace
+            traceback.print_exc()  # Now properly imported
             raise
 
     def _create_outfit_prompt(self, user_context: Dict, occasion: str = None) -> str:

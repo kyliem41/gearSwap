@@ -142,7 +142,7 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         
     except Exception as e:
         print(f"Chat handler error: {str(e)}")
-        traceback.print_exc()  # Add this to get full error trace
+        traceback.print_exc()
         return cors_response(500, {'error': str(e)})
     
 #########
