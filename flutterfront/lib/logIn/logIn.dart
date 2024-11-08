@@ -18,7 +18,7 @@ class loginUser extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Login',
+      title: 'GearSwap',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(),
       home: const MyLoginPage(title: 'Login'),

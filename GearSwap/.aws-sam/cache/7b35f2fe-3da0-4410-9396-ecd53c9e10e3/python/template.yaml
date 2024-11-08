@@ -24,8 +24,8 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref UserPool
         COGNITO_CLIENT_ID: !Ref UserPoolClient
         AuthorizerResultTtlInSeconds: 0
-        ABLY_API_KEY: !Sub 'resolve:secretsmanager:/gearswap/${ENV}/ABLY_API_KEY'
-        OPENAI_API_KEY: !Sub 'resolve:secretsmanager:/gearswap/${ENV}/OPENAI_API_KEY'
+        ABLY_API_KEY: !Sub '{{resolve:secretsmanager:/gearswap/${ENV}/ABLY_API_KEY:SecretString}}'
+        OPENAI_API_KEY: !Sub '{{resolve:secretsmanager:/gearswap/${ENV}/OPENAI_API_KEY:SecretString}}'
         FINE_TUNED_MODEL_ID: !Sub '{{resolve:ssm:/gearswap/${ENV}/FINE_TUNED_MODEL_ID}}'
         ENV: !Ref ENV
     VpcConfig:
@@ -128,16 +128,6 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource: 
                   - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/gearswap/${ENV}/*'
-        # - PolicyName: SSMAccess
-        #   PolicyDocument:
-        #     Version: '2012-10-17'
-        #     Statement:
-        #       - Effect: Allow
-        #         Action:
-        #           - ssm:GetParameter
-        #           - ssm:GetParameters
-        #           - ssm:GetParametersByPath
-        #         Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/gearswap/${ENV}/*'
         - PolicyName: RDSAccess
           PolicyDocument:
             Version: '2012-10-17'
