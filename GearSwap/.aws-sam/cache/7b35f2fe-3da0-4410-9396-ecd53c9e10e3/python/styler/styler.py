@@ -7,13 +7,14 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import traceback
+from config_manager import config_manager
 
 class FashionGPTRecommender:
     def __init__(self, db_connection):
         self.db = db_connection
         self.openai = openai
-        self.openai.api_key = os.environ.get('OPENAI_API_KEY')
-        self.fine_tuned_model = os.environ.get('FINE_TUNED_MODEL_ID')
+        self.openai.api_key = config_manager.get_parameter('OPENAI_API_KEY')
+        self.fine_tuned_model = config_manager.get_parameter('FINE_TUNED_MODEL_ID')
         
     async def prepare_training_data(self, user_id: int) -> List[Dict]:
         """Prepare training data from user's history"""
