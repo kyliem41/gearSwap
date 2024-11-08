@@ -15,9 +15,9 @@ class FashionGPTRecommender:
         self.openai = openai
         
         try:
-            self.openai.api_key = config_manager.get_secret('OPENAI_API_KEY')  # Use get_secret directly
-            self.ably_api_key = config_manager.get_secret('ABLY_API_KEY')      # Use get_secret directly
-            self.fine_tuned_model = config_manager.get_parameter('FINE_TUNED_MODEL_ID')  # Use get_parameter for non-sensitive
+            self.openai.api_key = config_manager.get_secret('OPENAI_API_KEY')
+            self.ably_api_key = config_manager.get_secret('ABLY_API_KEY')
+            self.fine_tuned_model = config_manager.get_parameter('FINE_TUNED_MODEL_ID')
         except Exception as e:
             print(f"Error initializing FashionGPTRecommender: {str(e)}")
             raise
@@ -119,7 +119,7 @@ class FashionGPTRecommender:
         try:
             # Get user context
             with self.db.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Get user preferences and history
+                
                 cursor.execute("""
                     SELECT p.*, lp.dateLiked 
                     FROM posts p
@@ -148,8 +148,7 @@ class FashionGPTRecommender:
                 ]
             }
 
-            # Get recommendation from model using new OpenAI API format
-            response = await self.client.chat.completions.create(
+            response = await openai.ChatCompletion.acreate(
                 model=self.fine_tuned_model,
                 messages=[
                     {"role": "system", "content": "You are a fashion AI stylist with expertise in personal style recommendations."},
@@ -158,8 +157,7 @@ class FashionGPTRecommender:
                 ]
             )
 
-            # Extract the response text - updated for new API format
-            recommendation = response.choices[0].message.content
+            recommendation = response.choices[0].message['content']
 
             return {
                 'recommendation': recommendation,
@@ -172,7 +170,7 @@ class FashionGPTRecommender:
             
         except Exception as e:
             print(f"Error in get_recommendation: {str(e)}")
-            traceback.print_exc()  # Now properly imported
+            traceback.print_exc()
             raise
 
     def _create_outfit_prompt(self, user_context: Dict, occasion: str = None) -> str:
