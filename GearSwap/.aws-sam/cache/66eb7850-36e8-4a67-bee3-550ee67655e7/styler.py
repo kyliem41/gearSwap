@@ -1,6 +1,6 @@
 import os
 import json
-import openai
+from openai import AsyncOpenAI
 from typing import List, Dict, Any
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -12,10 +12,10 @@ from config_manager import config_manager
 class FashionGPTRecommender:
     def __init__(self, db_connection):
         self.db = db_connection
-        self.openai = openai
         
         try:
-            self.openai.api_key = config_manager.get_secret('OPENAI_API_KEY')
+            api_key = config_manager.get_secret('OPENAI_API_KEY')
+            self.client = AsyncOpenAI(api_key=api_key)
             self.ably_api_key = config_manager.get_secret('ABLY_API_KEY')
             self.fine_tuned_model = config_manager.get_parameter('FINE_TUNED_MODEL_ID')
         except Exception as e:
@@ -119,7 +119,7 @@ class FashionGPTRecommender:
         try:
             # Get user context
             with self.db.cursor(cursor_factory=RealDictCursor) as cursor:
-                
+                # Get user preferences and history
                 cursor.execute("""
                     SELECT p.*, lp.dateLiked 
                     FROM posts p
@@ -148,7 +148,8 @@ class FashionGPTRecommender:
                 ]
             }
 
-            response = await openai.ChatCompletion.acreate(
+            # Get recommendation using new OpenAI API format
+            response = await self.client.chat.completions.create(
                 model=self.fine_tuned_model,
                 messages=[
                     {"role": "system", "content": "You are a fashion AI stylist with expertise in personal style recommendations."},
@@ -157,7 +158,8 @@ class FashionGPTRecommender:
                 ]
             )
 
-            recommendation = response.choices[0].message['content']
+            # Extract the response text using new API format
+            recommendation = response.choices[0].message.content
 
             return {
                 'recommendation': recommendation,
