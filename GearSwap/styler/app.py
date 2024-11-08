@@ -54,7 +54,7 @@ def lambda_handler(event, context):
         if resource_path == '/styler/chat/{userId}':
                 return handle_chat(event, context, conn, ably_client, recommender)
         elif resource_path == '/styler/chat/{userId}/history':
-            return get_chat_history(event, context)
+                return get_chat_history(event, context)
         elif resource_path == '/styler/{userId}':
             if http_method == 'POST':
                 return refreshStyler(event, context)

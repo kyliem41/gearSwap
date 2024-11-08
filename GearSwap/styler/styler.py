@@ -189,7 +189,23 @@ class FashionGPTRecommender:
         
         Please provide style tips and suggestions for improving their wardrobe."""
 
+def cors_response(status_code, body):
+    """Helper function to create responses with proper CORS headers"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        },
+        'body': json.dumps(body, default=str)
+    }
+
 async def lambda_handler(event, context):
+    if event['httpMethod'] == 'OPTIONS':
+        return cors_response(200, {'message': 'OK'})
+    
     try:
         conn = psycopg2.connect(
             host=os.environ['DB_HOST'],
@@ -199,8 +215,15 @@ async def lambda_handler(event, context):
         )
 
         recommender = FashionGPTRecommender(conn)
+        
+        auth_header = event.get('headers', {}).get('Authorization')
+        if not auth_header:
+            return cors_response(401, {'error': 'No authorization header'})
 
-        if event['resource'] == '/styler/outfit/{userId}':
+        resource = event['resource']
+        method = event['httpMethod']
+
+        if event['resource'] == '/styler/outfit/{userId}' and method == 'POST':
             user_id = event['pathParameters']['userId']
             body = json.loads(event['body'])
             
@@ -210,12 +233,9 @@ async def lambda_handler(event, context):
                 occasion=body.get('occasion')
             )
             
-            return {
-                'statusCode': 200,
-                'body': json.dumps(recommendation)
-            }
+            return cors_response(200, recommendation)
 
-        elif event['resource'] == '/styler/item/{userId}':
+        elif event['resource'] == '/styler/item/{userId}' and method == 'POST':
             user_id = event['pathParameters']['userId']
             body = json.loads(event['body'])
             
@@ -225,16 +245,14 @@ async def lambda_handler(event, context):
                 category=body.get('category')
             )
             
-            return {
-                'statusCode': 200,
-                'body': json.dumps(recommendation)
-            }
+            return cors_response(200, recommendation)
 
+        return cors_response(405, {'error': 'Method not allowed'})
+    
     except Exception as e:
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': str(e)})
-        }
+        print(f"Error in lambda_handler: {str(e)}")
+        return cors_response(500, {'error': str(e)})
+
     finally:
         if conn:
             conn.close()
