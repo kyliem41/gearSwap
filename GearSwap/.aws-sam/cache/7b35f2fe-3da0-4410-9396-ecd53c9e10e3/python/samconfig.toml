@@ -21,8 +21,7 @@ confirm_changeset = true
 resolve_s3 = true
 s3_prefix = "GearSwap"
 image_repositories = []
-parameter_overrides = "SubnetIds=subnet-0399259539dbfb6b9,subnet-0c5504a12d93a8c54 SESSenderEmail=krhodus@student.neumont.edu SES_REGION=us-east-2"
-
+parameter_overrides = "SubnetIds=subnet-0399259539dbfb6b9,subnet-0c5504a12d93a8c54 SESSenderEmail=krhodus@student.neumont.edu SES_REGION=us-east-2 AblyApiKey=GisudA.kiUAuQ:hUAZhNCJqj3BZzZlJs8rr5VcaAm2ugoEKCJqYFHB5EA OpenAIApiKey=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 FineTunedModelId=gpt-4"
 [default.package.parameters]
 resolve_s3 = true
 

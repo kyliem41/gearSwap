@@ -24,6 +24,9 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref UserPool
         COGNITO_CLIENT_ID: !Ref UserPoolClient
         AuthorizerResultTtlInSeconds: 0
+        ABLY_API_KEY: !Sub ${AblyApiKey}
+        OPENAPI_API_KEY: !Sub ${OpenAIApiKey}
+        FINE_TUNED_MODEL_ID: !Sub ${FineTunedModelId}
     VpcConfig:
       SecurityGroupIds: 
         - sg-07e026f3fb32eb128
@@ -51,6 +54,17 @@ Parameters:
     Type: String
     Description: SES Configuration Set Name (optional)
     Default: ""
+  AblyApiKey:
+    Type: String
+    Description: Ably API Key
+    NoEcho: true
+  OpenAIApiKey:
+    Type: String
+    Description: OpenAI API Key
+    NoEcho: true
+  FineTunedModelId:
+    Type: String
+    Description: Fine-tuned model ID
   GmailEmail:
     Type: String
     Description: Gmail address for sending emails
@@ -888,6 +902,34 @@ Resources:
       Handler: app.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
+        StylerChat:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/chat/{userId}
+            Method: POST
+        StylerChatOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/chat/{userId}
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        StylerChatHistory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/chat/{userId}/history
+            Method: GET
+        StylerChatHistoryOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /styler/chat/{userId}/history
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
         RefreshStyler:
           Type: Api
           Properties:

@@ -10,6 +10,8 @@ import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
+from ably import AblyRest
+from styler import FashionGPTRecommender
 
 def cors_response(status_code, body):
     """Helper function to create responses with proper CORS headers"""
@@ -36,42 +38,177 @@ def lambda_handler(event, context):
         if not auth_header:
             return cors_response(401, {'error': 'No authorization header'})
 
-        # Extract token from Bearer authentication
         token = auth_header.split(' ')[-1]
         verify_token(token)
     except Exception as e:
         return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
 
-    if resource_path == '/styler/{userId}':
-        if http_method == 'POST':
-            return refreshStyler(event, context)
-        elif http_method == 'GET':
-            return getStyleTips(event, context)
-    elif resource_path == '/styler/wardrobe/{userId}':
-        if http_method == 'POST':
-            return generateOutfitByWardrobe(event, context)
-    elif resource_path == '/styler/similar/{postId}':
-        if http_method == 'GET':
-            return getSimilarItems(event, context)
-    elif resource_path == '/styler/trending':
-        if http_method == 'GET':
-            return getTrendingItems(event, context)
-    elif resource_path == '/styler/analysis/{userId}':
-        if http_method == 'GET':
-            return getStyleAnalysis(event, context)
-    elif resource_path == '/styler/outfit/{userId}':
-        if http_method == 'POST':
-            return generateOutfitRec(event, context)
-    elif resource_path == '/styler/item/{userId}':
-        if http_method == 'POST':
-            return generateItemRec(event, context)
-    elif resource_path == '/styler/preferences/{userId}':
-        if http_method == 'GET':
-            return getStylePreferences(event, context)
-        elif http_method == 'PUT':
-            return putStylePreferences(event, context)
+    conn = None
+    ably_client = None
+    
+    try:
+        conn = get_db_connection()
+        ably_client = AblyRest(os.environ['ABLY_API_KEY'])
+        recommender = FashionGPTRecommender(conn)
+
+        if resource_path == '/styler/chat/{userId}':
+                return handle_chat(event, context, conn, ably_client, recommender)
+        elif resource_path == '/styler/chat/{userId}/history':
+            return get_chat_history(event, context)
+        elif resource_path == '/styler/{userId}':
+            if http_method == 'POST':
+                return refreshStyler(event, context)
+            elif http_method == 'GET':
+                return getStyleTips(event, context)
+        elif resource_path == '/styler/wardrobe/{userId}':
+            if http_method == 'POST':
+                return generateOutfitByWardrobe(event, context)
+        elif resource_path == '/styler/similar/{postId}':
+            if http_method == 'GET':
+                return getSimilarItems(event, context)
+        elif resource_path == '/styler/trending':
+            if http_method == 'GET':
+                return getTrendingItems(event, context)
+        elif resource_path == '/styler/analysis/{userId}':
+            if http_method == 'GET':
+                return getStyleAnalysis(event, context)
+        elif resource_path == '/styler/outfit/{userId}':
+            if http_method == 'POST':
+                return generateOutfitRec(event, context)
+        elif resource_path == '/styler/item/{userId}':
+            if http_method == 'POST':
+                return generateItemRec(event, context)
+        elif resource_path == '/styler/preferences/{userId}':
+            if http_method == 'GET':
+                return getStylePreferences(event, context)
+            elif http_method == 'PUT':
+                return putStylePreferences(event, context)
         
-    return cors_response(200, {'message': 'Unsupported method'})
+    except Exception as e:
+        print(F"Error: {str(e)}")
+        return cors_response(200, {'message': 'Unsupported method'})
+    
+    finally:
+        if conn:
+            conn.close()
+            
+##################
+#CHAT
+def handle_chat(event, context, conn, ably_client, recommender):
+    try:
+        userId = event['pathParameters']['userId']
+        body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
+        
+        if not body.get('message'):
+            return cors_response(400, {'error': 'Message content is required'})
+        
+        # Get Ably channel
+        channel = ably_client.channels.get(f"stylist:{userId}")
+        
+        # Process message with GPT
+        response = recommender.get_recommendation(
+            user_id=userId,
+            request_type=body.get('type', 'conversation'),
+            message=body.get('message'),
+            context=body.get('context', [])
+        )
+        
+        # Publish response to Ably channel
+        channel.publish('stylist_response', {
+            'response': response['recommendation'],
+            'context': response.get('context', {})
+        })
+        
+        # Log conversation
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO conversation_logs 
+                (user_id, user_message, ai_response, request_type)
+                VALUES (%s, %s, %s, %s)
+            """, (userId, body.get('message'), response['recommendation'], 
+                  body.get('type', 'conversation')))
+            conn.commit()
+            
+        return cors_response(200, {
+            'message': 'Message processed successfully',
+            'response': response['recommendation']
+        })
+        
+    except Exception as e:
+        print(f"Chat handler error: {str(e)}")
+        return cors_response(500, {'error': str(e)})
+    
+#########
+def get_chat_history(event, context):
+    try:
+        userId = event['pathParameters']['userId']
+        
+        # Optional query parameters for pagination
+        queryStringParameters = event.get('queryStringParameters', {}) or {}
+        limit = int(queryStringParameters.get('limit', 50))  # Default to 50 messages
+        offset = int(queryStringParameters.get('offset', 0))
+        
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # Get total count for pagination
+                count_query = """
+                SELECT COUNT(*) 
+                FROM conversation_logs 
+                WHERE user_id = %s
+                """
+                cursor.execute(count_query, (userId,))
+                total_count = cursor.fetchone()['count']
+                
+                # Get chat history with pagination
+                history_query = """
+                SELECT id, user_message, ai_response, request_type, timestamp
+                FROM conversation_logs 
+                WHERE user_id = %s
+                ORDER BY timestamp DESC
+                LIMIT %s OFFSET %s
+                """
+                cursor.execute(history_query, (userId, limit, offset))
+                history = cursor.fetchall()
+                
+                # Format the chat history as a conversation
+                formatted_history = []
+                for entry in history:
+                    formatted_history.extend([
+                        {
+                            'id': f"user_{entry['id']}",
+                            'message': entry['user_message'],
+                            'timestamp': entry['timestamp'],
+                            'type': 'user'
+                        },
+                        {
+                            'id': f"ai_{entry['id']}",
+                            'message': entry['ai_response'],
+                            'timestamp': entry['timestamp'],
+                            'type': 'ai',
+                            'request_type': entry['request_type']
+                        }
+                    ])
+                
+                # Sort by timestamp
+                formatted_history.sort(key=lambda x: x['timestamp'])
+
+        return cors_response(200, {
+            "message": "Chat history retrieved successfully",
+            "history": formatted_history,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": (offset + limit) < total_count
+            }
+        })
+
+    except ValueError as e:
+        return cors_response(400, {"error": f"Invalid pagination parameters: {str(e)}"})
+    except Exception as e:
+        print(f"Error retrieving chat history: {str(e)}")
+        print(traceback.format_exc())  # Add detailed error logging
+        return cors_response(500, {"error": f"Error retrieving chat history: {str(e)}"})
 
 ########################
 #AUTH
