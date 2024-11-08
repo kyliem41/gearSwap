@@ -11,7 +11,7 @@ import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
 from ably import AblyRest
-from GearSwap import config_manager
+from config_manager import config_manager
 from styler import FashionGPTRecommender
 import asyncio
 from typing import Any, Dict
@@ -51,7 +51,7 @@ def lambda_handler(event, context):
     
     try:
         conn = get_db_connection()
-        ably_client = AblyRest(config_manager.get_parameter('ABLY_API_KEY'))
+        ably_client = AblyRest(config_manager.get_secret('ABLY_API_KEY'))
         recommender = FashionGPTRecommender(conn)
 
         if resource_path == '/styler/chat/{userId}':
