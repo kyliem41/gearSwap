@@ -1,6 +1,5 @@
 import os
 import json
-import boto3
 import openai
 from typing import List, Dict, Any
 import psycopg2

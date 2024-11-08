@@ -25,7 +25,6 @@ import socket
 import time
 import warnings
 import weakref
-from datetime import datetime as _DatetimeClass
 from ipaddress import ip_address
 from pathlib import Path
 from urllib.request import getproxies, proxy_bypass
@@ -109,6 +108,8 @@ S3_ACCELERATE_WHITELIST = ['dualstack']
 # id, we have to preserve compatibility. This maps the instances where either
 # is different than the transformed service id.
 EVENT_ALIASES = {
+    "a4b": "alexa-for-business",
+    "alexaforbusiness": "alexa-for-business",
     "api.mediatailor": "mediatailor",
     "api.pricing": "pricing",
     "api.sagemaker": "sagemaker",
@@ -431,7 +432,7 @@ class IMDSFetcher:
         else:
             chosen_base_url = METADATA_BASE_URL
 
-        logger.debug(f"IMDS ENDPOINT: {chosen_base_url}")
+        logger.debug("IMDS ENDPOINT: %s" % chosen_base_url)
         if not is_valid_uri(chosen_base_url):
             raise InvalidIMDSEndpointError(endpoint=chosen_base_url)
 
@@ -996,7 +997,7 @@ def parse_timestamp(value):
                 exc_info=e,
             )
     raise RuntimeError(
-        f'Unable to calculate correct timezone offset for "{value}"'
+        'Unable to calculate correct timezone offset for "%s"' % value
     )
 
 
@@ -1027,7 +1028,7 @@ def parse_to_aware_datetime(value):
     # converting the provided value to a string timestamp suitable to be
     # serialized to an http request. It can handle:
     # 1) A datetime.datetime object.
-    if isinstance(value, _DatetimeClass):
+    if isinstance(value, datetime.datetime):
         datetime_obj = value
     else:
         # 2) A string object that's formatted as a timestamp.
@@ -1061,7 +1062,11 @@ def datetime2timestamp(dt, default_timezone=None):
             default_timezone = tzutc()
         dt = dt.replace(tzinfo=default_timezone)
     d = dt.replace(tzinfo=None) - dt.utcoffset() - epoch
-    return d.total_seconds()
+    if hasattr(d, "total_seconds"):
+        return d.total_seconds()  # Works in Python 3.6+
+    return (
+        d.microseconds + (d.seconds + d.days * 24 * 3600) * 10**6
+    ) / 10**6
 
 
 def calculate_sha256(body, as_hex=False):
@@ -1580,129 +1585,6 @@ def hyphenize_service_id(service_id):
     return service_id.replace(' ', '-').lower()
 
 
-class IdentityCache:
-    """Base IdentityCache implementation for storing and retrieving
-    highly accessed credentials.
-
-    This class is not intended to be instantiated in user code.
-    """
-
-    METHOD = "base_identity_cache"
-
-    def __init__(self, client, credential_cls):
-        self._client = client
-        self._credential_cls = credential_cls
-
-    def get_credentials(self, **kwargs):
-        callback = self.build_refresh_callback(**kwargs)
-        metadata = callback()
-        credential_entry = self._credential_cls.create_from_metadata(
-            metadata=metadata,
-            refresh_using=callback,
-            method=self.METHOD,
-            advisory_timeout=45,
-            mandatory_timeout=10,
-        )
-        return credential_entry
-
-    def build_refresh_callback(**kwargs):
-        """Callback to be implemented by subclasses.
-
-        Returns a set of metadata to be converted into a new
-        credential instance.
-        """
-        raise NotImplementedError()
-
-
-class S3ExpressIdentityCache(IdentityCache):
-    """S3Express IdentityCache for retrieving and storing
-    credentials from CreateSession calls.
-
-    This class is not intended to be instantiated in user code.
-    """
-
-    METHOD = "s3express"
-
-    def __init__(self, client, credential_cls):
-        self._client = client
-        self._credential_cls = credential_cls
-
-    @functools.lru_cache(maxsize=100)
-    def get_credentials(self, bucket):
-        return super().get_credentials(bucket=bucket)
-
-    def build_refresh_callback(self, bucket):
-        def refresher():
-            response = self._client.create_session(Bucket=bucket)
-            creds = response['Credentials']
-            expiration = self._serialize_if_needed(
-                creds['Expiration'], iso=True
-            )
-            return {
-                "access_key": creds['AccessKeyId'],
-                "secret_key": creds['SecretAccessKey'],
-                "token": creds['SessionToken'],
-                "expiry_time": expiration,
-            }
-
-        return refresher
-
-    def _serialize_if_needed(self, value, iso=False):
-        if isinstance(value, _DatetimeClass):
-            if iso:
-                return value.isoformat()
-            return value.strftime('%Y-%m-%dT%H:%M:%S%Z')
-        return value
-
-
-class S3ExpressIdentityResolver:
-    def __init__(self, client, credential_cls, cache=None):
-        self._client = weakref.proxy(client)
-
-        if cache is None:
-            cache = S3ExpressIdentityCache(self._client, credential_cls)
-        self._cache = cache
-
-    def register(self, event_emitter=None):
-        logger.debug('Registering S3Express Identity Resolver')
-        emitter = event_emitter or self._client.meta.events
-        emitter.register('before-call.s3', self.apply_signing_cache_key)
-        emitter.register('before-sign.s3', self.resolve_s3express_identity)
-
-    def apply_signing_cache_key(self, params, context, **kwargs):
-        endpoint_properties = context.get('endpoint_properties', {})
-        backend = endpoint_properties.get('backend', None)
-
-        # Add cache key if Bucket supplied for s3express request
-        bucket_name = context.get('input_params', {}).get('Bucket')
-        if backend == 'S3Express' and bucket_name is not None:
-            context.setdefault('signing', {})
-            context['signing']['cache_key'] = bucket_name
-
-    def resolve_s3express_identity(
-        self,
-        request,
-        signing_name,
-        region_name,
-        signature_version,
-        request_signer,
-        operation_name,
-        **kwargs,
-    ):
-        signing_context = request.context.get('signing', {})
-        signing_name = signing_context.get('signing_name')
-        if signing_name == 's3express' and signature_version.startswith(
-            'v4-s3express'
-        ):
-            signing_context['identity_cache'] = self._cache
-            if 'cache_key' not in signing_context:
-                signing_context['cache_key'] = (
-                    request.context.get('s3_redirect', {})
-                    .get('params', {})
-                    .get('Bucket')
-                )
-
-
 class S3RegionRedirectorv2:
     """Updated version of S3RegionRedirector for use when
     EndpointRulesetResolver is in use for endpoint resolution.
@@ -1793,16 +1675,17 @@ class S3RegionRedirectorv2:
 
         if new_region is None:
             logger.debug(
-                f"S3 client configured for region {client_region} but the "
-                f"bucket {bucket} is not in that region and the proper region "
-                "could not be automatically determined."
+                "S3 client configured for region %s but the bucket %s is not "
+                "in that region and the proper region could not be "
+                "automatically determined." % (client_region, bucket)
             )
             return
 
         logger.debug(
-            f"S3 client configured for region {client_region} but the bucket {bucket} "
-            f"is in region {new_region}; Please configure the proper region to "
-            f"avoid multiple unnecessary redirects and signing attempts."
+            "S3 client configured for region %s but the bucket %s is in region"
+            " %s; Please configure the proper region to avoid multiple "
+            "unnecessary redirects and signing attempts."
+            % (client_region, bucket, new_region)
         )
         # Adding the new region to _cache will make construct_endpoint() to
         # use the new region as value for the AWS::Region builtin parameter.
@@ -1991,16 +1874,17 @@ class S3RegionRedirector:
 
         if new_region is None:
             logger.debug(
-                f"S3 client configured for region {client_region} but the bucket {bucket} is not "
+                "S3 client configured for region %s but the bucket %s is not "
                 "in that region and the proper region could not be "
-                "automatically determined."
+                "automatically determined." % (client_region, bucket)
             )
             return
 
         logger.debug(
-            f"S3 client configured for region {client_region} but the bucket {bucket} is in region"
-            f" {new_region}; Please configure the proper region to avoid multiple "
+            "S3 client configured for region %s but the bucket %s is in region"
+            " %s; Please configure the proper region to avoid multiple "
             "unnecessary redirects and signing attempts."
+            % (client_region, bucket, new_region)
         )
         endpoint = self._endpoint_resolver.resolve('s3', new_region)
         endpoint = endpoint['endpoint_url']
@@ -2085,8 +1969,8 @@ class ArnParser:
         arn_parts = arn.split(':', 5)
         if len(arn_parts) < 6:
             raise InvalidArnException(
-                f'Provided ARN: {arn} must be of the format: '
-                'arn:partition:service:region:account:resource'
+                'Provided ARN: %s must be of the format: '
+                'arn:partition:service:region:account:resource' % arn
             )
         return {
             'partition': arn_parts[1],
@@ -2269,8 +2153,8 @@ class S3EndpointSetter:
                 raise UnsupportedS3ConfigurationError(
                     msg=(
                         'Client is configured to use the FIPS psuedo region '
-                        f'for "{self._region}", but S3 Accelerate does not have any FIPS '
-                        'compatible endpoints.'
+                        'for "%s", but S3 Accelerate does not have any FIPS '
+                        'compatible endpoints.' % (self._region)
                     )
                 )
             switch_host_s3_accelerate(request=request, **kwargs)
@@ -2290,8 +2174,9 @@ class S3EndpointSetter:
         if 'outpost_name' in request.context['s3_accesspoint']:
             raise UnsupportedS3AccesspointConfigurationError(
                 msg=(
-                    f'Client is configured to use the FIPS psuedo-region "{self._region}", '
+                    'Client is configured to use the FIPS psuedo-region "%s", '
                     'but outpost ARNs do not support FIPS endpoints.'
+                    % (self._region)
                 )
             )
         # Transforming psuedo region to actual region
@@ -2303,10 +2188,11 @@ class S3EndpointSetter:
                 raise UnsupportedS3AccesspointConfigurationError(
                     msg=(
                         'Client is configured to use the FIPS psuedo-region '
-                        f'for "{self._region}", but the access-point ARN provided is for '
-                        f'the "{accesspoint_region}" region. For clients using a FIPS '
+                        'for "%s", but the access-point ARN provided is for '
+                        'the "%s" region. For clients using a FIPS '
                         'psuedo-region calls to access-point ARNs in another '
                         'region are not allowed.'
+                        % (self._region, accesspoint_region)
                     )
                 )
 
@@ -2317,8 +2203,8 @@ class S3EndpointSetter:
             raise UnsupportedS3AccesspointConfigurationError(
                 msg=(
                     'Client is configured to use the global psuedo-region '
-                    f'"{self._region}". When providing access-point ARNs a regional '
-                    'endpoint must be specified.'
+                    '"%s". When providing access-point ARNs a regional '
+                    'endpoint must be specified.' % self._region
                 )
             )
 
@@ -2334,9 +2220,10 @@ class S3EndpointSetter:
         if request_partition != self._partition:
             raise UnsupportedS3AccesspointConfigurationError(
                 msg=(
-                    f'Client is configured for "{self._partition}" partition, but access-point'
-                    f' ARN provided is for "{request_partition}" partition. The client and '
+                    'Client is configured for "%s" partition, but access-point'
+                    ' ARN provided is for "%s" partition. The client and '
                     ' access-point partition must be the same.'
+                    % (self._partition, request_partition)
                 )
             )
         s3_service = request.context['s3_accesspoint'].get('service')
@@ -2481,7 +2368,7 @@ class S3EndpointSetter:
 
     def _inject_fips_if_needed(self, component, request_context):
         if self._use_fips_endpoint:
-            return f'{component}-fips'
+            return '%s-fips' % component
         return component
 
     def _get_accesspoint_path(self, original_path, request_context):
@@ -2658,17 +2545,18 @@ class S3ControlEndpointSetter:
             if arn_region != self._region:
                 error_msg = (
                     'The use_arn_region configuration is disabled but '
-                    f'received arn for "{arn_region}" when the client is configured '
-                    f'to use "{self._region}"'
-                )
+                    'received arn for "%s" when the client is configured '
+                    'to use "%s"'
+                ) % (arn_region, self._region)
                 raise UnsupportedS3ControlConfigurationError(msg=error_msg)
         request_partion = request.context['arn_details']['partition']
         if request_partion != self._partition:
             raise UnsupportedS3ControlConfigurationError(
                 msg=(
-                    f'Client is configured for "{self._partition}" partition, but arn '
-                    f'provided is for "{request_partion}" partition. The client and '
+                    'Client is configured for "%s" partition, but arn '
+                    'provided is for "%s" partition. The client and '
                     'arn partition must be the same.'
+                    % (self._partition, request_partion)
                 )
             )
         if self._s3_config.get('use_accelerate_endpoint'):
@@ -2868,8 +2756,8 @@ class S3ControlArnParamHandler:
         if 'AccountId' in params and params['AccountId'] != account_id:
             error_msg = (
                 'Account ID in arn does not match the AccountId parameter '
-                'provided: "{}"'
-            ).format(params['AccountId'])
+                'provided: "%s"'
+            ) % params['AccountId']
             raise UnsupportedS3ControlArnError(
                 arn=arn_details['original'],
                 msg=error_msg,
@@ -3245,70 +3133,21 @@ def _calculate_md5_from_file(fileobj):
     return md5.digest()
 
 
-def _is_s3express_request(params):
-    endpoint_properties = params.get('context', {}).get(
-        'endpoint_properties', {}
-    )
-    return endpoint_properties.get('backend') == 'S3Express'
-
-
-def _has_checksum_header(params):
-    headers = params['headers']
-    # If a user provided Content-MD5 is present,
-    # don't try to compute a new one.
-    if 'Content-MD5' in headers:
-        return True
-
-    # If a header matching the x-amz-checksum-* pattern is present, we
-    # assume a checksum has already been provided and an md5 is not needed
-    for header in headers:
-        if CHECKSUM_HEADER_PATTERN.match(header):
-            return True
-
-    return False
-
-
-def conditionally_calculate_checksum(params, **kwargs):
-    if not _has_checksum_header(params):
-        conditionally_calculate_md5(params, **kwargs)
-        conditionally_enable_crc32(params, **kwargs)
-
-
-def conditionally_enable_crc32(params, **kwargs):
-    checksum_context = params.get('context', {}).get('checksum', {})
-    checksum_algorithm = checksum_context.get('request_algorithm')
-    if (
-        _is_s3express_request(params)
-        and params['body'] is not None
-        and checksum_algorithm in (None, "conditional-md5")
-    ):
-        params['context']['checksum'] = {
-            'request_algorithm': {
-                'algorithm': 'crc32',
-                'in': 'header',
-                'name': 'x-amz-checksum-crc32',
-            }
-        }
-
-
 def conditionally_calculate_md5(params, **kwargs):
     """Only add a Content-MD5 if the system supports it."""
+    headers = params['headers']
     body = params['body']
     checksum_context = params.get('context', {}).get('checksum', {})
     checksum_algorithm = checksum_context.get('request_algorithm')
     if checksum_algorithm and checksum_algorithm != 'conditional-md5':
         # Skip for requests that will have a flexible checksum applied
         return
-
-    if _has_checksum_header(params):
-        # Don't add a new header if one is already available.
-        return
-
-    if _is_s3express_request(params):
-        # S3Express doesn't support MD5
-        return
-
-    if MD5_AVAILABLE and body is not None:
+    # If a header matching the x-amz-checksum-* pattern is present, we
+    # assume a checksum has already been provided and an md5 is not needed
+    for header in headers:
+        if CHECKSUM_HEADER_PATTERN.match(header):
+            return
+    if MD5_AVAILABLE and body is not None and 'Content-MD5' not in headers:
         md5_digest = calculate_md5(body, **kwargs)
         params['headers']['Content-MD5'] = md5_digest
 
@@ -3534,17 +3373,11 @@ class JSONFileCache:
         return full_path
 
     def _serialize_if_needed(self, value, iso=False):
-        if isinstance(value, _DatetimeClass):
+        if isinstance(value, datetime.datetime):
             if iso:
                 return value.isoformat()
             return value.strftime('%Y-%m-%dT%H:%M:%S%Z')
         return value
-
-
-def is_s3express_bucket(bucket):
-    if bucket is None:
-        return False
-    return bucket.endswith('--x-s3')
 
 
 # This parameter is not part of the public interface and is subject to abrupt
@@ -3562,6 +3395,7 @@ SERVICE_NAME_ALIASES = {'runtime.sagemaker': 'sagemaker-runtime'}
 # values are the transformed service IDs (lower case and hyphenated).
 CLIENT_NAME_TO_HYPHENIZED_SERVICE_ID_OVERRIDES = {
     # Actual service name we use -> Allowed computed service name.
+    'alexaforbusiness': 'alexa-for-business',
     'apigateway': 'api-gateway',
     'application-autoscaling': 'application-auto-scaling',
     'appmesh': 'app-mesh',
@@ -3579,7 +3413,6 @@ CLIENT_NAME_TO_HYPHENIZED_SERVICE_ID_OVERRIDES = {
     'discovery': 'application-discovery-service',
     'dms': 'database-migration-service',
     'ds': 'directory-service',
-    'ds-data': 'directory-service-data',
     'dynamodbstreams': 'dynamodb-streams',
     'elasticbeanstalk': 'elastic-beanstalk',
     'elastictranscoder': 'elastic-transcoder',

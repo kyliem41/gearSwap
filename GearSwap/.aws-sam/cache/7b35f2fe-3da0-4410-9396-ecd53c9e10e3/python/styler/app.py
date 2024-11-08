@@ -1,20 +1,22 @@
-import psycopg2
 import os
 import json
+from typing import Dict, Any
+import psycopg2
 from psycopg2.extras import RealDictCursor
+import asyncio
 from datetime import datetime
-from decimal import Decimal
-import traceback
-import random
 import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
 from ably import AblyRest
-from GearSwap import config_manager
+import traceback
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from config_manager import config_manager
 from styler import FashionGPTRecommender
-import asyncio
-from typing import Any, Dict
 
 def cors_response(status_code, body):
     """Helper function to create responses with proper CORS headers"""
@@ -29,36 +31,48 @@ def cors_response(status_code, body):
         'body': json.dumps(body, default=str)
     }
 
+def get_or_create_eventloop():
+    try:
+        return asyncio.get_event_loop()
+    except RuntimeError as ex:
+        if "There is no current event loop in thread" in str(ex):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return asyncio.get_event_loop()
+        raise
+    
 def lambda_handler(event, context):
     if event['httpMethod'] == 'OPTIONS':
         return cors_response(200, {'message': 'OK'})
     
-    http_method = event['httpMethod']
-    resource_path = event['resource']
+    loop = get_or_create_eventloop()
+    return loop.run_until_complete(_handle_request(event, context))
+
+async def _handle_request(event, context):
+    """Async request handler"""
+    conn = None
+    ably_client = None
     
     try:
+        # Verify authentication
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
             return cors_response(401, {'error': 'No authorization header'})
 
         token = auth_header.split(' ')[-1]
         verify_token(token)
-    except Exception as e:
-        return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
-
-    conn = None
-    ably_client = None
-    
-    try:
+        
         conn = get_db_connection()
-        ably_client = AblyRest(config_manager.get_parameter('ABLY_API_KEY'))
+        ably_client = AblyRest(config_manager.get_secret('ABLY_API_KEY'))
         recommender = FashionGPTRecommender(conn)
 
-        if resource_path == '/styler/chat/{userId}':
-                loop = asyncio.get_event_loop()
-                return loop.run_until_complete(handle_chat(event, context, conn, ably_client, recommender))
+        resource_path = event['resource']
+        http_method = event['httpMethod']
+
+        if resource_path == '/styler/chat/{userId}' and http_method == 'POST':
+            return await handle_chat(event, context, conn, ably_client, recommender)
         elif resource_path == '/styler/chat/{userId}/history':
-                return get_chat_history(event, context)
+            return get_chat_history(event, context)
         elif resource_path == '/styler/{userId}':
             if http_method == 'POST':
                 return refreshStyler(event, context)
@@ -88,9 +102,13 @@ def lambda_handler(event, context):
             elif http_method == 'PUT':
                 return putStylePreferences(event, context)
         
+
+        return cors_response(404, {'error': 'Route not found'})
+
     except Exception as e:
-        print(F"Error: {str(e)}")
-        return cors_response(200, {'message': 'Unsupported method'})
+        print(f"Request handling error: {str(e)}")
+        traceback.print_exc()
+        return cors_response(500, {'error': str(e)})
     
     finally:
         if conn:
@@ -285,14 +303,17 @@ def error_response(status_code, message):
     
 #########
 def get_db_connection():
-    return psycopg2.connect(
-        host=os.environ['DB_HOST'],
-        user=os.environ['DB_USER'],
-        password=os.environ['DB_PASSWORD'],
-        port=os.environ['DB_PORT'],
-        
-        connect_timeout=5
-    )
+    try:
+        return psycopg2.connect(
+            host=os.environ['DB_HOST'],
+            user=os.environ['DB_USER'],
+            password=os.environ['DB_PASSWORD'],
+            port=os.environ['DB_PORT'],
+            connect_timeout=5
+        )
+    except Exception as e:
+        print(f"Database connection error: {str(e)}")
+        raise
 
 ###########
 def putStylePreferences(event, context):
