@@ -1,45 +1,36 @@
 import boto3
-import os
 from botocore.exceptions import ClientError
+import os
 
 class ConfigManager:
     def __init__(self):
+        self.secrets = boto3.client('secretsmanager')
         self.ssm = boto3.client('ssm')
         self.env = os.getenv('ENV', 'dev')
         
-    def get_parameter(self, param_name: str, decrypt: bool = True) -> str:
-        """
-        Get a parameter from SSM Parameter Store
-        """
+    def get_secret(self, secret_name: str) -> str:
+        """Get a secret from AWS Secrets Manager"""
         try:
-            parameter = self.ssm.get_parameter(
-                Name=f'/gearswap/{self.env}/{param_name}',
-                WithDecryption=decrypt
+            full_path = f"/gearswap/{self.env}/{secret_name}"
+            response = self.secrets.get_secret_value(
+                SecretId=full_path
             )
-            return parameter['Parameter']['Value']
+            return response['SecretString']
         except ClientError as e:
-            print(f"Error getting parameter {param_name}: {str(e)}")
+            print(f"Error getting secret {secret_name} at path {full_path}: {str(e)}")
             raise
 
-    def get_all_parameters(self) -> dict:
-        """
-        Get all parameters for the current environment
-        """
-        params = {}
+    def get_parameter(self, param_name: str) -> str:
+        """Get a parameter from AWS SSM Parameter Store"""
         try:
-            paginator = self.ssm.get_paginator('get_parameters_by_path')
-            for page in paginator.paginate(
-                Path=f'/gearswap/{self.env}/',
-                Recursive=True,
+            full_path = f"/gearswap/{self.env}/{param_name}"
+            response = self.ssm.get_parameter(
+                Name=full_path,
                 WithDecryption=True
-            ):
-                for param in page['Parameters']:
-                    # Extract the parameter name without the path prefix
-                    name = param['Name'].split('/')[-1]
-                    params[name] = param['Value']
-            return params
+            )
+            return response['Parameter']['Value']
         except ClientError as e:
-            print(f"Error getting parameters: {str(e)}")
+            print(f"Error getting parameter {param_name} at path {full_path}: {str(e)}")
             raise
 
 config_manager = ConfigManager()

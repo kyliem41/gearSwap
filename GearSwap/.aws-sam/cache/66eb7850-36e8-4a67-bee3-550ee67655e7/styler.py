@@ -7,14 +7,21 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import traceback
+from botocore.exceptions import ClientError
 from config_manager import config_manager
-
+    
 class FashionGPTRecommender:
     def __init__(self, db_connection):
         self.db = db_connection
         self.openai = openai
-        self.openai.api_key = config_manager.get_parameter('OPENAI_API_KEY')
-        self.fine_tuned_model = config_manager.get_parameter('FINE_TUNED_MODEL_ID')
+        
+        try:
+            self.openai.api_key = config_manager.get_secret('OPENAI_API_KEY')  # Use get_secret directly
+            self.ably_api_key = config_manager.get_secret('ABLY_API_KEY')      # Use get_secret directly
+            self.fine_tuned_model = config_manager.get_parameter('FINE_TUNED_MODEL_ID')  # Use get_parameter for non-sensitive
+        except Exception as e:
+            print(f"Error initializing FashionGPTRecommender: {str(e)}")
+            raise
         
     async def prepare_training_data(self, user_id: int) -> List[Dict]:
         """Prepare training data from user's history"""
