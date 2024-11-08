@@ -12,6 +12,8 @@ from jwt.algorithms import RSAAlgorithm
 import boto3
 from ably import AblyRest
 from styler import FashionGPTRecommender
+import asyncio
+from typing import Any, Dict
 
 def cors_response(status_code, body):
     """Helper function to create responses with proper CORS headers"""
@@ -52,7 +54,8 @@ def lambda_handler(event, context):
         recommender = FashionGPTRecommender(conn)
 
         if resource_path == '/styler/chat/{userId}':
-                return handle_chat(event, context, conn, ably_client, recommender)
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(handle_chat(event, context, conn, ably_client, recommender))
         elif resource_path == '/styler/chat/{userId}/history':
                 return get_chat_history(event, context)
         elif resource_path == '/styler/{userId}':
@@ -94,7 +97,7 @@ def lambda_handler(event, context):
             
 ##################
 #CHAT
-def handle_chat(event, context, conn, ably_client, recommender):
+async def handle_chat(event, context, conn, ably_client, recommender):
     try:
         userId = event['pathParameters']['userId']
         body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
@@ -105,18 +108,21 @@ def handle_chat(event, context, conn, ably_client, recommender):
         # Get Ably channel
         channel = ably_client.channels.get(f"stylist:{userId}")
         
-        # Process message with GPT
-        response = recommender.get_recommendation(
+        # Process message with GPT - now properly awaited
+        response = await recommender.get_recommendation(
             user_id=userId,
             request_type=body.get('type', 'conversation'),
             message=body.get('message'),
             context=body.get('context', [])
         )
         
-        # Publish response to Ably channel
+        # Get the AI's response text
+        ai_response = response['recommendation']
+        
+        # Publish response to Ably channel (not async)
         channel.publish('stylist_response', {
-            'response': response['recommendation'],
-            'context': response.get('context', {})
+            'response': ai_response,
+            'type': 'ai'
         })
         
         # Log conversation
@@ -125,17 +131,18 @@ def handle_chat(event, context, conn, ably_client, recommender):
                 INSERT INTO conversation_logs 
                 (user_id, user_message, ai_response, request_type)
                 VALUES (%s, %s, %s, %s)
-            """, (userId, body.get('message'), response['recommendation'], 
+            """, (userId, body.get('message'), ai_response, 
                   body.get('type', 'conversation')))
             conn.commit()
             
         return cors_response(200, {
             'message': 'Message processed successfully',
-            'response': response['recommendation']
+            'response': ai_response
         })
         
     except Exception as e:
         print(f"Chat handler error: {str(e)}")
+        traceback.print_exc()  # Add this to get full error trace
         return cors_response(500, {'error': str(e)})
     
 #########

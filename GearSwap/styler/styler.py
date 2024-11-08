@@ -106,7 +106,7 @@ class FashionGPTRecommender:
             print(f"Error in fine-tuning: {str(e)}")
             raise
 
-    async def get_recommendation(self, user_id: int, request_type: str, **kwargs) -> Dict:
+    async def get_recommendation(self, user_id: str, request_type: str, message: str, context: list) -> dict:
         """Get personalized recommendations using fine-tuned model"""
         try:
             # Get user context
@@ -127,7 +127,7 @@ class FashionGPTRecommender:
                     WHERE userId = %s
                 """, (user_id,))
                 styler_prefs = cursor.fetchone()
-
+    
             # Prepare context for the model
             user_context = {
                 "style_preferences": styler_prefs['preferences'] if styler_prefs else {},
@@ -139,33 +139,34 @@ class FashionGPTRecommender:
                     } for post in recent_likes
                 ]
             }
-
-            # Create prompt based on request type
-            if request_type == "outfit":
-                prompt = self._create_outfit_prompt(user_context, kwargs.get('occasion'))
-            elif request_type == "item":
-                prompt = self._create_item_prompt(user_context, kwargs.get('category'))
-            else:
-                prompt = self._create_style_prompt(user_context)
-
-            # Get recommendation from fine-tuned model
+    
+            # Get recommendation from model
             response = await self.openai.ChatCompletion.acreate(
                 model=self.fine_tuned_model,
                 messages=[
                     {"role": "system", "content": "You are a fashion AI stylist with expertise in personal style recommendations."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": message},
+                    {"role": "assistant", "content": f"I'll help you with your {request_type} request. Here's what I know about your style: {json.dumps(user_context)}"}
                 ],
                 temperature=0.7,
                 max_tokens=500
             )
-
+    
+            # Extract the response text
+            recommendation = response.choices[0].message.content
+    
             return {
-                "recommendation": response.choices[0].message.content,
-                "context": user_context
+                'recommendation': recommendation,
+                'context': {
+                    'type': request_type,
+                    'user_id': user_id,
+                    'timestamp': datetime.now().isoformat()
+                }
             }
-
+            
         except Exception as e:
-            print(f"Error getting recommendation: {str(e)}")
+            print(f"Error in get_recommendation: {str(e)}")
+            traceback.print_exc()  # Add this to get full error trace
             raise
 
     def _create_outfit_prompt(self, user_context: Dict, occasion: str = None) -> str:
