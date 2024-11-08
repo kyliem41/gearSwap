@@ -23,6 +23,7 @@ class _StylistPageState extends State<StylistPage> {
   String? _idToken;
   late ably.Realtime _realtime;
   late ably.RealtimeChannel _channel;
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -30,37 +31,67 @@ class _StylistPageState extends State<StylistPage> {
     _initialize();
   }
 
-  List<Map<String, dynamic>> _getLastMessages(int count) {
-    final messages = _messages.reversed.take(count).toList().reversed;
-    return messages
-        .map((msg) => {
-              'content': msg.text,
-              'role': msg.isAI ? 'assistant' : 'user',
-              'timestamp': msg.timestamp.toIso8601String(),
-            })
-        .toList();
+  Future<bool> _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userString = prefs.getString('user');
+      _idToken = prefs.getString('idToken');
+
+      if (userString != null && _idToken != null) {
+        final userJson = jsonDecode(userString);
+        setState(() {
+          _userId = userJson['id'].toString();
+        });
+        print('Loaded userId: $_userId with token: $_idToken');
+        return true;
+      } else {
+        print('No user data or token found');
+        return false;
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+      return false;
+    }
   }
 
   Future<void> _initialize() async {
-    _baseUrl = await ConfigUtils.getBaseUrl();
-    final prefs = await SharedPreferences.getInstance();
-    _userId = prefs.getString('userId');
-    _idToken = prefs.getString('idToken');
+    setState(() => _isLoading = true);
+    
+    try {
+      _baseUrl = await ConfigUtils.getBaseUrl();
+      final isAuthenticated = await _loadUserData();
 
-    if (_userId == null || _idToken == null) {
+      if (!isAuthenticated) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please log in to access the stylist')),
+          );
+        }
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      await _loadChatHistory();
+      await _initializeAbly();
+      
+      setState(() {
+        _isInitialized = true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Initialization error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Not authenticated. Please log in.')),
+          SnackBar(content: Text('Failed to initialize: $e')),
         );
       }
-      return;
+      setState(() => _isLoading = false);
     }
-
-    await _loadChatHistory();
-    await _initializeAbly();
   }
 
   Future<void> _loadChatHistory() async {
+    if (_userId == null || _idToken == null) return;
+
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/styler/chat/$_userId/history'),
@@ -81,14 +112,38 @@ class _StylistPageState extends State<StylistPage> {
               )));
           _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
         });
+      } else {
+        throw Exception('Failed to load chat history: ${response.statusCode}');
       }
     } catch (e) {
       print('Error loading chat history: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load chat history: $e')),
+        );
+      }
     }
+  }
+
+  List<Map<String, dynamic>> _getLastMessages(int count) {
+    final messages = _messages.reversed.take(count).toList().reversed;
+    return messages
+        .map((msg) => {
+              'content': msg.text,
+              'role': msg.isAI ? 'assistant' : 'user',
+              'timestamp': msg.timestamp.toIso8601String(),
+            })
+        .toList();
   }
 
   Future<void> _sendMessage(String text) async {
     if (text.trim().isEmpty) return;
+    if (_userId == null || _idToken == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to send messages')),
+      );
+      return;
+    }
 
     final timestamp = DateTime.now();
 
@@ -145,6 +200,8 @@ class _StylistPageState extends State<StylistPage> {
   }
 
   Future<void> _initializeAbly() async {
+    if (_userId == null) return;
+
     try {
       final ablyKey = await ConfigUtils.getAblyKey();
       _realtime = ably.Realtime(
@@ -186,6 +243,7 @@ class _StylistPageState extends State<StylistPage> {
         },
       );
 
+      // Only add welcome message if no messages exist
       if (_messages.isEmpty) {
         setState(() {
           _messages.add(Message(
@@ -213,13 +271,33 @@ class _StylistPageState extends State<StylistPage> {
   @override
   void dispose() {
     _messageController.dispose();
-    _channel.detach();
-    _realtime.close();
+    if (_isInitialized) {
+      _channel.detach();
+      _realtime.close();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_userId == null || _idToken == null) {
+      return Scaffold(
+        appBar: TopNavBar(),
+        body: const Center(
+          child: Text('Please log in to access the stylist'),
+        ),
+        bottomNavigationBar: BottomNavBar(),
+      );
+    }
+
+    if (_isLoading && _messages.isEmpty) {
+      return Scaffold(
+        appBar: TopNavBar(),
+        body: const Center(child: CircularProgressIndicator()),
+        bottomNavigationBar: BottomNavBar(),
+      );
+    }
+
     return Scaffold(
       appBar: TopNavBar(),
       body: Column(
