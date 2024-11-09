@@ -17,7 +17,13 @@ class FashionGPTRecommender:
             api_key = config_manager.get_secret('OPENAI_API_KEY')
             self.client = AsyncOpenAI(api_key=api_key)
             self.ably_api_key = config_manager.get_secret('ABLY_API_KEY')
-            self.fine_tuned_model = config_manager.get_parameter('FINE_TUNED_MODEL_ID')
+            
+            try:
+                self.model = config_manager.get_parameter('FINE_TUNED_MODEL_ID')
+            except Exception as e:
+                print(f"Could not get fine-tuned model ID: {str(e)}")
+                self.model = "gpt-3.5-turbo"
+                
         except Exception as e:
             print(f"Error initializing FashionGPTRecommender: {str(e)}")
             raise
@@ -115,11 +121,10 @@ class FashionGPTRecommender:
             raise
 
     async def get_recommendation(self, user_id: str, request_type: str, message: str, context: list) -> dict:
-        """Get personalized recommendations using fine-tuned model"""
+        """Get personalized recommendations using ChatGPT"""
         try:
             # Get user context
             with self.db.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Get user preferences and history
                 cursor.execute("""
                     SELECT p.*, lp.dateLiked 
                     FROM posts p
@@ -136,7 +141,6 @@ class FashionGPTRecommender:
                 """, (user_id,))
                 styler_prefs = cursor.fetchone()
 
-            # Prepare context for the model
             user_context = {
                 "style_preferences": styler_prefs['preferences'] if styler_prefs else {},
                 "recent_likes": [
@@ -148,17 +152,49 @@ class FashionGPTRecommender:
                 ]
             }
 
-            # Get recommendation using new OpenAI API format
-            response = await self.client.chat.completions.create(
-                model=self.fine_tuned_model,
-                messages=[
-                    {"role": "system", "content": "You are a fashion AI stylist with expertise in personal style recommendations."},
-                    {"role": "user", "content": message},
-                    {"role": "assistant", "content": f"I'll help you with your {request_type} request. Here's what I know about your style: {json.dumps(user_context)}"}
-                ]
-            )
+            try:
+                # First try with specified model
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a fashion AI stylist with expertise in personal style recommendations."
+                        },
+                        {
+                            "role": "user",
+                            "content": message
+                        },
+                        {
+                            "role": "assistant",
+                            "content": f"I'll help you with your {request_type} request. Here's what I know about your style: {json.dumps(user_context)}"
+                        }
+                    ],
+                    temperature=0.7,
+                    max_tokens=1000
+                )
+            except Exception as model_error:
+                print(f"Error with primary model {self.model}: {str(model_error)}")
+                response = await self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a fashion AI stylist with expertise in personal style recommendations."
+                        },
+                        {
+                            "role": "user",
+                            "content": message
+                        },
+                        {
+                            "role": "assistant",
+                            "content": f"I'll help you with your {request_type} request. Here's what I know about your style: {json.dumps(user_context)}"
+                        }
+                    ],
+                    temperature=0.7,
+                    max_tokens=1000
+                )
 
-            # Extract the response text using new API format
             recommendation = response.choices[0].message.content
 
             return {
@@ -166,7 +202,8 @@ class FashionGPTRecommender:
                 'context': {
                     'type': request_type,
                     'user_id': user_id,
-                    'timestamp': datetime.now().isoformat()
+                    'timestamp': datetime.now().isoformat(),
+                    'model_used': response.model
                 }
             }
             
