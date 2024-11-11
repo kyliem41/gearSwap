@@ -127,7 +127,7 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         # Get Ably channel
         channel = ably_client.channels.get(f"stylist:{userId}")
         
-        # Process message with GPT - now properly awaited
+        # Process message with GPT
         response = await recommender.get_recommendation(
             user_id=userId,
             request_type=body.get('type', 'conversation'),
@@ -138,11 +138,18 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         # Get the AI's response text
         ai_response = response['recommendation']
         
-        # Publish response to Ably channel (not async)
-        channel.publish('stylist_response', {
-            'response': ai_response,
-            'type': 'ai'
-        })
+        # Publish response to Ably channel
+        try:
+            await channel.publish_async('stylist_response', {
+                'response': ai_response,
+                'type': 'ai'
+            })
+        except AttributeError:
+            # Fallback for non-async publish
+            channel.publish('stylist_response', {
+                'response': ai_response,
+                'type': 'ai'
+            })
         
         # Log conversation
         with conn.cursor() as cursor:
@@ -156,7 +163,8 @@ async def handle_chat(event, context, conn, ably_client, recommender):
             
         return cors_response(200, {
             'message': 'Message processed successfully',
-            'response': ai_response
+            'response': ai_response,
+            'model_used': response.get('context', {}).get('model_used', 'unknown')
         })
         
     except Exception as e:

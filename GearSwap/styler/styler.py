@@ -152,60 +152,54 @@ class FashionGPTRecommender:
                 ]
             }
 
-            try:
-                # First try with specified model
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a fashion AI stylist with expertise in personal style recommendations."
-                        },
-                        {
-                            "role": "user",
-                            "content": message
-                        },
-                        {
-                            "role": "assistant",
-                            "content": f"I'll help you with your {request_type} request. Here's what I know about your style: {json.dumps(user_context)}"
-                        }
-                    ],
-                    temperature=0.7,
-                    max_tokens=1000
-                )
-            except Exception as model_error:
-                print(f"Error with primary model {self.model}: {str(model_error)}")
-                response = await self.client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a fashion AI stylist with expertise in personal style recommendations."
-                        },
-                        {
-                            "role": "user",
-                            "content": message
-                        },
-                        {
-                            "role": "assistant",
-                            "content": f"I'll help you with your {request_type} request. Here's what I know about your style: {json.dumps(user_context)}"
-                        }
-                    ],
-                    temperature=0.7,
-                    max_tokens=1000
-                )
+            models = [
+                self.model,
+                "gpt-4-1106-preview",
+                "gpt-4",
+                "gpt-3.5-turbo"
+            ]
 
-            recommendation = response.choices[0].message.content
+            last_error = None
+            for model in models:
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a fashion AI stylist with expertise in personal style recommendations."
+                            },
+                            {
+                                "role": "user",
+                                "content": message
+                            },
+                            {
+                                "role": "assistant",
+                                "content": f"I'll help you with your {request_type} request. Here's what I know about your style: {json.dumps(user_context)}"
+                            }
+                        ],
+                        temperature=0.7,
+                        max_tokens=1000
+                    )
+                    
+                    recommendation = response.choices[0].message.content
 
-            return {
-                'recommendation': recommendation,
-                'context': {
-                    'type': request_type,
-                    'user_id': user_id,
-                    'timestamp': datetime.now().isoformat(),
-                    'model_used': response.model
-                }
-            }
+                    return {
+                        'recommendation': recommendation,
+                        'context': {
+                            'type': request_type,
+                            'user_id': user_id,
+                            'timestamp': datetime.now().isoformat(),
+                            'model_used': response.model
+                        }
+                    }
+            
+                except Exception as e:
+                    print(f"Error with model {model}: {str(e)}")
+                    last_error = e
+                    continue
+
+            raise last_error or Exception("No available models could process the request")
             
         except Exception as e:
             print(f"Error in get_recommendation: {str(e)}")
