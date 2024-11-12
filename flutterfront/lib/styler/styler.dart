@@ -24,6 +24,7 @@ class _StylistPageState extends State<StylistPage> {
   late ably.Realtime _realtime;
   late ably.RealtimeChannel _channel;
   bool _isInitialized = false;
+  bool _isConnecting = false;
 
   @override
   void initState() {
@@ -107,9 +108,11 @@ class _StylistPageState extends State<StylistPage> {
 
         setState(() {
           _messages.addAll(history.map((msg) => Message(
-                text: msg['message'],
+                text: msg['message'] ?? msg['response'] ?? '',
                 isAI: msg['type'] == 'ai',
                 timestamp: DateTime.parse(msg['timestamp']),
+                model: msg['model'],
+                type: msg['type'],
               )));
           _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
         });
@@ -218,7 +221,9 @@ class _StylistPageState extends State<StylistPage> {
   }
 
   Future<void> _initializeAbly() async {
-    if (_userId == null) return;
+    if (_userId == null || _isConnecting) return;
+
+    setState(() => _isConnecting = true);
 
     try {
       print('Initializing Ably for user: $_userId');
@@ -230,6 +235,9 @@ class _StylistPageState extends State<StylistPage> {
           key: ablyKey,
           clientId: 'stylist_$_userId',
           logLevel: ably.LogLevel.verbose,
+          autoConnect: true,
+          disconnectedRetryTimeout: 1000,
+          suspendedRetryTimeout: 5000,
         ),
       );
 
@@ -238,8 +246,20 @@ class _StylistPageState extends State<StylistPage> {
           .on()
           .listen((ably.ConnectionStateChange stateChange) {
         print('Ably connection state changed to: ${stateChange.current}');
-        if (stateChange.current == ably.ConnectionState.failed) {
-          print('Connection failed: ${stateChange.reason}');
+        if (mounted) {
+          setState(() {
+            if (stateChange.current == ably.ConnectionState.failed) {
+              print('Connection failed: ${stateChange.reason}');
+              _isInitialized = false;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Connection failed - retrying...')),
+              );
+              _retryConnection();
+            } else if (stateChange.current == ably.ConnectionState.connected) {
+              _isInitialized = true;
+            }
+          });
         }
       });
 
@@ -250,9 +270,14 @@ class _StylistPageState extends State<StylistPage> {
       // Listen for channel state changes
       _channel.on().listen((ably.ChannelStateChange stateChange) {
         print('Channel state changed to: ${stateChange.current}');
+        if (stateChange.current == ably.ChannelState.failed) {
+          _retryConnection();
+        }
       });
 
       print('Subscribing to channel...');
+      await _channel.attach();
+
       _channel.subscribe(name: 'stylist_response').listen(
         (ably.Message message) {
           print('Received message from Ably: ${message.data}');
@@ -263,7 +288,9 @@ class _StylistPageState extends State<StylistPage> {
                 _messages.add(Message(
                   text: response['response'] as String,
                   isAI: true,
-                  timestamp: DateTime.now(),
+                  timestamp: DateTime.parse(response['timestamp']),
+                  model: response['model'],
+                  type: response['type'],
                 ));
                 _isLoading = false;
               });
@@ -289,8 +316,6 @@ class _StylistPageState extends State<StylistPage> {
         },
       );
 
-      // Attach to channel explicitly
-      await _channel.attach();
       print('Successfully attached to channel');
     } catch (e) {
       print('Error initializing Ably: $e');
@@ -299,6 +324,17 @@ class _StylistPageState extends State<StylistPage> {
           SnackBar(content: Text('Failed to initialize chat: $e')),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() => _isConnecting = false);
+      }
+    }
+  }
+
+  Future<void> _retryConnection() async {
+    if (!_isConnecting && mounted) {
+      await Future.delayed(Duration(seconds: 2)); // Wait before retrying
+      _initializeAbly();
     }
   }
 
@@ -385,21 +421,27 @@ class Message {
   final String text;
   final bool isAI;
   final DateTime timestamp;
+  final String? model;
+  final String? type;
 
   Message({
     required this.text,
     required this.isAI,
     required this.timestamp,
+    this.model,
+    this.type,
   });
 }
 
 class MessageBubble extends StatelessWidget {
   final String text;
   final bool isAI;
+  final String? model;
 
   const MessageBubble({
     required this.text,
     required this.isAI,
+    this.model,
     super.key,
   });
 
@@ -407,30 +449,49 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       alignment: isAI ? Alignment.centerLeft : Alignment.centerRight,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-        padding: const EdgeInsets.all(12.0),
-        decoration: BoxDecoration(
-          color: isAI ? Colors.grey[200] : Colors.deepOrange,
-          borderRadius: BorderRadius.circular(15.0),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+      child: Column(
+        crossAxisAlignment:
+            isAI ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isAI && model != null)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12.0, vertical: 2.0),
+              child: Text(
+                'AI ($model)',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                ),
+              ),
             ),
-          ],
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: isAI ? Colors.black87 : Colors.white,
-            fontSize: 16,
+          Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.75,
+            ),
+            margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: isAI ? Colors.grey[200] : Colors.deepOrange,
+              borderRadius: BorderRadius.circular(15.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              text,
+              style: TextStyle(
+                color: isAI ? Colors.black87 : Colors.white,
+                fontSize: 16,
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

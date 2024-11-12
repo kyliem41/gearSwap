@@ -175,34 +175,21 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         
         try:
             print(f"Publishing to Ably channel {channel_name}")
-            result = channel.publish(
-                name='stylist_response',
-                data=message_data
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: channel.publish('stylist_response', message_data)
             )
             print(f"Successfully published to Ably channel {channel_name}")
         except Exception as ably_error:
             print(f"Error publishing to Ably: {str(ably_error)}")
             print(f"Ably error details: {traceback.format_exc()}")
-            # Continue execution to save in database even if Ably fails
         
         try:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO conversation_logs 
-                    (user_id, user_message, ai_response, request_type, model_used, timestamp)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id;
-                """, (
-                    userId,
-                    body.get('message'),
-                    ai_response,
-                    body.get('type', 'conversation'),
-                    model_used,
-                    timestamp
-                ))
-                log_id = cursor.fetchone()[0]
-                conn.commit()
-                print(f"Logged conversation with ID: {log_id}")
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: insert_chat_log(conn, userId, body.get('message'), ai_response, 
+                                      body.get('type', 'conversation'), model_used, timestamp)
+            )
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             print(f"Database error details: {traceback.format_exc()}")
@@ -222,6 +209,26 @@ async def handle_chat(event, context, conn, ably_client, recommender):
             'error': str(e),
             'details': traceback.format_exc()
         })
+        
+def insert_chat_log(conn, user_id, user_message, ai_response, request_type, timestamp, model_used):
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO conversation_logs 
+            (user_id, user_message, ai_response, request_type, timestamp, model_used)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (
+            user_id,
+            user_message,
+            ai_response,
+            request_type,
+            timestamp,
+            model_used
+        ))
+        log_id = cursor.fetchone()[0]
+        conn.commit()
+        print(f"Logged conversation with ID: {log_id}")
+        return log_id
     
 #########
 def get_chat_history(event, context):
