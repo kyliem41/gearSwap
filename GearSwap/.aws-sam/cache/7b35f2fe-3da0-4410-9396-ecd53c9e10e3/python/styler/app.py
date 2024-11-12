@@ -48,13 +48,27 @@ def lambda_handler(event, context):
     loop = get_or_create_eventloop()
     return loop.run_until_complete(_handle_request(event, context))
 
+def initialize_ably_client(api_key):
+    try:
+        print("Initializing Ably client")
+        client = AblyRest(api_key)
+        
+        # Test the connection
+        test_channel = client.channels.get('test')
+        test_channel.publish('test', {'test': 'connection'})
+        print("Successfully initialized Ably client")
+        
+        return client
+    except Exception as e:
+        print(f"Error initializing Ably client: {str(e)}")
+        traceback.print_exc()
+        raise
+
 async def _handle_request(event, context):
-    """Async request handler"""
     conn = None
     ably_client = None
     
     try:
-        # Verify authentication
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
             return cors_response(401, {'error': 'No authorization header'})
@@ -63,7 +77,11 @@ async def _handle_request(event, context):
         verify_token(token)
         
         conn = get_db_connection()
-        ably_client = AblyRest(config_manager.get_secret('ABLY_API_KEY'))
+        ably_api_key = config_manager.get_secret('ABLY_API_KEY')
+        ably_client = initialize_ably_client(ably_api_key)
+        
+        print("Initialized all connections successfully")
+        
         recommender = FashionGPTRecommender(conn)
 
         resource_path = event['resource']
@@ -124,51 +142,86 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         if not body.get('message'):
             return cors_response(400, {'error': 'Message content is required'})
         
-        channel = ably_client.channels.get(f"stylist:{userId}")
-        publish_message = getattr(channel, 'publish_async', None) or channel.publish
+        print(f"Processing chat request for user {userId}")
         
-        # Process message with GPT
-        response = await recommender.get_recommendation(
-            user_id=userId,
-            request_type=body.get('type', 'conversation'),
-            message=body.get('message'),
-            context=body.get('context', [])
-        )
+        channel_name = f"stylist:{userId}"
+        channel = ably_client.channels.get(channel_name)
+        print(f"Created Ably channel: {channel_name}")
         
-        # Get the AI's response text
+        try:
+            response = await recommender.get_recommendation(
+                user_id=userId,
+                request_type=body.get('type', 'conversation'),
+                message=body.get('message'),
+                context=body.get('context', [])
+            )
+            print(f"Got AI response for user {userId}")
+        except Exception as e:
+            print(f"AI recommendation error: {str(e)}")
+            raise
+            
+        # Get the AI's response text and metadata
         ai_response = response['recommendation']
+        model_used = response.get('context', {}).get('model_used', 'unknown')
+        timestamp = datetime.now().isoformat()
         
+        # Prepare message data
         message_data = {
             'response': ai_response,
-            'type': 'ai'
+            'type': 'ai',
+            'model': model_used,
+            'timestamp': timestamp
         }
         
-        if asyncio.iscoroutinefunction(publish_message):
-            await publish_message('stylist_response', message_data)
-        else:
-            publish_message('stylist_response', message_data)
+        try:
+            print(f"Publishing to Ably channel {channel_name}")
+            result = channel.publish(
+                name='stylist_response',
+                data=message_data
+            )
+            print(f"Successfully published to Ably channel {channel_name}")
+        except Exception as ably_error:
+            print(f"Error publishing to Ably: {str(ably_error)}")
+            print(f"Ably error details: {traceback.format_exc()}")
+            # Continue execution to save in database even if Ably fails
         
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO conversation_logs 
-                (user_id, user_message, ai_response, request_type)
-                VALUES (%s, %s, %s, %s)
-            """, (userId, body.get('message'), ai_response, 
-                  body.get('type', 'conversation')))
-            conn.commit()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO conversation_logs 
+                    (user_id, user_message, ai_response, request_type, model_used, timestamp)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id;
+                """, (
+                    userId,
+                    body.get('message'),
+                    ai_response,
+                    body.get('type', 'conversation'),
+                    model_used,
+                    timestamp
+                ))
+                log_id = cursor.fetchone()[0]
+                conn.commit()
+                print(f"Logged conversation with ID: {log_id}")
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            print(f"Database error details: {traceback.format_exc()}")
             
-        model_used = response.get('context', {}).get('model_used', 'gpt-3.5-turbo')
-        
         return cors_response(200, {
             'message': 'Message processed successfully',
             'response': ai_response,
-            'model_used': model_used
+            'model_used': model_used,
+            'channel': channel_name,
+            'timestamp': timestamp
         })
         
     except Exception as e:
         print(f"Chat handler error: {str(e)}")
         traceback.print_exc()
-        return cors_response(500, {'error': str(e)})
+        return cors_response(500, {
+            'error': str(e),
+            'details': traceback.format_exc()
+        })
     
 #########
 def get_chat_history(event, context):

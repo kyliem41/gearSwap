@@ -56,7 +56,7 @@ class _StylistPageState extends State<StylistPage> {
 
   Future<void> _initialize() async {
     setState(() => _isLoading = true);
-    
+
     try {
       _baseUrl = await ConfigUtils.getBaseUrl();
       final isAuthenticated = await _loadUserData();
@@ -64,7 +64,8 @@ class _StylistPageState extends State<StylistPage> {
       if (!isAuthenticated) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please log in to access the stylist')),
+            const SnackBar(
+                content: Text('Please log in to access the stylist')),
           );
         }
         setState(() => _isLoading = false);
@@ -73,7 +74,7 @@ class _StylistPageState extends State<StylistPage> {
 
       await _loadChatHistory();
       await _initializeAbly();
-      
+
       setState(() {
         _isInitialized = true;
         _isLoading = false;
@@ -146,17 +147,19 @@ class _StylistPageState extends State<StylistPage> {
     }
 
     final timestamp = DateTime.now();
+    final userMessage = Message(
+      text: text,
+      isAI: false,
+      timestamp: timestamp,
+    );
 
     setState(() {
-      _messages.add(Message(
-        text: text,
-        isAI: false,
-        timestamp: timestamp,
-      ));
+      _messages.add(userMessage);
       _isLoading = true;
     });
 
     try {
+      print('Sending message to backend...');
       final response = await http.post(
         Uri.parse('$_baseUrl/styler/chat/$_userId'),
         headers: {
@@ -171,11 +174,26 @@ class _StylistPageState extends State<StylistPage> {
         }),
       );
 
+      print('Backend response status: ${response.statusCode}');
+      print('Backend response body: ${response.body}');
+
       if (response.statusCode != 200) {
         final errorData = json.decode(response.body);
         throw Exception(errorData['error'] ?? 'Failed to send message');
       }
+
+      // Start a timeout timer
+      Future.delayed(const Duration(seconds: 30), () {
+        if (_isLoading && mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Response timeout - please try again')),
+          );
+        }
+      });
     } catch (e) {
+      print('Error sending message: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${e.toString()}')),
@@ -203,15 +221,41 @@ class _StylistPageState extends State<StylistPage> {
     if (_userId == null) return;
 
     try {
+      print('Initializing Ably for user: $_userId');
       final ablyKey = await ConfigUtils.getAblyKey();
+      print('Got Ably key, creating client...');
+
       _realtime = ably.Realtime(
-        options: ably.ClientOptions(key: ablyKey),
+        options: ably.ClientOptions(
+          key: ablyKey,
+          clientId: 'stylist_$_userId',
+          logLevel: ably.LogLevel.verbose,
+        ),
       );
 
-      _channel = _realtime.channels.get('stylist:$_userId');
+      // Listen for connection state changes
+      _realtime.connection
+          .on()
+          .listen((ably.ConnectionStateChange stateChange) {
+        print('Ably connection state changed to: ${stateChange.current}');
+        if (stateChange.current == ably.ConnectionState.failed) {
+          print('Connection failed: ${stateChange.reason}');
+        }
+      });
 
+      String channelName = 'stylist:$_userId';
+      print('Creating channel: $channelName');
+      _channel = _realtime.channels.get(channelName);
+
+      // Listen for channel state changes
+      _channel.on().listen((ably.ChannelStateChange stateChange) {
+        print('Channel state changed to: ${stateChange.current}');
+      });
+
+      print('Subscribing to channel...');
       _channel.subscribe(name: 'stylist_response').listen(
         (ably.Message message) {
+          print('Received message from Ably: ${message.data}');
           if (mounted) {
             try {
               final response = message.data as Map<String, dynamic>;
@@ -225,9 +269,11 @@ class _StylistPageState extends State<StylistPage> {
               });
             } catch (e) {
               print('Error processing message: $e');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error processing response: $e')),
-              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error processing response: $e')),
+                );
+              }
               setState(() => _isLoading = false);
             }
           }
@@ -243,21 +289,9 @@ class _StylistPageState extends State<StylistPage> {
         },
       );
 
-      // Only add welcome message if no messages exist
-      if (_messages.isEmpty) {
-        setState(() {
-          _messages.add(Message(
-            text: "Hi! I'm your AI stylist. I can help you with:\n"
-                "• Outfit recommendations\n"
-                "• Style advice\n"
-                "• Color combinations\n"
-                "• Shopping suggestions\n"
-                "What would you like help with today?",
-            isAI: true,
-            timestamp: DateTime.now(),
-          ));
-        });
-      }
+      // Attach to channel explicitly
+      await _channel.attach();
+      print('Successfully attached to channel');
     } catch (e) {
       print('Error initializing Ably: $e');
       if (mounted) {
@@ -302,6 +336,10 @@ class _StylistPageState extends State<StylistPage> {
       appBar: TopNavBar(),
       body: Column(
         children: [
+          if (_isInitialized)
+            ConnectionStateWidget(
+              state: _realtime.connection.state,
+            ),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(8.0),
@@ -458,6 +496,62 @@ class MessageInput extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class ConnectionStateWidget extends StatelessWidget {
+  final ably.ConnectionState state;
+
+  const ConnectionStateWidget({
+    required this.state,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    String text;
+
+    switch (state) {
+      case ably.ConnectionState.connected:
+        color = Colors.green;
+        text = 'Connected';
+        break;
+      case ably.ConnectionState.connecting:
+        color = Colors.orange;
+        text = 'Connecting...';
+        break;
+      case ably.ConnectionState.disconnected:
+        color = Colors.red;
+        text = 'Disconnected';
+        break;
+      case ably.ConnectionState.failed:
+        color = Colors.red;
+        text = 'Connection Failed';
+        break;
+      default:
+        color = Colors.grey;
+        text = 'Unknown';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(text, style: TextStyle(color: color)),
+        ],
       ),
     );
   }
