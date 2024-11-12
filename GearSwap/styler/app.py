@@ -124,8 +124,8 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         if not body.get('message'):
             return cors_response(400, {'error': 'Message content is required'})
         
-        # Get Ably channel
         channel = ably_client.channels.get(f"stylist:{userId}")
+        publish_message = getattr(channel, 'publish_async', None) or channel.publish
         
         # Process message with GPT
         response = await recommender.get_recommendation(
@@ -138,20 +138,16 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         # Get the AI's response text
         ai_response = response['recommendation']
         
-        # Publish response to Ably channel
-        try:
-            await channel.publish_async('stylist_response', {
-                'response': ai_response,
-                'type': 'ai'
-            })
-        except AttributeError:
-            # Fallback for non-async publish
-            channel.publish('stylist_response', {
-                'response': ai_response,
-                'type': 'ai'
-            })
+        message_data = {
+            'response': ai_response,
+            'type': 'ai'
+        }
         
-        # Log conversation
+        if asyncio.iscoroutinefunction(publish_message):
+            await publish_message('stylist_response', message_data)
+        else:
+            publish_message('stylist_response', message_data)
+        
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO conversation_logs 
@@ -161,10 +157,12 @@ async def handle_chat(event, context, conn, ably_client, recommender):
                   body.get('type', 'conversation')))
             conn.commit()
             
+        model_used = response.get('context', {}).get('model_used', 'gpt-3.5-turbo')
+        
         return cors_response(200, {
             'message': 'Message processed successfully',
             'response': ai_response,
-            'model_used': response.get('context', {}).get('model_used', 'unknown')
+            'model_used': model_used
         })
         
     except Exception as e:

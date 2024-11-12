@@ -154,14 +154,15 @@ class FashionGPTRecommender:
 
             models = [
                 self.model,
+                "gpt-3.5-turbo",
                 "gpt-4-1106-preview",
-                "gpt-4",
-                "gpt-3.5-turbo"
+                "gpt-4"
             ]
-
+            
             last_error = None
             for model in models:
                 try:
+                    print(f"Trying model: {model}")
                     response = await self.client.chat.completions.create(
                         model=model,
                         messages=[
@@ -184,6 +185,8 @@ class FashionGPTRecommender:
                     
                     recommendation = response.choices[0].message.content
 
+                    print(f"Successfully used model: {model}")
+                    
                     return {
                         'recommendation': recommendation,
                         'context': {
