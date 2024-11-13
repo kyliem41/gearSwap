@@ -235,9 +235,6 @@ class _StylistPageState extends State<StylistPage> {
           key: ablyKey,
           clientId: 'stylist_$_userId',
           logLevel: ably.LogLevel.verbose,
-          autoConnect: true,
-          environment: 'production',
-          useBinaryProtocol: true,
         ),
       );
 
@@ -256,6 +253,7 @@ class _StylistPageState extends State<StylistPage> {
               _retryConnection();
             } else if (stateChange.current == ably.ConnectionState.connected) {
               _isInitialized = true;
+              _setupChannel();
             }
           });
         }
@@ -263,24 +261,28 @@ class _StylistPageState extends State<StylistPage> {
         print('Connection state error: $error');
         _retryConnection();
       });
+    } catch (e) {
+      print('Error initializing Ably: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to initialize chat: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isConnecting = false);
+      }
+    }
+  }
 
+  Future<void> _setupChannel() async {
+    try {
       String channelName = 'stylist:$_userId';
       print('Creating channel: $channelName');
       _channel = _realtime.channels.get(channelName);
 
-      // Listen for channel state changes
-      _channel.on().listen((ably.ChannelStateChange stateChange) {
-        print('Channel state changed to: ${stateChange.current}');
-        if (stateChange.current == ably.ChannelState.failed) {
-          _retryConnection();
-        }
-      }, onError: (error) {
-        print('Channel state error: $error');
-        _retryConnection();
-      });
-
-      print('Subscribing to channel...');
       await _channel.attach();
+      print('Channel attached');
 
       _channel.subscribe(name: 'stylist_response').listen(
         (ably.Message message) {
@@ -320,17 +322,13 @@ class _StylistPageState extends State<StylistPage> {
         },
       );
 
-      print('Successfully attached to channel');
+      print('Successfully subscribed to channel');
     } catch (e) {
-      print('Error initializing Ably: $e');
+      print('Error setting up channel: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to initialize chat: $e')),
+          SnackBar(content: Text('Failed to setup chat channel: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isConnecting = false);
       }
     }
   }
