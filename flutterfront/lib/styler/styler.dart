@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
@@ -161,9 +163,20 @@ class _StylistPageState extends State<StylistPage> {
       _isLoading = true;
     });
 
+    final timeoutCompleter = Completer<void>();
+    Timer? timeoutTimer;
+
     try {
       print('Sending message to backend...');
-      final response = await http.post(
+
+      timeoutTimer = Timer(const Duration(seconds: 30), () {
+        if (!timeoutCompleter.isCompleted) {
+          timeoutCompleter.completeError('Response timeout');
+        }
+      });
+
+      final response = await http
+          .post(
         Uri.parse('$_baseUrl/styler/chat/$_userId'),
         headers: {
           'Authorization': 'Bearer $_idToken',
@@ -175,6 +188,12 @@ class _StylistPageState extends State<StylistPage> {
           'context': _getLastMessages(3),
           'timestamp': timestamp.toIso8601String(),
         }),
+      )
+          .timeout(
+        const Duration(seconds: 25),
+        onTimeout: () {
+          throw TimeoutException('Request timed out');
+        },
       );
 
       print('Backend response status: ${response.statusCode}');
@@ -185,23 +204,30 @@ class _StylistPageState extends State<StylistPage> {
         throw Exception(errorData['error'] ?? 'Failed to send message');
       }
 
-      // Start a timeout timer
-      Future.delayed(const Duration(seconds: 30), () {
-        if (_isLoading && mounted) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Response timeout - please try again')),
-          );
-        }
-      });
+      await Future.any([
+        timeoutCompleter.future,
+        Future.delayed(const Duration(seconds: 2)),
+      ]);
     } catch (e) {
       print('Error sending message: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+          SnackBar(
+            content: Text(e is TimeoutException
+                ? 'Response timeout - please try again'
+                : 'Error: ${e.toString()}'),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: () => _sendMessage(text),
+            ),
+          ),
         );
         setState(() => _isLoading = false);
+      }
+    } finally {
+      timeoutTimer?.cancel();
+      if (!timeoutCompleter.isCompleted) {
+        timeoutCompleter.complete();
       }
     }
   }
@@ -304,10 +330,15 @@ class _StylistPageState extends State<StylistPage> {
               print('Error processing message: $e');
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error processing response: $e')),
+                  SnackBar(
+                    content: Text('Error processing response: $e'),
+                    action: SnackBarAction(
+                      label: 'Retry',
+                      onPressed: () => setState(() => _isLoading = false),
+                    ),
+                  ),
                 );
               }
-              setState(() => _isLoading = false);
             }
           }
         },
@@ -315,7 +346,13 @@ class _StylistPageState extends State<StylistPage> {
           print('Subscription error: $error');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error receiving message: $error')),
+              SnackBar(
+                content: Text('Error receiving message: $error'),
+                action: SnackBarAction(
+                  label: 'Retry',
+                  onPressed: () => _retryConnection(),
+                ),
+              ),
             );
             setState(() => _isLoading = false);
           }
