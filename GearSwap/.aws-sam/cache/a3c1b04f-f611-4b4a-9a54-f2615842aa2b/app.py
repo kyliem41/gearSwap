@@ -52,8 +52,10 @@ def initialize_ably_client(api_key):
     """Initialize Ably REST client"""
     try:
         print("Initializing Ably client")
-        # Just use the key parameter
         rest_client = AblyRest(key=api_key)
+        # Test the connection with a sync call
+        test_channel = rest_client.channels.get('test')
+        test_channel.publish_sync('test', {'test': 'connection'})
         print("Successfully initialized Ably client")
         return rest_client
     except Exception as e:
@@ -172,15 +174,20 @@ async def handle_chat(event, context, conn, ably_client, recommender):
             channel = ably_client.channels.get(channel_name)
             
             print(f"Publishing to Ably channel {channel_name}")
-            try:
-                # Use direct publish call
-                channel.publish(name='stylist_response', data=message_data)
-                print(f"Successfully published to Ably channel {channel_name}")
-            except Exception as publish_error:
-                print(f"Direct publish error: {str(publish_error)}")
-                # Try alternative publish method
-                channel.publish_sync('stylist_response', message_data)
-                print("Successfully published using sync method")
+
+            # Create a future for the publish operation
+            loop = asyncio.get_event_loop()
+            def publish_message():
+                try:
+                    result = channel.publish_sync('stylist_response', message_data)
+                    print(f"Successfully published to Ably channel {channel_name}")
+                    return result
+                except Exception as e:
+                    print(f"Error in sync publish: {e}")
+                    raise e
+
+            # Run the publish operation in an executor
+            await loop.run_in_executor(None, publish_message)
             
         except Exception as ably_error:
             print(f"Error publishing to Ably: {str(ably_error)}")
@@ -188,14 +195,18 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         
         try:
             # Execute database operation
-            insert_chat_log(
-                conn=conn,
-                user_id=userId,
-                user_message=body.get('message'),
-                ai_response=ai_response,
-                request_type=body.get('type', 'conversation'),
-                timestamp=timestamp,
-                model_used=model_used
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: insert_chat_log(
+                    conn=conn,
+                    user_id=userId,
+                    user_message=body.get('message'),
+                    ai_response=ai_response,
+                    request_type=body.get('type', 'conversation'),
+                    timestamp=timestamp,
+                    model_used=model_used
+                )
             )
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
@@ -217,7 +228,7 @@ async def handle_chat(event, context, conn, ably_client, recommender):
             'error': str(e),
             'details': traceback.format_exc()
         })
-        
+                
 def insert_chat_log(conn, user_id, user_message, ai_response, request_type, timestamp, model_used):
     with conn.cursor() as cursor:
         cursor.execute("""
