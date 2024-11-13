@@ -51,8 +51,8 @@ def lambda_handler(event, context):
 def initialize_ably_client(api_key):
     try:
         print("Initializing Ably client")
-        client = AblyRest(api_key)
-        
+        client = AblyRest(key=api_key)
+        print("Successfully initialized Ably client")
         return client
     except Exception as e:
         print(f"Error initializing Ably client: {str(e)}")
@@ -170,28 +170,21 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         
         try:
             print(f"Publishing to Ably channel {channel_name}")
-            # Properly handle the async publish
-            def do_publish():
-                try:
-                    result = channel.publish('stylist_response', message_data)
-                    print(f"Successfully published to Ably channel {channel_name}")
-                    return result
-                except Exception as e:
-                    print(f"Error in publish operation: {str(e)}")
-                    raise e
-
-            await asyncio.get_event_loop().run_in_executor(None, do_publish)
+            # Use synchronous publish with Ably REST
+            channel.publish(
+                name='stylist_response',
+                data=message_data
+            )
+            print(f"Successfully published to Ably channel {channel_name}")
         except Exception as ably_error:
             print(f"Error publishing to Ably: {str(ably_error)}")
             print(f"Ably error details: {traceback.format_exc()}")
         
         try:
-            # Execute database operation
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: insert_chat_log(conn, userId, body.get('message'), ai_response, 
-                                      body.get('type', 'conversation'), timestamp, model_used)
-            )
+            # Insert into database
+            insert_chat_log(conn, userId, body.get('message'), ai_response, 
+                          body.get('type', 'conversation'), timestamp, model_used)
+            
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             print(f"Database error details: {traceback.format_exc()}")
