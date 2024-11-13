@@ -53,9 +53,9 @@ def initialize_ably_client(api_key):
     try:
         print("Initializing Ably client")
         rest_client = AblyRest(key=api_key)
-        # Test the connection with a sync call
+        # Test the connection with a publish call
         test_channel = rest_client.channels.get('test')
-        test_channel.publish_sync('test', {'test': 'connection'})
+        test_channel.publish('test', {'test': 'connection'})
         print("Successfully initialized Ably client")
         return rest_client
     except Exception as e:
@@ -253,10 +253,10 @@ def insert_chat_log(conn, user_id, user_message, ai_response, request_type, time
 def get_chat_history(event, context):
     try:
         userId = event['pathParameters']['userId']
-        
+        print(f"Fetching chat history for userId: {userId}")
+
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Get chat history without pagination for now
                 history_query = """
                 SELECT id, user_message, ai_response, request_type, timestamp, model_used
                 FROM conversation_logs 
@@ -265,8 +265,8 @@ def get_chat_history(event, context):
                 """
                 cursor.execute(history_query, (userId,))
                 history = cursor.fetchall()
-                
-                # Format the chat history as a conversation
+                print(f"Chat history fetched: {history}")
+
                 formatted_history = []
                 for entry in history:
                     # Add user message
