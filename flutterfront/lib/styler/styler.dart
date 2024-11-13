@@ -236,15 +236,13 @@ class _StylistPageState extends State<StylistPage> {
           clientId: 'stylist_$_userId',
           logLevel: ably.LogLevel.verbose,
           autoConnect: true,
-          disconnectedRetryTimeout: 1000,
-          suspendedRetryTimeout: 5000,
+          environment: 'production',
+          useBinaryProtocol: true,
         ),
       );
 
-      // Listen for connection state changes
-      _realtime.connection
-          .on()
-          .listen((ably.ConnectionStateChange stateChange) {
+      _realtime.connection.on().listen(
+          (ably.ConnectionStateChange stateChange) {
         print('Ably connection state changed to: ${stateChange.current}');
         if (mounted) {
           setState(() {
@@ -261,6 +259,9 @@ class _StylistPageState extends State<StylistPage> {
             }
           });
         }
+      }, onError: (error) {
+        print('Connection state error: $error');
+        _retryConnection();
       });
 
       String channelName = 'stylist:$_userId';
@@ -273,6 +274,9 @@ class _StylistPageState extends State<StylistPage> {
         if (stateChange.current == ably.ChannelState.failed) {
           _retryConnection();
         }
+      }, onError: (error) {
+        print('Channel state error: $error');
+        _retryConnection();
       });
 
       print('Subscribing to channel...');
