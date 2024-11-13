@@ -53,7 +53,6 @@ def initialize_ably_client(api_key):
     try:
         print("Initializing Ably client")
         rest_client = AblyRest(key=api_key)
-        # Test the connection with a publish call
         test_channel = rest_client.channels.get('test')
         test_channel.publish('test', {'test': 'connection'})
         print("Successfully initialized Ably client")
@@ -137,29 +136,25 @@ async def handle_chat(event, context, conn, ably_client, recommender):
     try:
         userId = event['pathParameters']['userId']
         body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
-        
+
         if not body.get('message'):
             return cors_response(400, {'error': 'Message content is required'})
-        
+
         print(f"Processing chat request for user {userId}")
-        
-        try:
-            response = await recommender.get_recommendation(
-                user_id=userId,
-                request_type=body.get('type', 'conversation'),
-                message=body.get('message'),
-                context=body.get('context', [])
-            )
-            print(f"Got AI response for user {userId}")
-        except Exception as e:
-            print(f"AI recommendation error: {str(e)}")
-            raise
-            
+
+        response = await recommender.get_recommendation(
+            user_id=userId,
+            request_type=body.get('type', 'conversation'),
+            message=body.get('message'),
+            context=body.get('context', [])
+        )
+        print(f"Got AI response for user {userId}")
+
         # Get the AI's response text and metadata
         ai_response = response['recommendation']
         model_used = response.get('context', {}).get('model_used', 'unknown')
         timestamp = datetime.now().isoformat()
-        
+
         # Prepare message data
         message_data = {
             'response': ai_response,
@@ -167,52 +162,32 @@ async def handle_chat(event, context, conn, ably_client, recommender):
             'model': model_used,
             'timestamp': timestamp
         }
-        
+
+        # Publish to Ably channel
         try:
-            # Get channel using REST client
             channel_name = f"stylist:{userId}"
             channel = ably_client.channels.get(channel_name)
-            
             print(f"Publishing to Ably channel {channel_name}")
 
-            # Create a future for the publish operation
-            loop = asyncio.get_event_loop()
-            def publish_message():
-                try:
-                    result = channel.publish_sync('stylist_response', message_data)
-                    print(f"Successfully published to Ably channel {channel_name}")
-                    return result
-                except Exception as e:
-                    print(f"Error in sync publish: {e}")
-                    raise e
+            # Use the async publish method
+            await channel.publish('stylist_response', message_data)
+            print(f"Successfully published to Ably channel {channel_name}")
 
-            # Run the publish operation in an executor
-            await loop.run_in_executor(None, publish_message)
-            
         except Exception as ably_error:
             print(f"Error publishing to Ably: {str(ably_error)}")
             print(f"Ably error details: {traceback.format_exc()}")
-        
-        try:
-            # Execute database operation
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                lambda: insert_chat_log(
-                    conn=conn,
-                    user_id=userId,
-                    user_message=body.get('message'),
-                    ai_response=ai_response,
-                    request_type=body.get('type', 'conversation'),
-                    timestamp=timestamp,
-                    model_used=model_used
-                )
-            )
-        except Exception as db_error:
-            print(f"Database error: {str(db_error)}")
-            print(f"Database error details: {traceback.format_exc()}")
-        
-        # Return response to client
+
+        # Log the conversation
+        insert_chat_log(
+            conn=conn,
+            user_id=userId,
+            user_message=body.get('message'),
+            ai_response=ai_response,
+            request_type=body.get('type', 'conversation'),
+            timestamp=timestamp,
+            model_used=model_used
+        )
+
         return cors_response(200, {
             'message': 'Message processed successfully',
             'response': ai_response,
@@ -220,14 +195,11 @@ async def handle_chat(event, context, conn, ably_client, recommender):
             'channel': channel_name,
             'timestamp': timestamp
         })
-        
+
     except Exception as e:
         print(f"Chat handler error: {str(e)}")
         traceback.print_exc()
-        return cors_response(500, {
-            'error': str(e),
-            'details': traceback.format_exc()
-        })
+        return cors_response(500, {'error': str(e)})
                 
 def insert_chat_log(conn, user_id, user_message, ai_response, request_type, timestamp, model_used):
     with conn.cursor() as cursor:
