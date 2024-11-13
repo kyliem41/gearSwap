@@ -52,7 +52,8 @@ def initialize_ably_client(api_key):
     """Initialize Ably REST client"""
     try:
         print("Initializing Ably client")
-        rest_client = AblyRest(key=api_key, rest_only=True)
+        # Just use the key parameter
+        rest_client = AblyRest(key=api_key)
         print("Successfully initialized Ably client")
         return rest_client
     except Exception as e:
@@ -171,20 +172,22 @@ async def handle_chat(event, context, conn, ably_client, recommender):
             channel = ably_client.channels.get(channel_name)
             
             print(f"Publishing to Ably channel {channel_name}")
-            # Publish synchronously using REST client
-            result = channel.publish(
-                name='stylist_response',
-                data=message_data
-            )
-            print(f"Successfully published to Ably channel {channel_name}")
+            try:
+                # Use direct publish call
+                channel.publish(name='stylist_response', data=message_data)
+                print(f"Successfully published to Ably channel {channel_name}")
+            except Exception as publish_error:
+                print(f"Direct publish error: {str(publish_error)}")
+                # Try alternative publish method
+                channel.publish_sync('stylist_response', message_data)
+                print("Successfully published using sync method")
             
         except Exception as ably_error:
             print(f"Error publishing to Ably: {str(ably_error)}")
             print(f"Ably error details: {traceback.format_exc()}")
-            raise
         
         try:
-            # Execute database operation synchronously
+            # Execute database operation
             insert_chat_log(
                 conn=conn,
                 user_id=userId,
@@ -197,8 +200,8 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             print(f"Database error details: {traceback.format_exc()}")
-            raise
-            
+        
+        # Return response to client
         return cors_response(200, {
             'message': 'Message processed successfully',
             'response': ai_response,
@@ -240,71 +243,44 @@ def get_chat_history(event, context):
     try:
         userId = event['pathParameters']['userId']
         
-        # Optional query parameters for pagination
-        queryStringParameters = event.get('queryStringParameters', {}) or {}
-        limit = int(queryStringParameters.get('limit', 50))  # Default to 50 messages
-        offset = int(queryStringParameters.get('offset', 0))
-        
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Get total count for pagination
-                count_query = """
-                SELECT COUNT(*) 
-                FROM conversation_logs 
-                WHERE user_id = %s
-                """
-                cursor.execute(count_query, (userId,))
-                total_count = cursor.fetchone()['count']
-                
-                # Get chat history with pagination
+                # Get chat history without pagination for now
                 history_query = """
-                SELECT id, user_message, ai_response, request_type, timestamp
+                SELECT id, user_message, ai_response, request_type, timestamp, model_used
                 FROM conversation_logs 
                 WHERE user_id = %s
-                ORDER BY timestamp DESC
-                LIMIT %s OFFSET %s
+                ORDER BY timestamp ASC
                 """
-                cursor.execute(history_query, (userId, limit, offset))
+                cursor.execute(history_query, (userId,))
                 history = cursor.fetchall()
                 
                 # Format the chat history as a conversation
                 formatted_history = []
                 for entry in history:
-                    formatted_history.extend([
-                        {
-                            'id': f"user_{entry['id']}",
-                            'message': entry['user_message'],
-                            'timestamp': entry['timestamp'],
-                            'type': 'user'
-                        },
-                        {
-                            'id': f"ai_{entry['id']}",
-                            'message': entry['ai_response'],
-                            'timestamp': entry['timestamp'],
-                            'type': 'ai',
-                            'request_type': entry['request_type']
-                        }
-                    ])
-                
-                # Sort by timestamp
-                formatted_history.sort(key=lambda x: x['timestamp'])
+                    # Add user message
+                    formatted_history.append({
+                        'message': entry['user_message'],
+                        'timestamp': entry['timestamp'],
+                        'type': 'user'
+                    })
+                    # Add AI response
+                    formatted_history.append({
+                        'message': entry['ai_response'],
+                        'timestamp': entry['timestamp'],
+                        'type': 'ai',
+                        'model': entry['model_used'],
+                        'request_type': entry['request_type']
+                    })
 
         return cors_response(200, {
             "message": "Chat history retrieved successfully",
-            "history": formatted_history,
-            "pagination": {
-                "total": total_count,
-                "limit": limit,
-                "offset": offset,
-                "has_more": (offset + limit) < total_count
-            }
+            "history": formatted_history
         })
 
-    except ValueError as e:
-        return cors_response(400, {"error": f"Invalid pagination parameters: {str(e)}"})
     except Exception as e:
         print(f"Error retrieving chat history: {str(e)}")
-        print(traceback.format_exc())  # Add detailed error logging
+        print(traceback.format_exc())
         return cors_response(500, {"error": f"Error retrieving chat history: {str(e)}"})
 
 ########################
