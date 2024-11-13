@@ -49,11 +49,12 @@ def lambda_handler(event, context):
     return loop.run_until_complete(_handle_request(event, context))
 
 def initialize_ably_client(api_key):
+    """Initialize Ably REST client"""
     try:
         print("Initializing Ably client")
-        client = AblyRest(key=api_key)
+        rest_client = AblyRest(key=api_key, rest_only=True)
         print("Successfully initialized Ably client")
-        return client
+        return rest_client
     except Exception as e:
         print(f"Error initializing Ably client: {str(e)}")
         traceback.print_exc()
@@ -139,10 +140,6 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         
         print(f"Processing chat request for user {userId}")
         
-        channel_name = f"stylist:{userId}"
-        channel = ably_client.channels.get(channel_name)
-        print(f"Created Ably channel: {channel_name}")
-        
         try:
             response = await recommender.get_recommendation(
                 user_id=userId,
@@ -169,25 +166,38 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         }
         
         try:
+            # Get channel using REST client
+            channel_name = f"stylist:{userId}"
+            channel = ably_client.channels.get(channel_name)
+            
             print(f"Publishing to Ably channel {channel_name}")
-            # Use synchronous publish with Ably REST
-            channel.publish(
+            # Publish synchronously using REST client
+            result = channel.publish(
                 name='stylist_response',
                 data=message_data
             )
             print(f"Successfully published to Ably channel {channel_name}")
+            
         except Exception as ably_error:
             print(f"Error publishing to Ably: {str(ably_error)}")
             print(f"Ably error details: {traceback.format_exc()}")
+            raise
         
         try:
-            # Insert into database
-            insert_chat_log(conn, userId, body.get('message'), ai_response, 
-                          body.get('type', 'conversation'), timestamp, model_used)
-            
+            # Execute database operation synchronously
+            insert_chat_log(
+                conn=conn,
+                user_id=userId,
+                user_message=body.get('message'),
+                ai_response=ai_response,
+                request_type=body.get('type', 'conversation'),
+                timestamp=timestamp,
+                model_used=model_used
+            )
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             print(f"Database error details: {traceback.format_exc()}")
+            raise
             
         return cors_response(200, {
             'message': 'Message processed successfully',

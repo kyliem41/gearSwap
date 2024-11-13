@@ -256,37 +256,42 @@ class _StylistPageState extends State<StylistPage> {
       final ablyKey = await ConfigUtils.getAblyKey();
       print('Got Ably key, creating client...');
 
-      _realtime = ably.Realtime(
-        options: ably.ClientOptions(
-          key: ablyKey,
-          clientId: 'stylist_$_userId',
-          logLevel: ably.LogLevel.verbose,
-        ),
+      final clientOptions = ably.ClientOptions(
+        key: ablyKey,
+        clientId: 'stylist_$_userId',
+      )..autoConnect = false; // Prevent auto-connect until we're ready
+
+      _realtime = ably.Realtime(options: clientOptions);
+
+      // Listen for connection state changes
+      _realtime.connection.on().listen(
+        (ably.ConnectionStateChange stateChange) {
+          print('Ably connection state changed to: ${stateChange.current}');
+          if (mounted) {
+            setState(() {
+              if (stateChange.current == ably.ConnectionState.connected) {
+                _isInitialized = true;
+                _setupChannel();
+              } else if (stateChange.current == ably.ConnectionState.failed) {
+                print('Connection failed: ${stateChange.reason}');
+                _isInitialized = false;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Connection failed - retrying...')),
+                );
+                _retryConnection();
+              }
+            });
+          }
+        },
+        onError: (error) {
+          print('Connection state error: $error');
+          _retryConnection();
+        },
       );
 
-      _realtime.connection.on().listen(
-          (ably.ConnectionStateChange stateChange) {
-        print('Ably connection state changed to: ${stateChange.current}');
-        if (mounted) {
-          setState(() {
-            if (stateChange.current == ably.ConnectionState.failed) {
-              print('Connection failed: ${stateChange.reason}');
-              _isInitialized = false;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Connection failed - retrying...')),
-              );
-              _retryConnection();
-            } else if (stateChange.current == ably.ConnectionState.connected) {
-              _isInitialized = true;
-              _setupChannel();
-            }
-          });
-        }
-      }, onError: (error) {
-        print('Connection state error: $error');
-        _retryConnection();
-      });
+      // Now connect explicitly
+      await _realtime.connect();
     } catch (e) {
       print('Error initializing Ably: $e');
       if (mounted) {
