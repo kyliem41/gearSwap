@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
@@ -175,8 +176,7 @@ class _StylistPageState extends State<StylistPage> {
         }
       });
 
-      final response = await http
-          .post(
+      final response = await http.post(
         Uri.parse('$_baseUrl/styler/chat/$_userId'),
         headers: {
           'Authorization': 'Bearer $_idToken',
@@ -188,12 +188,12 @@ class _StylistPageState extends State<StylistPage> {
           'context': _getLastMessages(3),
           'timestamp': timestamp.toIso8601String(),
         }),
-      // )
-      //   //   .timeout(
-      //   // const Duration(seconds: 25),
-      //   // onTimeout: () {
-      //   //   throw TimeoutException('Request timed out');
-      //   // },
+        // )
+        //   //   .timeout(
+        //   // const Duration(seconds: 25),
+        //   // onTimeout: () {
+        //   //   throw TimeoutException('Request timed out');
+        //   // },
       );
 
       print('Backend response status: ${response.statusCode}');
@@ -261,6 +261,10 @@ class _StylistPageState extends State<StylistPage> {
         clientId: 'stylist_$_userId',
       )..autoConnect = false;
 
+      if (kIsWeb) {
+        clientOptions.transportParams = {'environment': 'web_friendly'};
+      }
+
       _realtime = ably.Realtime(options: clientOptions);
 
       _realtime.connection.on().listen(
@@ -271,7 +275,7 @@ class _StylistPageState extends State<StylistPage> {
               if (stateChange.current == ably.ConnectionState.connected) {
                 _isInitialized = true;
                 _setupChannel();
-              } 
+              }
               // else if (stateChange.current == ably.ConnectionState.failed) {
               //   print('Connection failed: ${stateChange.reason}');
               //   _isInitialized = false;
@@ -376,8 +380,13 @@ class _StylistPageState extends State<StylistPage> {
 
   Future<void> _retryConnection() async {
     if (!_isConnecting && mounted) {
-      await Future.delayed(Duration(seconds: 2)); // Wait before retrying
-      _initializeAbly();
+      print('Retrying Ably connection...');
+      await Future.delayed(const Duration(seconds: 5));
+      try {
+        await _initializeAbly();
+      } catch (e) {
+        print('Retry failed: $e');
+      }
     }
   }
 
