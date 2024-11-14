@@ -188,12 +188,12 @@ class _StylistPageState extends State<StylistPage> {
           'context': _getLastMessages(3),
           'timestamp': timestamp.toIso8601String(),
         }),
-      )
-          .timeout(
-        const Duration(seconds: 25),
-        onTimeout: () {
-          throw TimeoutException('Request timed out');
-        },
+      // )
+      //   //   .timeout(
+      //   // const Duration(seconds: 25),
+      //   // onTimeout: () {
+      //   //   throw TimeoutException('Request timed out');
+      //   // },
       );
 
       print('Backend response status: ${response.statusCode}');
@@ -210,25 +210,25 @@ class _StylistPageState extends State<StylistPage> {
       ]);
     } catch (e) {
       print('Error sending message: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e is TimeoutException
-                ? 'Response timeout - please try again'
-                : 'Error: ${e.toString()}'),
-            action: SnackBarAction(
-              label: 'Retry',
-              onPressed: () => _sendMessage(text),
-            ),
-          ),
-        );
-        setState(() => _isLoading = false);
-      }
+      // if (mounted) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(
+      //       content: Text(e is TimeoutException
+      //           ? 'Response timeout - please try again'
+      //           : 'Error: ${e.toString()}'),
+      //       action: SnackBarAction(
+      //         label: 'Retry',
+      //         onPressed: () => _sendMessage(text),
+      //       ),
+      //     ),
+      //   );
+      //   setState(() => _isLoading = false);
+      // }
     } finally {
       timeoutTimer?.cancel();
-      if (!timeoutCompleter.isCompleted) {
-        timeoutCompleter.complete();
-      }
+      // if (!timeoutCompleter.isCompleted) {
+      //   timeoutCompleter.complete();
+      // }
     }
   }
 
@@ -259,11 +259,10 @@ class _StylistPageState extends State<StylistPage> {
       final clientOptions = ably.ClientOptions(
         key: ablyKey,
         clientId: 'stylist_$_userId',
-      )..autoConnect = false; // Prevent auto-connect until we're ready
+      )..autoConnect = false;
 
       _realtime = ably.Realtime(options: clientOptions);
 
-      // Listen for connection state changes
       _realtime.connection.on().listen(
         (ably.ConnectionStateChange stateChange) {
           print('Ably connection state changed to: ${stateChange.current}');
@@ -272,15 +271,16 @@ class _StylistPageState extends State<StylistPage> {
               if (stateChange.current == ably.ConnectionState.connected) {
                 _isInitialized = true;
                 _setupChannel();
-              } else if (stateChange.current == ably.ConnectionState.failed) {
-                print('Connection failed: ${stateChange.reason}');
-                _isInitialized = false;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Connection failed - retrying...')),
-                );
-                _retryConnection();
-              }
+              } 
+              // else if (stateChange.current == ably.ConnectionState.failed) {
+              //   print('Connection failed: ${stateChange.reason}');
+              //   _isInitialized = false;
+              //   ScaffoldMessenger.of(context).showSnackBar(
+              //     const SnackBar(
+              //         content: Text('Connection failed - retrying...')),
+              //   );
+              //   _retryConnection();
+              // }
             });
           }
         },
@@ -290,7 +290,6 @@ class _StylistPageState extends State<StylistPage> {
         },
       );
 
-      // Now connect explicitly
       await _realtime.connect();
     } catch (e) {
       print('Error initializing Ably: $e');
@@ -337,10 +336,10 @@ class _StylistPageState extends State<StylistPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Error processing response: $e'),
-                    action: SnackBarAction(
-                      label: 'Retry',
-                      onPressed: () => setState(() => _isLoading = false),
-                    ),
+                    // action: SnackBarAction(
+                    //   label: 'Retry',
+                    //   onPressed: () => setState(() => _isLoading = false),
+                    // ),
                   ),
                 );
               }
@@ -349,18 +348,18 @@ class _StylistPageState extends State<StylistPage> {
         },
         onError: (error) {
           print('Subscription error: $error');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error receiving message: $error'),
-                action: SnackBarAction(
-                  label: 'Retry',
-                  onPressed: () => _retryConnection(),
-                ),
-              ),
-            );
-            setState(() => _isLoading = false);
-          }
+          // if (mounted) {
+          //   ScaffoldMessenger.of(context).showSnackBar(
+          //     SnackBar(
+          //       content: Text('Error receiving message: $error'),
+          //       action: SnackBarAction(
+          //         label: 'Retry',
+          //         onPressed: () => _retryConnection(),
+          //       ),
+          //     ),
+          //   );
+          //   setState(() => _isLoading = false);
+          // }
         },
       );
 
