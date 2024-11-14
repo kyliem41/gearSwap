@@ -9,7 +9,7 @@ import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  runApp(loginUser());
+  runApp(const loginUser());
 }
 
 class MyApp extends StatelessWidget {

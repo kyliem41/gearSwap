@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sample/appBars/bottomNavBar.dart';
@@ -261,10 +260,10 @@ class _StylistPageState extends State<StylistPage> {
         clientId: 'stylist_$_userId',
       );//..autoConnect = false;
 
-      if (kIsWeb) {
-        // clientOptions.transportParams = {'environment': 'web_friendly'};
-        clientOptions.environment = 'web_friendly';
-      }
+      // if (kIsWeb) {
+      //   // clientOptions.transportParams = {'environment': 'web_friendly'};
+      //   clientOptions.environment = 'web_friendly';
+      // }
 
       _realtime = ably.Realtime(options: clientOptions);
 
