@@ -263,7 +263,7 @@ class _StylistPageState extends State<StylistPage> {
 
       if (kIsWeb) {
         // clientOptions.transportParams = {'environment': 'web_friendly'};
-        clientOptions.environment = 'production';
+        clientOptions.environment = 'web_friendly';
       }
 
       _realtime = ably.Realtime(options: clientOptions);
