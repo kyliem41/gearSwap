@@ -259,10 +259,11 @@ class _StylistPageState extends State<StylistPage> {
       final clientOptions = ably.ClientOptions(
         key: ablyKey,
         clientId: 'stylist_$_userId',
-      )..autoConnect = false;
+      );//..autoConnect = false;
 
       if (kIsWeb) {
-        clientOptions.transportParams = {'environment': 'web_friendly'};
+        // clientOptions.transportParams = {'environment': 'web_friendly'};
+        clientOptions.environment = 'production';
       }
 
       _realtime = ably.Realtime(options: clientOptions);
