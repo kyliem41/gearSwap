@@ -1,5 +1,5 @@
 {
     "url": "https://yic5t1cm74.execute-api.us-east-2.amazonaws.com/Stage",
-    "WEBSOCKET_API_DOMAIN": "ovomdd876f.execute-api.region.amazonaws.com",
+    "WEBSOCKET_API_DOMAIN": "ovomdd876f.execute-api.us-east-2.amazonaws.com",
     "WEBSOCKET_API_STAGE": "Prod"
 }
