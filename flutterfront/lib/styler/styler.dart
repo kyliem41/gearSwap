@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sample/shared/config_utils.dart';
-import 'package:ably_flutter/ably_flutter.dart' as ably;
 
 class StylistPage extends StatefulWidget {
   const StylistPage({super.key});
@@ -23,10 +23,9 @@ class _StylistPageState extends State<StylistPage> {
   String? _baseUrl;
   String? _userId;
   String? _idToken;
-  late ably.Realtime _realtime;
-  late ably.RealtimeChannel _channel;
-  bool _isInitialized = false;
-  bool _isConnecting = false;
+  WebSocketChannel? _channel;
+  bool _isConnected = false;
+  StreamSubscription? _wsSubscription;
 
   @override
   void initState() {
@@ -62,6 +61,7 @@ class _StylistPageState extends State<StylistPage> {
 
     try {
       _baseUrl = await ConfigUtils.getBaseUrl();
+      final wsUrl = await ConfigUtils.getWebSocketUrl();
       final isAuthenticated = await _loadUserData();
 
       if (!isAuthenticated) {
@@ -76,10 +76,9 @@ class _StylistPageState extends State<StylistPage> {
       }
 
       await _loadChatHistory();
-      await _initializeAbly();
+      await _connectWebSocket(wsUrl);
 
       setState(() {
-        _isInitialized = true;
         _isLoading = false;
       });
     } catch (e) {
@@ -90,6 +89,116 @@ class _StylistPageState extends State<StylistPage> {
         );
       }
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _connectWebSocket(String wsBaseUrl) async {
+    try {
+      final wsUrl = Uri.parse('$wsBaseUrl?token=$_idToken');
+      print('Connecting to WebSocket: $wsUrl');
+
+      // Connect to WebSocket
+      _channel = WebSocketChannel.connect(wsUrl);
+
+      _wsSubscription = _channel?.stream.listen(
+        (message) => _handleWebSocketMessage(message),
+        onError: (error) => _handleWebSocketError(error),
+        onDone: () => _handleWebSocketDone(),
+      );
+
+      setState(() => _isConnected = true);
+    } catch (e) {
+      print('WebSocket connection error: $e');
+      _handleWebSocketError(e);
+    }
+  }
+
+  void _handleWebSocketMessage(dynamic message) {
+    try {
+      final data = json.decode(message as String);
+      print('Received WebSocket message: $data');
+
+      if (data['type'] == 'stylist_response') {
+        setState(() {
+          _messages.add(Message(
+            text: data['response'],
+            isAI: true,
+            timestamp: DateTime.parse(data['timestamp']),
+            model: data['model'],
+            type: data['type'],
+          ));
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error handling WebSocket message: $e');
+    }
+  }
+
+  void _handleWebSocketError(dynamic error) {
+    print('WebSocket error: $error');
+    setState(() => _isConnected = false);
+    _reconnectWebSocket();
+  }
+
+  void _handleWebSocketDone() {
+    print('WebSocket connection closed');
+    setState(() => _isConnected = false);
+    _reconnectWebSocket();
+  }
+
+  Future<void> _reconnectWebSocket() async {
+    if (!_isConnected) {
+      await Future.delayed(const Duration(seconds: 2));
+      final wsUrl = await ConfigUtils.getWebSocketUrl();
+      await _connectWebSocket(wsUrl);
+    }
+  }
+
+  Future<void> _sendMessage(String text) async {
+    if (text.trim().isEmpty) return;
+    if (_channel == null || !_isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Not connected to chat service. Attempting to reconnect...')),
+      );
+      await _reconnectWebSocket();
+      if (!_isConnected)
+        return;
+    }
+    if (_userId == null || !_isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not connected to chat service')),
+      );
+      return;
+    }
+
+    setState(() {
+      _messages.add(Message(
+        text: text,
+        isAI: false,
+        timestamp: DateTime.now(),
+      ));
+      _isLoading = true;
+    });
+
+    try {
+      // Send message through WebSocket
+      _channel?.sink.add(json.encode({
+        'action': 'sendMessage',
+        'message': text,
+        'type': _determineMessageType(text),
+        'context': _getLastMessages(3),
+      }));
+    } catch (e) {
+      print('Error sending message: $e');
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send message: $e')),
+        );
+      }
     }
   }
 
@@ -142,95 +251,6 @@ class _StylistPageState extends State<StylistPage> {
         .toList();
   }
 
-  Future<void> _sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
-    if (_userId == null || _idToken == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in to send messages')),
-      );
-      return;
-    }
-
-    final timestamp = DateTime.now();
-    final userMessage = Message(
-      text: text,
-      isAI: false,
-      timestamp: timestamp,
-    );
-
-    setState(() {
-      _messages.add(userMessage);
-      _isLoading = true;
-    });
-
-    final timeoutCompleter = Completer<void>();
-    Timer? timeoutTimer;
-
-    try {
-      print('Sending message to backend...');
-
-      timeoutTimer = Timer(const Duration(seconds: 30), () {
-        if (!timeoutCompleter.isCompleted) {
-          timeoutCompleter.completeError('Response timeout');
-        }
-      });
-
-      final response = await http.post(
-        Uri.parse('$_baseUrl/styler/chat/$_userId'),
-        headers: {
-          'Authorization': 'Bearer $_idToken',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'message': text,
-          'type': _determineMessageType(text),
-          'context': _getLastMessages(3),
-          'timestamp': timestamp.toIso8601String(),
-        }),
-        // )
-        //   //   .timeout(
-        //   // const Duration(seconds: 25),
-        //   // onTimeout: () {
-        //   //   throw TimeoutException('Request timed out');
-        //   // },
-      );
-
-      print('Backend response status: ${response.statusCode}');
-      print('Backend response body: ${response.body}');
-
-      if (response.statusCode != 200) {
-        final errorData = json.decode(response.body);
-        throw Exception(errorData['error'] ?? 'Failed to send message');
-      }
-
-      await Future.any([
-        timeoutCompleter.future,
-        Future.delayed(const Duration(seconds: 2)),
-      ]);
-    } catch (e) {
-      print('Error sending message: $e');
-      // if (mounted) {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     SnackBar(
-      //       content: Text(e is TimeoutException
-      //           ? 'Response timeout - please try again'
-      //           : 'Error: ${e.toString()}'),
-      //       action: SnackBarAction(
-      //         label: 'Retry',
-      //         onPressed: () => _sendMessage(text),
-      //       ),
-      //     ),
-      //   );
-      //   setState(() => _isLoading = false);
-      // }
-    } finally {
-      timeoutTimer?.cancel();
-      // if (!timeoutCompleter.isCompleted) {
-      //   timeoutCompleter.complete();
-      // }
-    }
-  }
-
   String _determineMessageType(String text) {
     final lowercase = text.toLowerCase();
     if (lowercase.contains('outfit') ||
@@ -245,158 +265,11 @@ class _StylistPageState extends State<StylistPage> {
     return 'conversation';
   }
 
-  Future<void> _initializeAbly() async {
-    if (_userId == null || _isConnecting) return;
-
-    setState(() => _isConnecting = true);
-
-    try {
-      print('Initializing Ably for user: $_userId');
-      final ablyKey = await ConfigUtils.getAblyKey();
-      print('Got Ably key, creating client...');
-
-      final clientOptions = ably.ClientOptions(
-        key: ablyKey,
-        clientId: 'stylist_$_userId',
-      );//..autoConnect = false;
-
-      // if (kIsWeb) {
-      //   // clientOptions.transportParams = {'environment': 'web_friendly'};
-      //   clientOptions.environment = 'web_friendly';
-      // }
-
-      _realtime = ably.Realtime(options: clientOptions);
-
-      _realtime.connection.on().listen(
-        (ably.ConnectionStateChange stateChange) {
-          print('Ably connection state changed to: ${stateChange.current}');
-          if (mounted) {
-            setState(() {
-              if (stateChange.current == ably.ConnectionState.connected) {
-                _isInitialized = true;
-                _setupChannel();
-              }
-              // else if (stateChange.current == ably.ConnectionState.failed) {
-              //   print('Connection failed: ${stateChange.reason}');
-              //   _isInitialized = false;
-              //   ScaffoldMessenger.of(context).showSnackBar(
-              //     const SnackBar(
-              //         content: Text('Connection failed - retrying...')),
-              //   );
-              //   _retryConnection();
-              // }
-            });
-          }
-        },
-        onError: (error) {
-          print('Connection state error: $error');
-          _retryConnection();
-        },
-      );
-
-      await _realtime.connect();
-    } catch (e) {
-      print('Error initializing Ably: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to initialize chat: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isConnecting = false);
-      }
-    }
-  }
-
-  Future<void> _setupChannel() async {
-    try {
-      String channelName = 'stylist:$_userId';
-      print('Creating channel: $channelName');
-      _channel = _realtime.channels.get(channelName);
-
-      await _channel.attach();
-      print('Channel attached');
-
-      _channel.subscribe(name: 'stylist_response').listen(
-        (ably.Message message) {
-          print('Received message from Ably: ${message.data}');
-          if (mounted) {
-            try {
-              final response = message.data as Map<String, dynamic>;
-              setState(() {
-                _messages.add(Message(
-                  text: response['response'] as String,
-                  isAI: true,
-                  timestamp: DateTime.parse(response['timestamp']),
-                  model: response['model'],
-                  type: response['type'],
-                ));
-                _isLoading = false;
-              });
-            } catch (e) {
-              print('Error processing message: $e');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error processing response: $e'),
-                    // action: SnackBarAction(
-                    //   label: 'Retry',
-                    //   onPressed: () => setState(() => _isLoading = false),
-                    // ),
-                  ),
-                );
-              }
-            }
-          }
-        },
-        onError: (error) {
-          print('Subscription error: $error');
-          // if (mounted) {
-          //   ScaffoldMessenger.of(context).showSnackBar(
-          //     SnackBar(
-          //       content: Text('Error receiving message: $error'),
-          //       action: SnackBarAction(
-          //         label: 'Retry',
-          //         onPressed: () => _retryConnection(),
-          //       ),
-          //     ),
-          //   );
-          //   setState(() => _isLoading = false);
-          // }
-        },
-      );
-
-      print('Successfully subscribed to channel');
-    } catch (e) {
-      print('Error setting up channel: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to setup chat channel: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _retryConnection() async {
-    if (!_isConnecting && mounted) {
-      print('Retrying Ably connection...');
-      await Future.delayed(const Duration(seconds: 5));
-      try {
-        await _initializeAbly();
-      } catch (e) {
-        print('Retry failed: $e');
-      }
-    }
-  }
-
   @override
   void dispose() {
+    _wsSubscription?.cancel();
+    _channel?.sink.close();
     _messageController.dispose();
-    if (_isInitialized) {
-      _channel.detach();
-      _realtime.close();
-    }
     super.dispose();
   }
 
@@ -424,10 +297,28 @@ class _StylistPageState extends State<StylistPage> {
       appBar: TopNavBar(),
       body: Column(
         children: [
-          if (_isInitialized)
-            ConnectionStateWidget(
-              state: _realtime.connection.state,
+          //connection status
+          Container(
+            padding: const EdgeInsets.all(8),
+            color: _isConnected ? Colors.green[100] : Colors.red[100],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isConnected ? Icons.check_circle : Icons.error,
+                  color: _isConnected ? Colors.green : Colors.red,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _isConnected ? 'Connected' : 'Disconnected',
+                  style: TextStyle(
+                    color: _isConnected ? Colors.green : Colors.red,
+                  ),
+                ),
+              ],
             ),
+          ),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(8.0),
@@ -445,6 +336,7 @@ class _StylistPageState extends State<StylistPage> {
                 return MessageBubble(
                   text: message.text,
                   isAI: message.isAI,
+                  model: message.model,
                 );
               },
             ),
@@ -609,62 +501,6 @@ class MessageInput extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class ConnectionStateWidget extends StatelessWidget {
-  final ably.ConnectionState state;
-
-  const ConnectionStateWidget({
-    required this.state,
-    Key? key,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    Color color;
-    String text;
-
-    switch (state) {
-      case ably.ConnectionState.connected:
-        color = Colors.green;
-        text = 'Connected';
-        break;
-      case ably.ConnectionState.connecting:
-        color = Colors.orange;
-        text = 'Connecting...';
-        break;
-      case ably.ConnectionState.disconnected:
-        color = Colors.red;
-        text = 'Disconnected';
-        break;
-      case ably.ConnectionState.failed:
-        color = Colors.red;
-        text = 'Connection Failed';
-        break;
-      default:
-        color = Colors.grey;
-        text = 'Unknown';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(text, style: TextStyle(color: color)),
-        ],
       ),
     );
   }

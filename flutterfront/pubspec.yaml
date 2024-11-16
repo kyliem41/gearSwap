@@ -37,8 +37,10 @@ dependencies:
   shared_preferences: ^2.0.13
   cupertino_icons: ^1.0.2
   http: ^1.2.2
-  ably_flutter: ^1.2.36
+  flutter_web_plugins:
+    sdk: flutter
   image_picker: ^1.0.4
+  web_socket_channel: ^2.4.0
 
 dev_dependencies:
   build_runner: ^2.1.8

@@ -95,10 +95,20 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\styler"
 runtime = "python3.12"
 architecture = "x86_64"
 handler = "app.lambda_handler"
-source_hash = "61c24a907aed686d77ec05ad39d5692dd917141b5b5693c0f9ce3fcb16d219be"
+source_hash = "f0326667462a71f437f4fc26dec4296a82ce90840c78e4f2841cbbd3134ce91c"
 manifest_hash = ""
 packagetype = "Zip"
 functions = ["StylerFunctions"]
+
+[function_build_definitions.36458460-e36d-486a-a197-32ed705f05ec]
+codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\websocket"
+runtime = "python3.12"
+architecture = "x86_64"
+handler = "connect.lambda_handler"
+source_hash = "19bb24cd924bef068b4ac7305f619f9a3d7ec8dfc2896d7fbe35d6b4f3ba1496"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["WebSocketConnectFunction", "WebSocketDisconnectFunction", "WebSocketMessageFunction", "WebSocketBroadcastFunction"]
 
 [layer_build_definitions.779f71f2-2b53-4e74-b060-16c6003f37b7]
 layer_name = "DependenciesLayer"
@@ -106,6 +116,6 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap"
 build_method = "python3.12"
 compatible_runtimes = ["python3.12"]
 architecture = "x86_64"
-source_hash = "de0517ccaac5f9cb8a70771442ac9bd0d7a642c0b761af58196d2505e12caa9a"
+source_hash = "98c97edd46f23736a6c107b4376d1bd7ce1e04990cf0181527ce3dba0126ee44"
 manifest_hash = ""
 layer = "DependenciesLayer"

@@ -24,10 +24,12 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref UserPool
         COGNITO_CLIENT_ID: !Ref UserPoolClient
         AuthorizerResultTtlInSeconds: 0
-        ABLY_API_KEY: !Sub '{{resolve:secretsmanager:/gearswap/${ENV}/ABLY_API_KEY:SecretString}}'
+        # ABLY_API_KEY: !Sub '{{resolve:secretsmanager:/gearswap/${ENV}/ABLY_API_KEY:SecretString}}'
         OPENAI_API_KEY: !Sub '{{resolve:secretsmanager:/gearswap/${ENV}/OPENAI_API_KEY:SecretString}}'
         FINE_TUNED_MODEL_ID: !Sub '{{resolve:ssm:/gearswap/${ENV}/FINE_TUNED_MODEL_ID}}'
         ENV: !Ref ENV
+        WEBSOCKET_API_DOMAIN: !Sub "${websocketApi}.execute-api.${AWS::Region}.amazonaws.com"
+        WEBSOCKET_API_STAGE: Prod
     VpcConfig:
       SecurityGroupIds: 
         - sg-07e026f3fb32eb128
@@ -193,6 +195,14 @@ Resources:
                   - ses:GetSendQuota
                   - ses:GetSendStatistics
                 Resource: "*"
+        - PolicyName: WebSocketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'execute-api:ManageConnections'
+                Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${websocketApi}/*'
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -1066,7 +1076,175 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /styler/preferences/{userId}
             Method: PUT
+
+  # Chat Functions
+  websocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: gearSwapWebsocket
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    # DependsOn:
+    #   - WebSocketDeployment
+    Properties:
+      ApiId: !Ref websocketApi
+      StageName: Prod
+      DeploymentId: !Ref WebSocketDeployment
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 100
+        ThrottlingRateLimit: 50
+
+  WebSocketDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - ConnectRoute
+      - DisconnectRoute
+      - MessageRoute
+      - BroadcastRoute
+    Properties:
+      ApiId: !Ref websocketApi
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref websocketApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      OperationName: ConnectRoute
+      Target: !Join ['/', ['integrations', !Ref ConnectIntegration]]
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref websocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      OperationName: DisconnectRoute
+      Target: !Join ['/', ['integrations', !Ref DisconnectIntegration]]
+
+  BroadcastRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref websocketApi
+      RouteKey: broadcast
+      AuthorizationType: NONE
+      OperationName: BroadcastRoute
+      Target: !Join ['/', ['integrations', !Ref BroadcastIntegration]]
+
+  MessageRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref websocketApi
+      RouteKey: sendMessage
+      AuthorizationType: NONE
+      OperationName: MessageRoute
+      Target: !Join ['/', ['integrations', !Ref MessageIntegration]]
+
+  ConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref websocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketConnectFunction.Arn}/invocations
+
+  DisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref websocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketDisconnectFunction.Arn}/invocations
+
+  MessageIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref websocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketMessageFunction.Arn}/invocations
+
+  BroadcastIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref websocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketBroadcastFunction.Arn}/invocations
+
+  # WebSocket Lambda Functions
+  WebSocketConnectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: websocket/
+      Handler: connect.lambda_handler
+      Runtime: python3.12
+      # Layers:
+      #   - !Ref DependenciesLayer
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebSocketConnectPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt WebSocketConnectFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${websocketApi}/*/$connect'
+
+  WebSocketDisconnectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: websocket/
+      Handler: disconnect.lambda_handler
+      Runtime: python3.12
+      # Layers:
+      #   - !Ref DependenciesLayer
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebSocketDisconnectPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt WebSocketDisconnectFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${websocketApi}/*/$disconnect'
+
+  WebSocketMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: websocket/
+      Handler: message.lambda_handler
+      Runtime: python3.12
+      # Layers:
+      #   - !Ref DependenciesLayer
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebSocketMessagePermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt WebSocketMessageFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${websocketApi}/*/sendMessage'
+
+  WebSocketBroadcastFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: websocket/
+      Handler: broadcast.lambda_handler
+      Runtime: python3.12
+      # Layers:
+      #   - !Ref DependenciesLayer
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  WebSocketBroadcastPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt WebSocketBroadcastFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${websocketApi}/*/broadcast'
             
+  # Images API
   imagesApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -1212,3 +1390,6 @@ Outputs:
     Description: SES Domain Identity
     Condition: VerifyDomain
     Value: !Ref SESDomain
+  WebSocketEndpoint:
+    Description: "WebSocket API endpoint"
+    Value: !Sub wss://${websocketApi}.execute-api.${AWS::Region}.amazonaws.com/${WebSocketStage}

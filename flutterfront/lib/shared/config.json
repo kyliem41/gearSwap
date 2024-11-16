@@ -1,4 +1,5 @@
 {
-    "url": "https://w8fy37ytaf.execute-api.us-east-2.amazonaws.com/Stage",
-    "ably_key": "GisudA.kiUAuQ:hUAZhNCJqj3BZzZlJs8rr5VcaAm2ugoEKCJqYFHB5EA"
+    "url": "https://yic5t1cm74.execute-api.us-east-2.amazonaws.com/Stage",
+    "WEBSOCKET_API_DOMAIN": "ovomdd876f.execute-api.region.amazonaws.com",
+    "WEBSOCKET_API_STAGE": "Prod"
 }

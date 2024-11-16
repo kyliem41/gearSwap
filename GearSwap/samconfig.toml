@@ -21,7 +21,8 @@ confirm_changeset = true
 resolve_s3 = true
 s3_prefix = "GearSwap"
 image_repositories = []
-parameter_overrides = "SubnetIds=subnet-0399259539dbfb6b9,subnet-0c5504a12d93a8c54 SESSenderEmail=krhodus@student.neumont.edu SES_REGION=us-east-2 ENV=dev"
+parameter_overrides = "SubnetIds=\"subnet-0399259539dbfb6b9,subnet-0c5504a12d93a8c54\" ENV=\"dev\" SESDomain=\"\" SESRegion=\"us-east-2\" SESSenderEmail=\"krhodus@student.neumont.edu\" SESConfigurationSet=\"\""
+disable_rollback = true
 [default.package.parameters]
 resolve_s3 = true
 

@@ -9,7 +9,6 @@ import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
-from ably import AblyRest
 import traceback
 import sys
 
@@ -48,23 +47,8 @@ def lambda_handler(event, context):
     loop = get_or_create_eventloop()
     return loop.run_until_complete(_handle_request(event, context))
 
-def initialize_ably_client(api_key):
-    """Initialize Ably REST client"""
-    try:
-        print("Initializing Ably client")
-        rest_client = AblyRest(key=api_key)
-        test_channel = rest_client.channels.get('test')
-        test_channel.publish('test', {'test': 'connection'})
-        print("Successfully initialized Ably client")
-        return rest_client
-    except Exception as e:
-        print(f"Error initializing Ably client: {str(e)}")
-        traceback.print_exc()
-        raise
-
 async def _handle_request(event, context):
     conn = None
-    ably_client = None
     
     try:
         auth_header = event.get('headers', {}).get('Authorization')
@@ -75,8 +59,6 @@ async def _handle_request(event, context):
         verify_token(token)
         
         conn = get_db_connection()
-        ably_api_key = config_manager.get_secret('ABLY_API_KEY')
-        ably_client = initialize_ably_client(ably_api_key)
         
         print("Initialized all connections successfully")
         
@@ -86,7 +68,7 @@ async def _handle_request(event, context):
         http_method = event['httpMethod']
 
         if resource_path == '/styler/chat/{userId}' and http_method == 'POST':
-            return await handle_chat(event, context, conn, ably_client, recommender)
+            return await handle_chat(event, context, conn, recommender)
         elif resource_path == '/styler/chat/{userId}/history':
             return get_chat_history(event, context)
         elif resource_path == '/styler/{userId}':
@@ -132,7 +114,7 @@ async def _handle_request(event, context):
             
 ##################
 #CHAT
-async def handle_chat(event, context, conn, ably_client, recommender):
+async def handle_chat(event, context, conn, recommender):
     try:
         userId = event['pathParameters']['userId']
         body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
@@ -142,6 +124,7 @@ async def handle_chat(event, context, conn, ably_client, recommender):
 
         print(f"Processing chat request for user {userId}")
 
+        # Get AI response
         response = await recommender.get_recommendation(
             user_id=userId,
             request_type=body.get('type', 'conversation'),
@@ -155,44 +138,64 @@ async def handle_chat(event, context, conn, ably_client, recommender):
         model_used = response.get('context', {}).get('model_used', 'unknown')
         timestamp = datetime.now().isoformat()
 
-        # Prepare message data
-        message_data = {
-            'response': ai_response,
-            'type': 'ai',
-            'model': model_used,
-            'timestamp': timestamp
-        }
+        # Get WebSocket connection for the user
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute("""
+                SELECT connection_id
+                FROM websocket_connections
+                WHERE user_id = %s
+                AND last_seen > NOW() - INTERVAL '1 hour'
+            """, (userId,))
+            connections = cursor.fetchall()
 
-        # Publish to Ably channel
-        try:
-            channel_name = f"stylist:{userId}"
-            channel = ably_client.channels.get(channel_name)
-            print(f"Publishing to Ably channel {channel_name}")
+            if connections:
+                # Initialize API Gateway client
+                domain = os.environ.get('WEBSOCKET_API_DOMAIN')
+                stage = os.environ.get('WEBSOCKET_API_STAGE', 'Prod')
+                api_client = boto3.client('apigatewaymanagementapi',
+                    endpoint_url=f'https://{domain}/{stage}'
+                )
 
-            # Use the async publish method
-            await channel.publish('stylist_response', message_data)
-            print(f"Successfully published to Ably channel {channel_name}")
+                # Prepare response message
+                message_data = {
+                    'type': 'stylist_response',
+                    'response': ai_response,
+                    'model': model_used,
+                    'timestamp': timestamp
+                }
 
-        except Exception as ably_error:
-            print(f"Error publishing to Ably: {str(ably_error)}")
-            print(f"Ably error details: {traceback.format_exc()}")
+                # Send response through WebSocket to all active connections
+                for conn_info in connections:
+                    try:
+                        api_client.post_to_connection(
+                            ConnectionId=conn_info['connection_id'],
+                            Data=json.dumps(message_data)
+                        )
+                    except Exception as e:
+                        print(f"Error sending to connection {conn_info['connection_id']}: {str(e)}")
+                        if 'GoneException' in str(e):
+                            # Remove stale connection
+                            cursor.execute("""
+                                DELETE FROM websocket_connections 
+                                WHERE connection_id = %s
+                            """, (conn_info['connection_id'],))
+                            conn.commit()
 
-        # Log the conversation
-        insert_chat_log(
-            conn=conn,
-            user_id=userId,
-            user_message=body.get('message'),
-            ai_response=ai_response,
-            request_type=body.get('type', 'conversation'),
-            timestamp=timestamp,
-            model_used=model_used
-        )
+            # Log the conversation
+            insert_chat_log(
+                conn=conn,
+                user_id=userId,
+                user_message=body.get('message'),
+                ai_response=ai_response,
+                request_type=body.get('type', 'conversation'),
+                timestamp=timestamp,
+                model_used=model_used
+            )
 
         return cors_response(200, {
             'message': 'Message processed successfully',
             'response': ai_response,
             'model_used': model_used,
-            'channel': channel_name,
             'timestamp': timestamp
         })
 
