@@ -305,12 +305,22 @@ class _CartPageState extends State<CartPage> {
   }
 
   double _calculateGroupTotal(List<Map<String, dynamic>> items) {
-    return items.fold(0, (sum, item) => sum + (item['price'] as num));
+    return items.fold(0.0, (sum, item) {
+      var price = item['price'];
+      if (price is String) {
+        price = double.tryParse(price.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+      } else if (price is int) {
+        price = price.toDouble();
+      } else if (price is! double) {
+        price = 0.0;
+      }
+      return sum + price;
+    });
   }
 
   double _calculateTotalPrice() {
     return cartItems.values.fold(
-      0,
+      0.0,
       (sum, items) => sum + _calculateGroupTotal(items),
     );
   }
@@ -339,6 +349,19 @@ class _CartPageState extends State<CartPage> {
   }
 
   Widget _buildCartItem(Map<String, dynamic> item) {
+    // Convert price to double for display
+    var price = item['price'];
+    double displayPrice = 0.0;
+
+    if (price is String) {
+      displayPrice =
+          double.tryParse(price.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+    } else if (price is int) {
+      displayPrice = price.toDouble();
+    } else if (price is double) {
+      displayPrice = price;
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -378,7 +401,7 @@ class _CartPageState extends State<CartPage> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    '\$${item['price']}',
+                    '\$${displayPrice.toStringAsFixed(2)}',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
