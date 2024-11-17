@@ -304,17 +304,54 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
+  Widget _buildImage(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _buildPlaceholderImage();
+    }
+
+    return Image.network(
+      imageUrl,
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        print('Error loading image: $error');
+        return _buildPlaceholderImage();
+      },
+    );
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: 80,
+      height: 80,
+      color: Colors.grey[200],
+      child: Icon(Icons.image, color: Colors.grey[400]),
+    );
+  }
+
   double _calculateGroupTotal(List<Map<String, dynamic>> items) {
     return items.fold(0.0, (sum, item) {
       var price = item['price'];
-      if (price is String) {
-        price = double.tryParse(price.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
-      } else if (price is int) {
-        price = price.toDouble();
-      } else if (price is! double) {
-        price = 0.0;
+      print('Original price value: $price (type: ${price.runtimeType})');
+
+      double convertedPrice = 0.0;
+
+      try {
+        if (price is String) {
+          String cleanPrice = price.replaceAll(RegExp(r'[^\d.]'), '');
+          print('Cleaned price string: $cleanPrice');
+          convertedPrice = double.tryParse(cleanPrice) ?? 0.0;
+        } else if (price is num) {
+          convertedPrice = price.toDouble();
+        }
+
+        print('Converted price: $convertedPrice');
+        return sum + convertedPrice;
+      } catch (e) {
+        print('Error converting price: $e');
+        return sum;
       }
-      return sum + price;
     });
   }
 
@@ -349,17 +386,21 @@ class _CartPageState extends State<CartPage> {
   }
 
   Widget _buildCartItem(Map<String, dynamic> item) {
-    // Convert price to double for display
+    // Add debug print for item data
+    print('Building cart item: ${json.encode(item)}');
+
     var price = item['price'];
     double displayPrice = 0.0;
 
-    if (price is String) {
-      displayPrice =
-          double.tryParse(price.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
-    } else if (price is int) {
-      displayPrice = price.toDouble();
-    } else if (price is double) {
-      displayPrice = price;
+    try {
+      if (price is String) {
+        String cleanPrice = price.replaceAll(RegExp(r'[^\d.]'), '');
+        displayPrice = double.tryParse(cleanPrice) ?? 0.0;
+      } else if (price is num) {
+        displayPrice = price.toDouble();
+      }
+    } catch (e) {
+      print('Error converting display price: $e');
     }
 
     return GestureDetector(
@@ -378,18 +419,9 @@ class _CartPageState extends State<CartPage> {
         child: Row(
           children: [
             if (item['photos'] != null && (item['photos'] as List).isNotEmpty)
-              Image.network(
-                item['photos'][0],
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 80,
-                  height: 80,
-                  color: Colors.grey[200],
-                  child: Icon(Icons.image),
-                ),
-              ),
+              _buildImage(item['photos'][0])
+            else
+              _buildPlaceholderImage(),
             SizedBox(width: 16),
             Expanded(
               child: Column(
