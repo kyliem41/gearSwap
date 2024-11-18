@@ -105,10 +105,10 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\websocket"
 runtime = "python3.12"
 architecture = "x86_64"
 handler = "connect.lambda_handler"
-source_hash = "260c46e26a39cdbc56553509cc0fa49969f6d0d9eac359a71fc7c9627eced809"
+source_hash = "519ade1958acc1d4902d2e9df2dcc38acdcec57624cf49ba33e0811a3c698577"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["WebSocketConnectFunction", "WebSocketDisconnectFunction", "WebSocketMessageFunction", "WebSocketBroadcastFunction"]
+functions = ["WebSocketConnectFunction", "WebSocketDisconnectFunction", "WebSocketMessageFunction", "WebSocketBroadcastFunction", "DefaultFunction"]
 
 [layer_build_definitions.779f71f2-2b53-4e74-b060-16c6003f37b7]
 layer_name = "DependenciesLayer"
@@ -116,6 +116,6 @@ codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap"
 build_method = "python3.12"
 compatible_runtimes = ["python3.12"]
 architecture = "x86_64"
-source_hash = "a0d137f6e46781c5766a50b1a2a191b22ccca2fcf298d1d8d841853879f86b65"
+source_hash = "9cf0731f64cfbe885e10b1d55788185c7b28417cdfd0d271e7d5755911b0f4ea"
 manifest_hash = ""
 layer = "DependenciesLayer"

@@ -1249,6 +1249,30 @@ Resources:
       FunctionName: !GetAtt WebSocketBroadcastFunction.Arn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${websocketApi}/*/broadcast'
+
+  DefaultRoute:   
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref websocketApi
+      RouteKey: $default
+      AuthorizationType: NONE
+      OperationName: DefaultRoute
+      Target: !Join ['/', ['integrations', !Ref DefaultIntegration]]
+
+  DefaultIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref websocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DefaultFunction.Arn}/invocations
+
+  DefaultFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: websocket/
+      Handler: default.lambda_handler
+      Runtime: python3.12
+      Role: !GetAtt LambdaExecutionRole.Arn
             
   # Images API
   imagesApi:
