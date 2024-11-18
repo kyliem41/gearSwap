@@ -184,49 +184,46 @@ class _StylistPageState extends State<StylistPage> {
   }
 
   Future<void> _sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
-    if (_channel == null || !_isConnected) {
+  if (text.trim().isEmpty) return;
+  if (_channel == null || !_isConnected) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Not connected to chat service. Attempting to reconnect...')),
+    );
+    await _reconnectWebSocket();
+    if (!_isConnected) return;
+  }
+
+  setState(() {
+    _messages.add(Message(
+      text: text,
+      isAI: false,
+      timestamp: DateTime.now(),
+    ));
+    _isLoading = true;
+  });
+
+  try {
+    final message = {
+      'action': 'sendMessage',
+      'message': text,
+      'type': _determineMessageType(text),
+      'context': _getLastMessages(3),
+    };
+    print('Preparing to send WebSocket message with action: ${message['action']}');
+    print('Full message payload: ${json.encode(message)}');
+    
+    _channel?.sink.add(json.encode(message));
+    print('Message sent successfully through WebSocket');
+  } catch (e) {
+    print('Error sending message: $e');
+    setState(() => _isLoading = false);
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                'Not connected to chat service. Attempting to reconnect...')),
+        SnackBar(content: Text('Failed to send message: $e')),
       );
-      await _reconnectWebSocket();
-      if (!_isConnected) return;
-    }
-
-    setState(() {
-      _messages.add(Message(
-        text: text,
-        isAI: false,
-        timestamp: DateTime.now(),
-      ));
-      _isLoading = true;
-    });
-
-    try {
-      final message = {
-        'action': 'sendMessage',
-        'message': text,
-        'type': _determineMessageType(text),
-        'context': _getLastMessages(3),
-      };
-      print(
-          'Preparing to send WebSocket message with action: ${message['action']}');
-      print('Full message payload: ${json.encode(message)}');
-
-      _channel?.sink.add(json.encode(message));
-      print('Message sent successfully through WebSocket');
-    } catch (e) {
-      print('Error sending message: $e');
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send message: $e')),
-        );
-      }
     }
   }
+}
 
   Future<void> _loadChatHistory() async {
     if (_userId == null || _idToken == null) return;

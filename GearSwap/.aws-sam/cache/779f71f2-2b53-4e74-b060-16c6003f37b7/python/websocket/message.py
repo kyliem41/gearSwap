@@ -22,20 +22,23 @@ def get_db_connection():
     )
 
 def lambda_handler(event, context):
+    print("Message Lambda triggered with event:", json.dumps(event))
     try:
         connection_id = event['requestContext']['connectionId']
         domain = event['requestContext']['domainName']
         stage = event['requestContext']['stage']
         
-        print(f"Received message event: {json.dumps(event)}") 
+        print(f"Processing message for connection: {connection_id}")
         
         body = json.loads(event['body'])
         message = body.get('message')
         message_type = body.get('type', 'conversation')
+        
+        print(f"Parsed message: {message}, type: {message_type}")
 
         conn = get_db_connection()
-        recommender = FashionGPTRecommender(conn)
-
+        print("Database connection established")
+        
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute("""
@@ -44,25 +47,35 @@ def lambda_handler(event, context):
                     WHERE connection_id = %s
                 """, (connection_id,))
                 result = cursor.fetchone()
+                
                 if not result:
+                    print(f"No connection found for connection_id: {connection_id}")
                     raise Exception('Connection not found')
+                
                 user_id = result['user_id']
+                print(f"Found user_id: {user_id}")
+                
+                recommender = FashionGPTRecommender(conn)
                 
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
+                    print("Getting AI recommendation...")
                     response = loop.run_until_complete(recommender.get_recommendation(
                         user_id=user_id,
                         request_type=message_type,
                         message=message,
                         context=body.get('context', [])
                     ))
+                    print("Got AI recommendation:", json.dumps(response))
                 finally:
                     loop.close()
 
-                # Initialize API Gateway client
+                api_endpoint = f'https://{domain}/{stage}'
+                print(f"API Gateway endpoint: {api_endpoint}")
+                
                 api_client = boto3.client('apigatewaymanagementapi',
-                    endpoint_url=f'https://{domain}/{stage}'
+                    endpoint_url=api_endpoint
                 )
 
                 response_data = {
@@ -72,14 +85,16 @@ def lambda_handler(event, context):
                     'timestamp': datetime.now().isoformat()
                 }
                 
-                print(f"Sending response: {json.dumps(response_data)}")
+                print(f"Sending response data: {json.dumps(response_data)}")
 
                 api_client.post_to_connection(
                     ConnectionId=connection_id,
                     Data=json.dumps(response_data)
                 )
+                print("Response sent successfully")
                 
-            cursor.execute("""
+                print("Logging conversation...")
+                cursor.execute("""
                     INSERT INTO conversation_logs 
                     (user_id, user_message, ai_response, request_type, timestamp, model_used)
                     VALUES (%s, %s, %s, %s, %s, %s)
@@ -91,7 +106,8 @@ def lambda_handler(event, context):
                     datetime.now(),
                     response.get('context', {}).get('model_used', 'unknown')
                 ))
-            conn.commit()
+                conn.commit()
+                print("Conversation logged successfully")
 
             return {
                 'statusCode': 200,
@@ -100,6 +116,7 @@ def lambda_handler(event, context):
 
         finally:
             conn.close()
+            print("Database connection closed")
 
     except Exception as e:
         print(f"Message handling error: {str(e)}")

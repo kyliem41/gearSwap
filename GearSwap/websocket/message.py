@@ -39,9 +39,6 @@ def lambda_handler(event, context):
         conn = get_db_connection()
         print("Database connection established")
         
-        recommender = FashionGPTRecommender(conn)
-        print("Recommender initialized")
-
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute("""
@@ -50,11 +47,15 @@ def lambda_handler(event, context):
                     WHERE connection_id = %s
                 """, (connection_id,))
                 result = cursor.fetchone()
+                
                 if not result:
                     print(f"No connection found for connection_id: {connection_id}")
                     raise Exception('Connection not found')
+                
                 user_id = result['user_id']
                 print(f"Found user_id: {user_id}")
+                
+                recommender = FashionGPTRecommender(conn)
                 
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)

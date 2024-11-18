@@ -30,26 +30,10 @@ def cors_response(status_code, body):
         'body': json.dumps(body, default=str)
     }
 
-def get_or_create_eventloop():
-    try:
-        return asyncio.get_event_loop()
-    except RuntimeError as ex:
-        if "There is no current event loop in thread" in str(ex):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            return asyncio.get_event_loop()
-        raise
-    
 def lambda_handler(event, context):
     if event['httpMethod'] == 'OPTIONS':
         return cors_response(200, {'message': 'OK'})
-    
-    loop = get_or_create_eventloop()
-    return loop.run_until_complete(_handle_request(event, context))
-
-async def _handle_request(event, context):
-    conn = None
-    
+        
     try:
         auth_header = event.get('headers', {}).get('Authorization')
         if not auth_header:
@@ -62,14 +46,10 @@ async def _handle_request(event, context):
         
         print("Initialized all connections successfully")
         
-        recommender = FashionGPTRecommender(conn)
-
         resource_path = event['resource']
         http_method = event['httpMethod']
-
-        if resource_path == '/styler/chat/{userId}' and http_method == 'POST':
-            return await handle_chat(event, context, conn, recommender)
-        elif resource_path == '/styler/chat/{userId}/history':
+        
+        if resource_path == '/styler/chat/{userId}/history':
             return get_chat_history(event, context)
         elif resource_path == '/styler/{userId}':
             if http_method == 'POST':
@@ -114,117 +94,6 @@ async def _handle_request(event, context):
             
 ##################
 #CHAT
-async def handle_chat(event, context, conn, recommender):
-    try:
-        userId = event['pathParameters']['userId']
-        body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
-
-        if not body.get('message'):
-            return cors_response(400, {'error': 'Message content is required'})
-
-        print(f"Processing chat request for user {userId}")
-
-        # Get AI response
-        response = await recommender.get_recommendation(
-            user_id=userId,
-            request_type=body.get('type', 'conversation'),
-            message=body.get('message'),
-            context=body.get('context', [])
-        )
-        print(f"Got AI response for user {userId}")
-
-        # Get the AI's response text and metadata
-        ai_response = response['recommendation']
-        model_used = response.get('context', {}).get('model_used', 'unknown')
-        timestamp = datetime.now().isoformat()
-
-        # Get WebSocket connection for the user
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute("""
-                SELECT connection_id
-                FROM websocket_connections
-                WHERE user_id = %s
-                AND last_seen > NOW() - INTERVAL '1 hour'
-            """, (userId,))
-            connections = cursor.fetchall()
-
-            if connections:
-                # Initialize API Gateway client
-                domain = os.environ.get('WEBSOCKET_API_DOMAIN')
-                stage = os.environ.get('WEBSOCKET_API_STAGE', 'Prod')
-                api_client = boto3.client('apigatewaymanagementapi',
-                    endpoint_url=f'https://{domain}/{stage}'
-                )
-
-                # Prepare response message
-                message_data = {
-                    'type': 'stylist_response',
-                    'response': ai_response,
-                    'model': model_used,
-                    'timestamp': timestamp
-                }
-
-                # Send response through WebSocket to all active connections
-                for conn_info in connections:
-                    try:
-                        api_client.post_to_connection(
-                            ConnectionId=conn_info['connection_id'],
-                            Data=json.dumps(message_data)
-                        )
-                    except Exception as e:
-                        print(f"Error sending to connection {conn_info['connection_id']}: {str(e)}")
-                        if 'GoneException' in str(e):
-                            # Remove stale connection
-                            cursor.execute("""
-                                DELETE FROM websocket_connections 
-                                WHERE connection_id = %s
-                            """, (conn_info['connection_id'],))
-                            conn.commit()
-
-            # Log the conversation
-            insert_chat_log(
-                conn=conn,
-                user_id=userId,
-                user_message=body.get('message'),
-                ai_response=ai_response,
-                request_type=body.get('type', 'conversation'),
-                timestamp=timestamp,
-                model_used=model_used
-            )
-
-        return cors_response(200, {
-            'message': 'Message processed successfully',
-            'response': ai_response,
-            'model_used': model_used,
-            'timestamp': timestamp
-        })
-
-    except Exception as e:
-        print(f"Chat handler error: {str(e)}")
-        traceback.print_exc()
-        return cors_response(500, {'error': str(e)})
-                
-def insert_chat_log(conn, user_id, user_message, ai_response, request_type, timestamp, model_used):
-    with conn.cursor() as cursor:
-        cursor.execute("""
-            INSERT INTO conversation_logs 
-            (user_id, user_message, ai_response, request_type, timestamp, model_used)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id;
-        """, (
-            user_id,
-            user_message,
-            ai_response,
-            request_type,
-            timestamp,
-            model_used
-        ))
-        log_id = cursor.fetchone()[0]
-        conn.commit()
-        print(f"Logged conversation with ID: {log_id}")
-        return log_id
-    
-#########
 def get_chat_history(event, context):
     try:
         userId = event['pathParameters']['userId']
