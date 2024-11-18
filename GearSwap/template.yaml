@@ -24,7 +24,6 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref UserPool
         COGNITO_CLIENT_ID: !Ref UserPoolClient
         AuthorizerResultTtlInSeconds: 0
-        # ABLY_API_KEY: !Sub '{{resolve:secretsmanager:/gearswap/${ENV}/ABLY_API_KEY:SecretString}}'
         OPENAI_API_KEY: !Sub '{{resolve:secretsmanager:/gearswap/${ENV}/OPENAI_API_KEY:SecretString}}'
         FINE_TUNED_MODEL_ID: !Sub '{{resolve:ssm:/gearswap/${ENV}/FINE_TUNED_MODEL_ID}}'
         ENV: !Ref ENV
@@ -49,7 +48,7 @@ Parameters:
   SESDomain:
     Type: String
     Description: Domain to verify for SES (optional)
-    Default: ""
+    Default: "kylierhodus.org"
   SESRegion:
     Type: String
     Default: us-east-2
@@ -60,7 +59,7 @@ Parameters:
   SESConfigurationSet:
     Type: String
     Description: SES Configuration Set Name (optional)
-    Default: ""
+    Default: "GearSwapEmailConfig"
   GmailEmail:
     Type: String
     Description: Gmail address for sending emails
@@ -348,23 +347,33 @@ Resources:
 
   SESDomainIdentity:
     Type: AWS::SES::EmailIdentity
-    Condition: VerifyDomain
+    # Condition: VerifyDomain
     Properties:
-      EmailIdentity: !Ref SESDomain
+      EmailIdentity: !Ref SESSenderEmail
       ConfigurationSetAttributes:
         ConfigurationSetName: !Ref SESConfigurationSet
       DkimAttributes:
         SigningEnabled: true
+      # MailFromAttributes:
+      #   BehaviorOnMxFailure: USE_DEFAULT_VALUE
+      #   MailFromDomain: !Sub "mail.${SESDomain}"
 
   SESConfigurationSetResource:
     Type: AWS::SES::ConfigurationSet
-    Condition: CreateConfigSet
+    # Condition: CreateConfigSet
     Properties:
       Name: !Ref SESConfigurationSet
+      DeliveryOptions:
+        TlsPolicy: REQUIRE
+      ReputationOptions:
+        ReputationMetricsEnabled: true
+      SendingOptions:
+        SendingEnabled: true
       
   SESEventDestination:
     Type: AWS::SES::ConfigurationSetEventDestination
-    Condition: CreateConfigSet
+    DependsOn: SESConfigurationSetResource
+    # Condition: CreateConfigSet
     Properties:
       ConfigurationSetName: !Ref SESConfigurationSet
       EventDestination:
@@ -375,6 +384,7 @@ Resources:
           - "reject"
           - "bounce"
           - "complaint"
+          - "delivery"
         CloudWatchDestination:
           DimensionConfigurations:
             - DimensionName: "Source"
@@ -425,7 +435,7 @@ Resources:
           OFFICE365_EMAIL: !Ref Office365Email
           OFFICE365_PASSWORD: !Ref Office365Password
           SES_REGION: !Ref SESRegion
-          SES_SENDER_EMAIL: !Ref SESSenderEmail
+          SES_SENDER_EMAIL: !Sub "noreply@${SESDomain}"
           SES_CONFIGURATION_SET: !Ref SESConfigurationSet
       Events:
         RequestPasswordReset:
@@ -1104,22 +1114,6 @@ Resources:
       - BroadcastRoute
     Properties:
       ApiId: !Ref websocketApi
-
-  # WebSocketMetricFilter:
-  #   Type: AWS::Logs::MetricFilter
-  #   Properties:
-  #     LogGroupName: !Ref WebSocketLogGroup
-  #     FilterPattern: '[timestamp, requestId, message]'
-  #     MetricTransformations:
-  #       - MetricValue: 1
-  #         MetricNamespace: !Sub "${AWS::StackName}/WebSocket"
-  #         MetricName: WebSocketMessages
-
-  # WebSocketLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/websocket/${AWS::StackName}"
-  #     RetentionInDays: 14
 
   ConnectRoute:
     Type: AWS::ApiGatewayV2::Route
