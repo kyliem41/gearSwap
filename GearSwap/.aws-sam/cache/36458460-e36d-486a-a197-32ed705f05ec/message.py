@@ -21,11 +21,13 @@ def get_db_connection():
         port=os.environ['DB_PORT']
     )
 
-async def lambda_handler(event, context):
+def lambda_handler(event, context):
     try:
         connection_id = event['requestContext']['connectionId']
         domain = event['requestContext']['domainName']
         stage = event['requestContext']['stage']
+        
+        print(f"Received message event: {json.dumps(event)}") 
         
         body = json.loads(event['body'])
         message = body.get('message')
@@ -46,27 +48,35 @@ async def lambda_handler(event, context):
                     raise Exception('Connection not found')
                 user_id = result['user_id']
                 
-                loop = asyncio.get_event_loop()
-                response = loop.run_until_complete(recommender.get_recommendation(
-                    user_id=user_id,
-                    request_type=message_type,
-                    message=message,
-                    context=body.get('context', [])
-                ))
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    response = loop.run_until_complete(recommender.get_recommendation(
+                        user_id=user_id,
+                        request_type=message_type,
+                        message=message,
+                        context=body.get('context', [])
+                    ))
+                finally:
+                    loop.close()
 
                 # Initialize API Gateway client
                 api_client = boto3.client('apigatewaymanagementapi',
                     endpoint_url=f'https://{domain}/{stage}'
                 )
 
+                response_data = {
+                    'type': 'stylist_response',
+                    'response': response['recommendation'],
+                    'model': response.get('context', {}).get('model_used', 'unknown'),
+                    'timestamp': datetime.now().isoformat()
+                }
+                
+                print(f"Sending response: {json.dumps(response_data)}")
+
                 api_client.post_to_connection(
                     ConnectionId=connection_id,
-                    Data=json.dumps({
-                        'type': 'stylist_response',
-                        'response': response['recommendation'],
-                        'model': response.get('context', {}).get('model_used', 'unknown'),
-                        'timestamp': datetime.now().isoformat()
-                    })
+                    Data=json.dumps(response_data)
                 )
                 
             cursor.execute("""
