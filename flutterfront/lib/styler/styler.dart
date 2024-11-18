@@ -211,10 +211,12 @@ class _StylistPageState extends State<StylistPage> {
         'type': _determineMessageType(text),
         'context': _getLastMessages(3),
       };
-      print('Sending WebSocket message: ${json.encode(message)}');
-      // Remove await since add() returns void
+      print(
+          'Preparing to send WebSocket message with action: ${message['action']}');
+      print('Full message payload: ${json.encode(message)}');
+
       _channel?.sink.add(json.encode(message));
-      print('Message sent successfully');
+      print('Message sent successfully through WebSocket');
     } catch (e) {
       print('Error sending message: $e');
       setState(() => _isLoading = false);
