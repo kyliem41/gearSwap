@@ -114,26 +114,27 @@ class _StylistPageState extends State<StylistPage> {
   }
 
   void _handleWebSocketMessage(dynamic message) {
-    try {
-      final data = json.decode(message as String);
-      print('Received WebSocket message: $data');
+  try {
+    print('Received WebSocket message: $message');
+    final data = json.decode(message as String);
+    print('Decoded message data: $data');
 
-      if (data['type'] == 'stylist_response') {
-        setState(() {
-          _messages.add(Message(
-            text: data['response'],
-            isAI: true,
-            timestamp: DateTime.parse(data['timestamp']),
-            model: data['model'],
-            type: data['type'],
-          ));
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error handling WebSocket message: $e');
+    if (data['type'] == 'stylist_response') {
+      setState(() {
+        _messages.add(Message(
+          text: data['response'],
+          isAI: true,
+          timestamp: DateTime.parse(data['timestamp']),
+          model: data['model'],
+          type: data['type'],
+        ));
+        _isLoading = false;
+      });
     }
+  } catch (e) {
+    print('Error handling WebSocket message: $e');
   }
+}
 
   void _handleWebSocketError(dynamic error) {
     print('WebSocket error: $error');
@@ -164,14 +165,7 @@ class _StylistPageState extends State<StylistPage> {
                 'Not connected to chat service. Attempting to reconnect...')),
       );
       await _reconnectWebSocket();
-      if (!_isConnected)
-        return;
-    }
-    if (_userId == null || !_isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected to chat service')),
-      );
-      return;
+      if (!_isConnected) return;
     }
 
     setState(() {
@@ -184,13 +178,14 @@ class _StylistPageState extends State<StylistPage> {
     });
 
     try {
-      // Send message through WebSocket
-      _channel?.sink.add(json.encode({
+      final message = {
         'action': 'sendMessage',
         'message': text,
         'type': _determineMessageType(text),
         'context': _getLastMessages(3),
-      }));
+      };
+      print('Sending WebSocket message: ${json.encode(message)}');
+      _channel?.sink.add(json.encode(message));
     } catch (e) {
       print('Error sending message: $e');
       setState(() => _isLoading = false);

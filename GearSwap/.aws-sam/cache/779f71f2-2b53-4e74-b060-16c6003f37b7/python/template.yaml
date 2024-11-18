@@ -1087,8 +1087,6 @@ Resources:
 
   WebSocketStage:
     Type: AWS::ApiGatewayV2::Stage
-    # DependsOn:
-    #   - WebSocketDeployment
     Properties:
       ApiId: !Ref websocketApi
       StageName: Prod
@@ -1106,6 +1104,22 @@ Resources:
       - BroadcastRoute
     Properties:
       ApiId: !Ref websocketApi
+
+  # WebSocketMetricFilter:
+  #   Type: AWS::Logs::MetricFilter
+  #   Properties:
+  #     LogGroupName: !Ref WebSocketLogGroup
+  #     FilterPattern: '[timestamp, requestId, message]'
+  #     MetricTransformations:
+  #       - MetricValue: 1
+  #         MetricNamespace: !Sub "${AWS::StackName}/WebSocket"
+  #         MetricName: WebSocketMessages
+
+  # WebSocketLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub "/aws/websocket/${AWS::StackName}"
+  #     RetentionInDays: 14
 
   ConnectRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -1178,8 +1192,6 @@ Resources:
       CodeUri: websocket/
       Handler: connect.lambda_handler
       Runtime: python3.12
-      # Layers:
-      #   - !Ref DependenciesLayer
       Role: !GetAtt LambdaExecutionRole.Arn
 
   WebSocketConnectPermissions:
@@ -1196,8 +1208,6 @@ Resources:
       CodeUri: websocket/
       Handler: disconnect.lambda_handler
       Runtime: python3.12
-      # Layers:
-      #   - !Ref DependenciesLayer
       Role: !GetAtt LambdaExecutionRole.Arn
 
   WebSocketDisconnectPermissions:
@@ -1214,8 +1224,6 @@ Resources:
       CodeUri: websocket/
       Handler: message.lambda_handler
       Runtime: python3.12
-      # Layers:
-      #   - !Ref DependenciesLayer
       Role: !GetAtt LambdaExecutionRole.Arn
 
   WebSocketMessagePermissions:
@@ -1232,8 +1240,6 @@ Resources:
       CodeUri: websocket/
       Handler: broadcast.lambda_handler
       Runtime: python3.12
-      # Layers:
-      #   - !Ref DependenciesLayer
       Role: !GetAtt LambdaExecutionRole.Arn
 
   WebSocketBroadcastPermissions:
