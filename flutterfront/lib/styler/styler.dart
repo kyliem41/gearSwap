@@ -93,6 +93,11 @@ class _StylistPageState extends State<StylistPage> {
   }
 
   Future<void> _connectWebSocket(String wsBaseUrl) async {
+    if (_channel != null) {
+      await _wsSubscription?.cancel();
+      _channel?.sink.close();
+    }
+
     try {
       final wsUrl = Uri.parse('$wsBaseUrl?token=$_idToken');
       print('Connecting to WebSocket: $wsUrl');
@@ -100,10 +105,22 @@ class _StylistPageState extends State<StylistPage> {
       // Connect to WebSocket
       _channel = WebSocketChannel.connect(wsUrl);
 
+      await _channel?.ready;
+      print('WebSocket connection established');
+
       _wsSubscription = _channel?.stream.listen(
-        (message) => _handleWebSocketMessage(message),
-        onError: (error) => _handleWebSocketError(error),
-        onDone: () => _handleWebSocketDone(),
+        (message) {
+          print('WebSocket message received: $message');
+          _handleWebSocketMessage(message);
+        },
+        onError: (error) {
+          print('WebSocket stream error: $error');
+          _handleWebSocketError(error);
+        },
+        onDone: () {
+          print('WebSocket connection closed by server');
+          _handleWebSocketDone();
+        },
       );
 
       setState(() => _isConnected = true);
@@ -114,27 +131,37 @@ class _StylistPageState extends State<StylistPage> {
   }
 
   void _handleWebSocketMessage(dynamic message) {
-  try {
-    print('Received WebSocket message: $message');
-    final data = json.decode(message as String);
-    print('Decoded message data: $data');
+    try {
+      print('Received WebSocket message: $message');
+      final data = json.decode(message as String);
+      print('Decoded message data: $data');
 
-    if (data['type'] == 'stylist_response') {
-      setState(() {
-        _messages.add(Message(
-          text: data['response'],
-          isAI: true,
-          timestamp: DateTime.parse(data['timestamp']),
-          model: data['model'],
-          type: data['type'],
-        ));
-        _isLoading = false;
-      });
+      if (data['error'] != null) {
+        print('Error from server: ${data['error']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server error: ${data['error']}')),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      if (data['type'] == 'stylist_response') {
+        setState(() {
+          _messages.add(Message(
+            text: data['response'],
+            isAI: true,
+            timestamp: DateTime.parse(data['timestamp']),
+            model: data['model'],
+            type: data['type'],
+          ));
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error handling WebSocket message: $e');
+      setState(() => _isLoading = false);
     }
-  } catch (e) {
-    print('Error handling WebSocket message: $e');
   }
-}
 
   void _handleWebSocketError(dynamic error) {
     print('WebSocket error: $error');
@@ -185,7 +212,9 @@ class _StylistPageState extends State<StylistPage> {
         'context': _getLastMessages(3),
       };
       print('Sending WebSocket message: ${json.encode(message)}');
+      // Remove await since add() returns void
       _channel?.sink.add(json.encode(message));
+      print('Message sent successfully');
     } catch (e) {
       print('Error sending message: $e');
       setState(() => _isLoading = false);
