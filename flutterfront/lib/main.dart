@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 
 void main() {
+  GoRouter.optionURLReflectsImperativeAPIs = true;
   runApp(const loginUser());
 }
 
@@ -20,6 +21,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final router = GoRouter(
+      debugLogDiagnostics: true,
       initialLocation: '/',
       routes: [
         GoRoute(
@@ -29,6 +31,16 @@ class MyApp extends StatelessWidget {
         GoRoute(
           path: '/update-password',
           builder: (context, state) => const UpdatePasswordPage(),
+        ),
+        // Add a catch-all route for the update-password with query parameters
+        GoRoute(
+          path: '/update-password/:token/:userId',
+          builder: (context, state) {
+            final token = state.pathParameters['token'];
+            final userId = state.pathParameters['userId'];
+            print('Token: $token, UserId: $userId');
+            return UpdatePasswordPage();
+          },
         ),
       ],
     );

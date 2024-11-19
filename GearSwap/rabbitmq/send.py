@@ -40,6 +40,8 @@ class EmailService:
         app_url = os.environ.get('FLUTTER_APP_URL')
         reset_link = f"{app_url}/update-password?token={reset_token}&userId={userId}"
         
+        print(f"Generated reset link: {reset_link}")
+        
         return {
             'Source': os.environ['SES_SENDER_EMAIL'],
             'Destination': {
