@@ -38,7 +38,7 @@ handler = "app.lambda_handler"
 source_hash = "f3795448ab77bcb325691382e4047ac331388f9872e125cbd151bb01224d45ce"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["UserProfileFunctions", "UserProfileImageFunctions"]
+functions = ["UserProfileFunctions"]
 
 [function_build_definitions.75449519-cf20-48e4-8a0d-4a560db059ca]
 codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\cart"
@@ -58,7 +58,7 @@ handler = "app.lambda_handler"
 source_hash = "381bdd236fdda465e2e14c3dc9e0a2cdd664021c51efe6b3e8b5038e401971d6"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["PostsFunctions", "PostsImageFunctions"]
+functions = ["PostsFunctions"]
 
 [function_build_definitions.532a26a8-c6ec-4daf-bb3f-3dd1fa3e7550]
 codeuri = "C:\\y3\\capstone\\gearSwap\\gearSwap\\search"

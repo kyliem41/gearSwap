@@ -250,6 +250,10 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
+      BinaryMediaTypes:
+        - image/jpeg
+        - image/png
+        - '*/*'
       Cors:
         AllowMethods: "'OPTIONS,POST,GET,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Access-Control-Allow-Origin'"
@@ -750,6 +754,40 @@ Resources:
           Properties:
             RestApiId: !Ref gearSwap
             Path: /posts/filter/{userId}
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        AddImage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{postId}/images
+            Method: POST
+        AddImageOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{postId}/images
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        GetImage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{postId}/images/{imageId}
+            Method: GET
+        DeleteImage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{postId}/images/{imageId}
+            Method: DELETE
+        PostImageOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{postId}/images/{imageId}
             Method: OPTIONS
             Auth:
               Authorizer: NONE
@@ -1262,110 +1300,6 @@ Resources:
       Handler: default.lambda_handler
       Runtime: python3.12
       Role: !GetAtt LambdaExecutionRole.Arn
-            
-  # Images API
-  imagesApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: Prod
-      BinaryMediaTypes:
-        - image/jpeg
-        - image/png
-        - '*/*'
-      Cors:
-        AllowMethods: "'OPTIONS,POST,GET,PUT,DELETE'"
-        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Access-Control-Allow-Origin'"
-        AllowOrigin: "'*'"
-      Auth:
-        DefaultAuthorizer: CognitoAuthorizer
-        Authorizers:
-          CognitoAuthorizer:
-            UserPoolArn: !GetAtt UserPool.Arn
-            Identity:
-              Header: Authorization
-            Type: COGNITO_USER_POOLS
-
-  # UserProfile Images Functions
-  UserProfileImageFunctions:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: userProfile/
-      Handler: profileImage.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Events:
-        CreateProfileImage:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /userProfile/{Id}/image
-            Method: POST
-        GetProfileImage:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /userProfile/{Id}/image
-            Method: GET
-        UpdateProfileImage:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /userProfile/{Id}/image
-            Method: PUT
-        DeleteProfileImage:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /userProfile/{Id}/image
-            Method: DELETE
-        ProfileImageOptions:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /userProfile/{Id}/image
-            Method: OPTIONS
-            Auth:
-              Authorizer: NONE 
-
-  # Posts Images Functions
-  PostsImageFunctions:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: posts/
-      Handler: postsImage.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Events:
-        CreatePostImage:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /posts/{userId}/image
-            Method: POST
-        GetPostsImage:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /posts/{userId}/image
-            Method: GET
-        UpdatePostImage:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /posts/{userId}/image
-            Method: PUT
-        DeletePostImage:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /posts/{userId}/image
-            Method: DELETE
-        PostImageOptions:
-          Type: Api
-          Properties:
-            RestApiId: !Ref imagesApi
-            Path: /posts/{userId}/image
-            Method: OPTIONS
-            Auth:
-              Authorizer: NONE
 
 Outputs:
   gearSwapUrl:

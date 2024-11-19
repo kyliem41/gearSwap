@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
+import pkg_resources
 
 def cors_response(status_code, body):
     """Helper function to create responses with proper CORS headers"""
@@ -155,6 +156,18 @@ def getUsers(event, context):
     finally:
         if conn:
             conn.close()
+            
+##################
+#profile-pic
+def get_default_profile_picture():
+    """Read the default profile picture from the package resources"""
+    try:
+        file_path = os.path.join(os.path.dirname(__file__), 'default_profile.png')
+        with open(file_path, 'rb') as f:
+            return f.read()
+    except Exception as e:
+        print(f"Error reading default profile picture: {str(e)}")
+        return None
 
 ################
 def createUser(event, context):
@@ -207,8 +220,9 @@ def createUser(event, context):
                 Password=password,
                 Permanent=True
             )
+            
+            default_profile_picture = get_default_profile_picture()
 
-            # Create database connection
             conn = psycopg2.connect(
                 host=db_host,
                 user=db_user,
@@ -229,20 +243,20 @@ def createUser(event, context):
                 # Default values for user profile
                 default_bio = f"Hi, I'm {username}"
                 default_location = "I'm here"
-                default_profile_picture = "https://example.com/default-profile.jpg"  # Replace with your default image URL
                 
                 # Then, create the user profile with the returned user ID
                 insert_profile_query = """
-                INSERT INTO userProfile (userId, username, bio, location, profilePicture) 
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id, userId, username, bio, location, profilePicture;
+                INSERT INTO userProfile (userId, username, bio, location, profilePicture, profile_picture_content_type) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id, userId, username, bio, location;
                 """
                 cursor.execute(insert_profile_query, (
                     new_user['id'], 
                     username, 
                     default_bio,
                     default_location,
-                    default_profile_picture
+                    psycopg2.Binary(default_profile_picture) if default_profile_picture else None,
+                    'image/png'
                 ))
                 new_profile = cursor.fetchone()
                 
