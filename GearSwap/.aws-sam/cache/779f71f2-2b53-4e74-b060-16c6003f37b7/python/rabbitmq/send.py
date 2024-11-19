@@ -37,8 +37,8 @@ class EmailService:
 
     def create_email_message(self, to_email: str, reset_token: str, userId: str) -> Dict:
         """Create the email message structure"""
-        # reset_link = f"https://your-app-url/reset-password?token={reset_token}&userId={userId}"
-        reset_link = f"https://96uriavbl7.execute-api.us-east-2.amazonaws.com/Stage/users/password-reset/verify?token={reset_token}&userId={userId}"
+        app_url = os.environ.get('FLUTTER_APP_URL')
+        reset_link = f"{app_url}/update-password?token={reset_token}&userId={userId}"
         
         return {
             'Source': os.environ['SES_SENDER_EMAIL'],

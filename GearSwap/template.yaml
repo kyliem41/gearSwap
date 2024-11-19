@@ -347,20 +347,15 @@ Resources:
 
   SESDomainIdentity:
     Type: AWS::SES::EmailIdentity
-    # Condition: VerifyDomain
     Properties:
       EmailIdentity: !Ref SESSenderEmail
       ConfigurationSetAttributes:
         ConfigurationSetName: !Ref SESConfigurationSet
       DkimAttributes:
         SigningEnabled: true
-      # MailFromAttributes:
-      #   BehaviorOnMxFailure: USE_DEFAULT_VALUE
-      #   MailFromDomain: !Sub "mail.${SESDomain}"
 
   SESConfigurationSetResource:
     Type: AWS::SES::ConfigurationSet
-    # Condition: CreateConfigSet
     Properties:
       Name: !Ref SESConfigurationSet
       DeliveryOptions:
@@ -373,7 +368,6 @@ Resources:
   SESEventDestination:
     Type: AWS::SES::ConfigurationSetEventDestination
     DependsOn: SESConfigurationSetResource
-    # Condition: CreateConfigSet
     Properties:
       ConfigurationSetName: !Ref SESConfigurationSet
       EventDestination:
@@ -437,6 +431,7 @@ Resources:
           SES_REGION: !Ref SESRegion
           SES_SENDER_EMAIL: !Sub "noreply@${SESDomain}"
           SES_CONFIGURATION_SET: !Ref SESConfigurationSet
+          FLUTTER_APP_URL: !Sub "https://${SESDomain}"
       Events:
         RequestPasswordReset:
           Type: Api

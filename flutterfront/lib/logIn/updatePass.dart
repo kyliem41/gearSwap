@@ -19,6 +19,7 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
   bool _isLoading = false;
   String _errorMessage = '';
   String? baseUrl;
+  String? token;
   String? userId;
 
   @override
@@ -29,31 +30,25 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
 
   Future<void> _initialize() async {
     baseUrl = await ConfigUtils.getBaseUrl();
-    _loadUserData();
+    _getUrlParameters();
   }
 
-  Future<void> _loadUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userStr = prefs.getString('user');
+  void _getUrlParameters() {
+    Uri uri = Uri.base;
+    setState(() {
+      token = uri.queryParameters['token'];
+      userId = uri.queryParameters['userId'];
+    });
 
-      if (userStr != null) {
-        final userData = json.decode(userStr);
-        setState(() {
-          userId = userData['id'].toString();
-        });
-      } else {
-        print('No user data found');
-        // Redirect to login if no user data
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const loginUser()),
-          );
-        }
-      }
-    } catch (e) {
-      print('Error loading user data: $e');
+    // If token or userId is missing, redirect to login
+    if (token == null || userId == null) {
+      print('Missing token or userId');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const loginUser()),
+        );
+      });
     }
   }
 
@@ -64,7 +59,7 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
 
     if (baseUrl == null || userId == null) {
       setState(() {
-        _errorMessage = 'Configuration error. Please try again later.';
+        _errorMessage = 'Invalid reset link. Please try again.';
       });
       _showErrorDialog(_errorMessage);
       return;
@@ -76,31 +71,20 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
     });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final idToken = prefs.getString('idToken');
-
-      if (idToken == null) {
-        throw Exception('No authentication token found');
-      }
-
       final response = await http.put(
         Uri.parse('$baseUrl/users/password/$userId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: jsonEncode({
-          'password': _passwordController.text,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'token': token,
+          'new_password': _passwordController.text,
         }),
       );
 
       if (response.statusCode == 200) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+        
         if (mounted) {
-          // Clear stored credentials
-          await prefs.remove('idToken');
-          await prefs.remove('accessToken');
-          await prefs.remove('refreshToken');
-
           _showSuccessDialog();
         }
       } else {
