@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sample/logIn/logIn.dart';
@@ -34,20 +35,20 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
   }
 
   void _getUrlParameters() {
-    Uri uri = Uri.base;
+    final state = GoRouterState.of(context);
     setState(() {
-      token = uri.queryParameters['token'];
-      userId = uri.queryParameters['userId'];
+      token = state.uri.queryParameters['token'];
+      userId = state.uri.queryParameters['userId'];
+
+      print('Token: $token');
+      print('UserId: $userId');
     });
 
     // If token or userId is missing, redirect to login
     if (token == null || userId == null) {
       print('Missing token or userId');
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const loginUser()),
-        );
+        context.go('/');
       });
     }
   }
@@ -83,7 +84,7 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
       if (response.statusCode == 200) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
-        
+
         if (mounted) {
           _showSuccessDialog();
         }

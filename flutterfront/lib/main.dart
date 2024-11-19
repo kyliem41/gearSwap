@@ -4,9 +4,11 @@ import 'dart:convert';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/logIn/logIn.dart';
+import 'package:sample/logIn/updatePass.dart';
 import 'package:sample/posts/postDetails.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   runApp(const loginUser());
@@ -17,6 +19,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const loginUser(),
+        ),
+        GoRoute(
+          path: '/update-password',
+          builder: (context, state) => const UpdatePasswordPage(),
+        ),
+      ],
+    );
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'GearSwap',
