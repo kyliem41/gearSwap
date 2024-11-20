@@ -161,13 +161,21 @@ def validate_image(image_data: str, content_type: str) -> bool:
         return True
     except Exception as e:
         raise ValueError(f"Invalid image data: {str(e)}")
+    
+def validate_file_upload(content_type: str, file_data: bytes) -> bool:
+    """Validate uploaded file"""
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        raise ValueError(f"Invalid content type. Allowed types: {ALLOWED_CONTENT_TYPES}")
+    
+    if len(file_data) > MAX_FILE_SIZE:
+        raise ValueError(f"File size exceeds maximum allowed size of {MAX_FILE_SIZE} bytes")
+    return True
 
-def store_image(cursor, post_id: int, image_data: str, content_type: str) -> int:
+def store_image(cursor, post_id: int, file_data: bytes, content_type: str) -> int:
     """Store image in the database and return image ID"""
-    decoded_data = base64.b64decode(image_data)
     cursor.execute(
         "INSERT INTO post_images (post_id, image_data, content_type) VALUES (%s, %s, %s) RETURNING id",
-        (post_id, decoded_data, content_type)
+        (post_id, file_data, content_type)
     )
     return cursor.fetchone()['id']
 
@@ -188,41 +196,40 @@ def get_image(cursor, image_id: int) -> Dict[str, Any]:
 #############
 def createPost(event, context):
     try:
-        if isinstance(event.get('body'), str):
-            body = json.loads(event['body'])
-        else:
-            body = json.loads(event.get('body', '{}'))
+        # Handle base64 encoded body
+        try:
+            if isinstance(event.get('body'), str):
+                # Decode base64 body
+                decoded_body = base64.b64decode(event['body']).decode('utf-8')
+                body = json.loads(decoded_body)
+            else:
+                body = event.get('body', {})
+        except Exception as e:
+            print(f"Error decoding/parsing body: {str(e)}")
+            print(f"Raw body: {event.get('body')}")
+            return cors_response(400, {'error': f"Invalid request body: {str(e)}"})
 
-        userId = event['pathParameters']['userId']
-        price = Decimal(str(body.get('price')))
-        description = body.get('description')
-        size = body.get('size')
-        category = body.get('category')
-        clothingType = body.get('clothingType')
-        tags = body.get('tags')
-        photos = body.get('photos')
+        user_id = event['pathParameters']['userId']
         
+        # Validate required fields
         required_fields = ['price', 'description', 'size', 'category', 'clothingType']
         for field in required_fields:
             if field not in body:
-                return cors_response(400, f"Missing required field: {field}")
-            
-        images = body.get('images', [])
-        if len(images) > MAX_IMAGES_PER_POST:
+                return cors_response(400, {'error': f"Missing required field: {field}"})
+
+        # Extract photos array from body
+        photos = body.get('photos', [])
+        if len(photos) > MAX_IMAGES_PER_POST:
             return cors_response(400, {'error': f"Maximum {MAX_IMAGES_PER_POST} images allowed per post"})
 
-    except json.JSONDecodeError:
-        return cors_response(400, "Invalid JSON format in request body")
-
-    try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Check if the user exists and get their username
-                cursor.execute("SELECT username FROM users WHERE id = %s", (userId,))
-                user = cursor.fetchone()
-                if not user:
-                    return cors_response(404, "User not found")
+                # Check if user exists
+                cursor.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+                if not cursor.fetchone():
+                    return cors_response(404, {'error': "User not found"})
 
+                # Create post
                 insert_query = """
                 INSERT INTO posts (userId, price, description, size, category, clothingType, tags, photos) 
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -230,7 +237,7 @@ def createPost(event, context):
                 """
                 
                 cursor.execute(insert_query, (
-                    userId,
+                    user_id,
                     Decimal(str(body['price'])),
                     body['description'],
                     body['size'],
@@ -240,21 +247,40 @@ def createPost(event, context):
                     '[]'
                 ))
                 post_id = cursor.fetchone()['id']
-                
+
+                # Process uploaded images
                 image_ids = []
-                for image in images:
+                for photo in photos:
                     try:
-                        validate_image(image['data'], image['content_type'])
-                        image_id = store_image(cursor, post_id, image['data'], image['content_type'])
+                        # Validate and store each image
+                        if 'data' not in photo or 'content_type' not in photo:
+                            continue
+                            
+                        # Remove data:image prefix if present
+                        image_data = photo['data']
+                        if ';base64,' in image_data:
+                            image_data = image_data.split(';base64,')[1]
+                            
+                        # Decode base64 image data
+                        try:
+                            decoded_image = base64.b64decode(image_data)
+                        except Exception as e:
+                            print(f"Failed to decode image: {str(e)}")
+                            raise ValueError(f"Invalid base64 image data: {str(e)}")
+                            
+                        validate_file_upload(photo['content_type'], decoded_image)
+                        image_id = store_image(cursor, post_id, decoded_image, photo['content_type'])
                         image_ids.append(image_id)
                     except ValueError as e:
                         return cors_response(400, {'error': str(e)})
 
+                # Update post with image references
                 cursor.execute(
                     "UPDATE posts SET photos = %s WHERE id = %s",
                     (json.dumps(image_ids), post_id)
                 )
-                
+
+                # Get complete post data
                 cursor.execute("""
                     SELECT p.*, u.username, array_agg(pi.id) as image_ids
                     FROM posts p
@@ -267,14 +293,14 @@ def createPost(event, context):
 
                 conn.commit()
 
-        return cors_response(201, {
-            "message": "Post created successfully",
-            "profile": new_post
-        })
+                return cors_response(201, {
+                    "message": "Post created successfully",
+                    "post": new_post
+                })
 
     except Exception as e:
         print(f"Failed to create Post. Error: {str(e)}")
-        return cors_response(500, f"Error creating post: {str(e)}")
+        return cors_response(500, {'error': f"Error creating post: {str(e)}"})
 
 ################
 def getPosts(event, context):

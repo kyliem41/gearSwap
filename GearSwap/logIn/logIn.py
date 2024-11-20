@@ -12,17 +12,25 @@ class DateTimeEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super(DateTimeEncoder, self).default(obj)
     
-def cors_response(status_code, body):
-    """Helper function to create responses with proper CORS headers"""
+def cors_response(status_code, body, content_type='application/json'):
+    headers = {
+        'Content-Type': content_type,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+    }
+    
+    if content_type == 'application/json':
+        body = json.dumps(body, default=str)
+        is_base64 = False
+    else:
+        is_base64 = True
+    
     return {
         'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
-            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
-        },
-        'body': json.dumps(body, default=str)
+        'headers': headers,
+        'body': body,
+        'isBase64Encoded': is_base64
     }
 
 def lambda_handler(event, context):
@@ -32,7 +40,13 @@ def lambda_handler(event, context):
     print("Starting lambda_handler with event:", json.dumps(event))
     
     try:
-        body = json.loads(event['body'])
+        if event.get('isBase64Encoded', False):
+            import base64
+            decoded_body = base64.b64decode(event['body']).decode('utf-8')
+            body = json.loads(decoded_body)
+        else:
+            body = json.loads(event['body'])
+
         email = body['email']
         password = body['password']
     except (KeyError, json.JSONDecodeError) as e:
