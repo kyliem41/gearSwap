@@ -158,122 +158,136 @@ class _MyHomePageState extends State<MyHomePage> {
       body: RefreshIndicator(
         onRefresh: _refreshPosts,
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: isLoading
-              ? Center(child: CircularProgressIndicator())
-              : hasError
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text("Failed to load posts"),
-                          ElevatedButton(
-                            onPressed: _refreshPosts,
-                            child: Text("Try Again"),
-                          ),
-                        ],
-                      ),
-                    )
-                  : posts.isEmpty
-                      ? Center(child: Text("No posts available"))
-                      : GridView.builder(
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            crossAxisSpacing: 10.0,
-                            mainAxisSpacing: 10.0,
-                            childAspectRatio: 0.7,
-                          ),
-                          itemCount: posts.length,
-                          itemBuilder: (context, index) {
-                            final post = posts[index];
-                            return GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => PostDetailPage(
-                                      postId: post['id'].toString(),
+            padding: const EdgeInsets.all(20.0),
+            child: isLoading
+                ? Center(child: CircularProgressIndicator())
+                : hasError
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text("Failed to load posts"),
+                            ElevatedButton(
+                              onPressed: _refreshPosts,
+                              child: Text("Try Again"),
+                            ),
+                          ],
+                        ),
+                      )
+                    : posts.isEmpty
+                        ? Center(child: Text("No posts available"))
+                        : GridView.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              crossAxisSpacing: 10.0,
+                              mainAxisSpacing: 10.0,
+                              childAspectRatio: 0.7,
+                            ),
+                            itemCount: posts.length,
+                            itemBuilder: (context, index) {
+                              final post = posts[index];
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => PostDetailPage(
+                                        postId: post['id'].toString(),
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
-                              child: Card(
-                                elevation: 4.0,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Container(
-                                        color: Colors.grey[200],
-                                        child: Center(
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              if (post['photos'] != null &&
-                                                  post['photos'].isNotEmpty)
-                                                Image.network(
-                                                  post['photos'][0],
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error,
-                                                          stackTrace) =>
-                                                      Icon(
-                                                    Icons.image,
-                                                    size: 40,
-                                                    color: Colors.grey[400],
+                                  );
+                                },
+                                child: Card(
+                                  elevation: 4.0,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Expanded(
+                                        child: Container(
+                                          width: double.infinity,
+                                          color: Colors.grey[200],
+                                          child: Center(
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                if (post['images'] != null &&
+                                                    post['images'] is List &&
+                                                    post['images'].isNotEmpty &&
+                                                    post['images'][0] != null)
+                                                  Expanded(
+                                                    child: Image.memory(
+                                                      base64Decode(
+                                                          post['images'][0]
+                                                              ['data']),
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context,
+                                                              error,
+                                                              stackTrace) =>
+                                                          Icon(
+                                                        Icons.image,
+                                                        size: 40,
+                                                        color: Colors.grey[400],
+                                                      ),
+                                                    ),
+                                                  )
+                                                else
+                                                  Expanded(
+                                                    child: Icon(
+                                                      Icons.image,
+                                                      size: 40,
+                                                      color: Colors.grey[400],
+                                                    ),
                                                   ),
-                                                )
-                                              else
-                                                Icon(
-                                                  Icons.image,
-                                                  size: 40,
-                                                  color: Colors.grey[400],
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.all(8.0),
+                                                  child: Text(
+                                                    '\$${post['price']}',
+                                                    style: TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
                                                 ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                '\$${post['price']}',
-                                                style: TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            post['description'] ??
-                                                'No description',
-                                            style: TextStyle(fontSize: 14),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          if (post['size'] != null)
+                                      Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
                                             Text(
-                                              'Size: ${post['size']}',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[600],
-                                              ),
+                                              post['description'] ??
+                                                  'No description',
+                                              style: TextStyle(fontSize: 14),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                        ],
+                                            if (post['size'] != null)
+                                              Text(
+                                                'Size: ${post['size']}',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
-        ),
+                              );
+                            },
+                          )),
       ),
       bottomNavigationBar: BottomNavBar(),
     );
