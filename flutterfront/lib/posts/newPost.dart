@@ -5,9 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:sample/main.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker_web/image_picker_web.dart';
+import 'dart:html' as html;
 
 class NewPostPage extends StatefulWidget {
   @override
@@ -47,7 +47,7 @@ class _NewPostPageState extends State<NewPostPage> {
   List<Map<String, dynamic>> photos = [];
   bool _isLoading = false;
   String? baseUrl;
-  final ImagePicker _picker = ImagePicker();
+  final ImagePickerWeb _picker = ImagePickerWeb();
 
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
@@ -87,23 +87,15 @@ class _NewPostPageState extends State<NewPostPage> {
     }
 
     try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024, // Limit image size
-        maxHeight: 1024,
-        imageQuality: 85, // Compress image
-      );
+      // Use Image Picker Web to get image bytes
+      final imageData = await ImagePickerWeb.getImageAsBytes();
 
-      if (image != null) {
-        final bytes = await image.readAsBytes();
-        final base64Image = base64Encode(bytes);
+      if (imageData != null) {
+        // Convert to base64
+        final base64Image = base64Encode(imageData);
 
-        String contentType;
-        if (image.path.toLowerCase().endsWith('.png')) {
-          contentType = 'image/png';
-        } else {
-          contentType = 'image/jpeg';
-        }
+        // Default to JPEG since we can't reliably get MIME type from bytes
+        String contentType = 'image/jpeg';
 
         setState(() {
           photos.add({
@@ -111,7 +103,45 @@ class _NewPostPageState extends State<NewPostPage> {
             'content_type': contentType,
           });
         });
+
+        print('Image added successfully');
       }
+    } catch (e) {
+      print('Error picking image: $e');
+      _showErrorDialog('Failed to load image');
+    }
+  }
+
+  Future<void> _pickImageAlternative() async {
+    if (photos.length >= 5) {
+      _showErrorDialog('Maximum 5 photos allowed');
+      return;
+    }
+
+    try {
+      final html.FileUploadInputElement input = html.FileUploadInputElement()
+        ..accept = 'image/*';
+      input.click();
+
+      await input.onChange.first;
+      if (input.files?.isEmpty ?? true) return;
+
+      final file = input.files!.first;
+      final reader = html.FileReader();
+      reader.readAsArrayBuffer(file);
+
+      await reader.onLoad.first;
+      final bytes = reader.result as List<int>;
+      final base64Image = base64Encode(bytes);
+
+      setState(() {
+        photos.add({
+          'data': base64Image,
+          'content_type': file.type ?? 'image/jpeg',
+        });
+      });
+
+      print('Image added successfully');
     } catch (e) {
       print('Error picking image: $e');
       _showErrorDialog('Failed to load image');
@@ -338,14 +368,43 @@ class _NewPostPageState extends State<NewPostPage> {
                             ),
                           ),
                         SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: photos.length < 5 ? _pickImage : null,
-                          icon: Icon(Icons.add_photo_alternate),
-                          label: Text("Add Photo"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepOrange,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: photos.length < 5 ? _pickImage : null,
+                              icon: Icon(Icons.photo_library),
+                              label: Text("Choose from Gallery"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepOrange,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: photos.length < 5
+                                  ? _pickImageAlternative
+                                  : null,
+                              icon: Icon(Icons.add_photo_alternate),
+                              label: Text("Upload Image"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepOrange,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                              ),
+                            ),
+                          ],
                         ),
+                        if (photos.length >= 5)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              "Maximum number of photos reached",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
                       ],
                     ),
                   ),
