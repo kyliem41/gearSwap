@@ -8,7 +8,8 @@ import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:html' as html;
-import 'dart:typed_data';
+import 'package:flutter/services.dart';
+import 'dart:ui' as ui;
 
 class NewPostPage extends StatefulWidget {
   @override
@@ -284,21 +285,24 @@ class _NewPostPageState extends State<NewPostPage> {
             ),
           SizedBox(height: 16),
           if (photos.length < 5)
-            ElevatedButton.icon(
-              onPressed: _pickImageAlternative,
-              icon: Icon(
-                Icons.photo_library,
-                color: Colors.white,
-              ),
-              label: Text(
-                "Choose from Gallery",
-                style: TextStyle(color: Colors.white),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepOrange,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            Container(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _pickImageAlternative,
+                icon: Icon(
+                  Icons.photo_library,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  "Choose from Gallery",
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepOrange,
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             )
@@ -313,46 +317,6 @@ class _NewPostPageState extends State<NewPostPage> {
         ],
       ),
     );
-  }
-
-  Future<void> _processDroppedFile(html.File file) async {
-    if (photos.length >= 5) {
-      _showErrorDialog('Maximum 5 photos allowed');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      _showErrorDialog('File size must be less than 5MB');
-      return;
-    }
-
-    if (!file.type!.startsWith('image/')) {
-      _showErrorDialog('Only image files are allowed');
-      return;
-    }
-
-    try {
-      setState(() => _isProcessingImage = true);
-
-      final reader = html.FileReader();
-      reader.readAsArrayBuffer(file);
-
-      await reader.onLoad.first;
-      final bytes = reader.result as List<int>;
-      final base64Image = base64Encode(bytes);
-
-      setState(() {
-        photos.add({
-          'data': base64Image,
-          'content_type': file.type ?? 'image/jpeg',
-        });
-        _isProcessingImage = false;
-      });
-    } catch (e) {
-      print('Error processing dropped file: $e');
-      _showErrorDialog('Failed to process image');
-      setState(() => _isProcessingImage = false);
-    }
   }
 
   Widget _buildPhotoPreview(int index) {
@@ -424,48 +388,98 @@ class _NewPostPageState extends State<NewPostPage> {
 
       final input = html.FileUploadInputElement()
         ..accept = 'image/*'
-        ..multiple = false
+        ..multiple = true // Allow multiple file selection
         ..click();
 
       await input.onChange.first;
-      if (input.files?.isEmpty ?? true) {
+      if (input.files == null || input.files!.isEmpty) {
         setState(() => _isProcessingImage = false);
         return;
       }
 
-      final file = input.files!.first;
-      if (file.size > 5 * 1024 * 1024) {
-        _showErrorDialog('File size must be less than 5MB');
-        setState(() => _isProcessingImage = false);
-        return;
-      }
+      // Handle multiple files
+      for (var file in input.files!) {
+        if (photos.length >= 5) break; // Stop if we've reached the limit
 
-      if (!file.type!.startsWith('image/')) {
-        _showErrorDialog('Only image files are allowed');
-        setState(() => _isProcessingImage = false);
-        return;
-      }
+        if (file.size > 2 * 1024 * 1024) {
+          // Reduced to 2MB per image
+          _showErrorDialog('Each image must be less than 2MB');
+          continue;
+        }
 
-      final reader = html.FileReader();
-      reader.readAsArrayBuffer(file);
+        if (!file.type!.startsWith('image/')) {
+          _showErrorDialog('Only image files are allowed');
+          continue;
+        }
 
-      await reader.onLoad.first;
-      final bytes = reader.result as List<int>;
-      final base64Image = base64Encode(bytes);
+        final reader = html.FileReader();
+        reader.readAsArrayBuffer(file);
 
-      setState(() {
-        photos.add({
-          'data': base64Image,
-          'content_type': file.type ?? 'image/jpeg',
+        await reader.onLoad.first;
+        final bytes = reader.result as List<int>;
+
+        // Compress the image before converting to base64
+        final compressedBytes = await compressImage(bytes);
+        final base64Image = base64Encode(compressedBytes);
+
+        setState(() {
+          photos.add({
+            'data': base64Image,
+            'content_type': file.type ?? 'image/jpeg',
+          });
         });
-        _isProcessingImage = false;
+      }
+
+      setState(() => _isProcessingImage = false);
+      print('Images added successfully');
+    } catch (e) {
+      print('Error picking images: $e');
+      _showErrorDialog('Failed to load images');
+      setState(() => _isProcessingImage = false);
+    }
+  }
+
+  Future<List<int>> compressImage(List<int> bytes) async {
+    try {
+      // Create an image from bytes
+      final img = await decodeImageFromList(Uint8List.fromList(bytes));
+
+      // Calculate new dimensions while maintaining aspect ratio
+      double ratio = img.width / img.height;
+      int targetWidth = 800; // Max width
+      int targetHeight = (targetWidth / ratio).round();
+
+      // If height is too large, scale based on height instead
+      if (targetHeight > 800) {
+        targetHeight = 800;
+        targetWidth = (targetHeight * ratio).round();
+      }
+
+      // Create a resized image
+      ui.Image resizedImage = await img
+          .toByteData(
+        format: ui.ImageByteFormat.png,
+      )
+          .then((byteData) {
+        return ui
+            .instantiateImageCodec(
+              byteData!.buffer.asUint8List(),
+              targetWidth: targetWidth,
+              targetHeight: targetHeight,
+            )
+            .then((codec) => codec.getNextFrame())
+            .then((frame) => frame.image);
       });
 
-      print('Image added successfully');
+      // Convert back to bytes with JPEG compression
+      final compressedData = await resizedImage.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+
+      return compressedData!.buffer.asUint8List();
     } catch (e) {
-      print('Error picking image: $e');
-      _showErrorDialog('Failed to load image');
-      setState(() => _isProcessingImage = false);
+      print('Error compressing image: $e');
+      return bytes; // Return original bytes if compression fails
     }
   }
 
