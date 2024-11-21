@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:sample/main.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NewPostPage extends StatefulWidget {
@@ -42,9 +44,10 @@ class _NewPostPageState extends State<NewPostPage> {
   String? selectedCategory;
   String? selectedClothingType;
   String? selectedColor;
-  List<String> photos = [];
+  List<Map<String, dynamic>> photos = [];
   bool _isLoading = false;
   String? baseUrl;
+  final ImagePicker _picker = ImagePicker();
 
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
@@ -75,6 +78,44 @@ class _NewPostPageState extends State<NewPostPage> {
         );
       },
     );
+  }
+
+  Future<void> _pickImage() async {
+    if (photos.length >= 5) {
+      _showErrorDialog('Maximum 5 photos allowed');
+      return;
+    }
+
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024, // Limit image size
+        maxHeight: 1024,
+        imageQuality: 85, // Compress image
+      );
+
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        final base64Image = base64Encode(bytes);
+
+        String contentType;
+        if (image.path.toLowerCase().endsWith('.png')) {
+          contentType = 'image/png';
+        } else {
+          contentType = 'image/jpeg';
+        }
+
+        setState(() {
+          photos.add({
+            'data': base64Image,
+            'content_type': contentType,
+          });
+        });
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      _showErrorDialog('Failed to load image');
+    }
   }
 
   Future<void> _addPost() async {
@@ -126,7 +167,7 @@ class _NewPostPageState extends State<NewPostPage> {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
-          'Accept': 'application/json',
+          // 'Accept': 'application/json',
         },
         body: json.encode(requestBody),
       );
@@ -216,12 +257,45 @@ class _NewPostPageState extends State<NewPostPage> {
     return true;
   }
 
-  Future<void> _uploadPhotos() async {
-    setState(() {
-      if (photos.length < 5) {
-        photos.add('https://example.com/photo${photos.length + 1}.jpg');
-      }
-    });
+  Widget _buildPhotoPreview(int index) {
+    return Stack(
+      children: [
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.memory(
+              base64Decode(photos[index]['data']),
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                photos.removeAt(index);
+              });
+            },
+            child: Container(
+              padding: EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.close, size: 16, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -242,31 +316,40 @@ class _NewPostPageState extends State<NewPostPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
-                    height: 150,
+                    padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text("Tap to add photos (max 5)"),
-                        if (photos.isNotEmpty) ...[
-                          SizedBox(height: 8),
-                          Text(
-                            "${photos.length} photo(s) selected",
-                            style: TextStyle(color: Colors.deepOrange),
+                        Text("Photos (${photos.length}/5)"),
+                        SizedBox(height: 8),
+                        if (photos.isNotEmpty)
+                          Container(
+                            height: 100,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: photos.length,
+                              separatorBuilder: (context, index) =>
+                                  SizedBox(width: 8),
+                              itemBuilder: (context, index) =>
+                                  _buildPhotoPreview(index),
+                            ),
                           ),
-                        ],
-                        ElevatedButton(
-                          onPressed: _uploadPhotos,
-                          child: Text("Add Test Photo"),
+                        SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: photos.length < 5 ? _pickImage : null,
+                          icon: Icon(Icons.add_photo_alternate),
+                          label: Text("Add Photo"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepOrange,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(height: 16.0),
-
+                  SizedBox(height: 16),
                   TextField(
                     controller: descriptionController,
                     decoration: InputDecoration(
@@ -276,7 +359,6 @@ class _NewPostPageState extends State<NewPostPage> {
                     maxLines: 3,
                   ),
                   SizedBox(height: 16.0),
-
                   TextField(
                     controller: priceController,
                     decoration: InputDecoration(
@@ -288,7 +370,6 @@ class _NewPostPageState extends State<NewPostPage> {
                         TextInputType.numberWithOptions(decimal: true),
                   ),
                   SizedBox(height: 16.0),
-
                   DropdownButtonFormField<String>(
                     value: selectedSize,
                     decoration: InputDecoration(
@@ -304,7 +385,6 @@ class _NewPostPageState extends State<NewPostPage> {
                     onChanged: (value) => setState(() => selectedSize = value),
                   ),
                   SizedBox(height: 16.0),
-
                   DropdownButtonFormField<String>(
                     value: selectedCategory,
                     decoration: InputDecoration(
@@ -321,7 +401,6 @@ class _NewPostPageState extends State<NewPostPage> {
                         setState(() => selectedCategory = value),
                   ),
                   SizedBox(height: 16.0),
-
                   DropdownButtonFormField<String>(
                     value: selectedClothingType,
                     decoration: InputDecoration(
@@ -338,7 +417,6 @@ class _NewPostPageState extends State<NewPostPage> {
                         setState(() => selectedClothingType = value),
                   ),
                   SizedBox(height: 16.0),
-
                   Text("Tags (select up to 5):",
                       style: TextStyle(fontSize: 16)),
                   Wrap(
@@ -361,7 +439,6 @@ class _NewPostPageState extends State<NewPostPage> {
                         .toList(),
                   ),
                   SizedBox(height: 24.0),
-
                   ElevatedButton(
                     onPressed: _isLoading ? null : _addPost,
                     style: ElevatedButton.styleFrom(
@@ -369,10 +446,10 @@ class _NewPostPageState extends State<NewPostPage> {
                       padding: EdgeInsets.symmetric(vertical: 15),
                     ),
                     child: _isLoading
-                        ? CircularProgressIndicator()
+                        ? CircularProgressIndicator(color: Colors.white)
                         : Text(
                             'Add Post',
-                            style: TextStyle(fontSize: 18),
+                            style: TextStyle(fontSize: 18, color: Colors.white),
                           ),
                   ),
                 ],

@@ -305,7 +305,6 @@ def createPost(event, context):
 ################
 def getPosts(event, context):
     try:
-        # Get pagination parameters from query string
         query_params = event.get('queryStringParameters') or {}
         page = int(query_params.get('page', 1))
         page_size = int(query_params.get('page_size', 10))        
@@ -313,16 +312,19 @@ def getPosts(event, context):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Get posts with first image for each
                 cursor.execute("""
                     SELECT p.*, u.username,
-                        (SELECT json_build_object('id', pi.id, 'content_type', pi.content_type)
-                        FROM post_images pi
-                        WHERE pi.post_id = p.id
-                        ORDER BY pi.id
-                        LIMIT 1) as first_image
+                        array_agg(
+                            json_build_object(
+                                'id', pi.id,
+                                'content_type', pi.content_type,
+                                'data', encode(pi.image_data, 'base64')
+                            )
+                        ) as images
                     FROM posts p
                     JOIN users u ON p.userId = u.id
+                    LEFT JOIN post_images pi ON pi.post_id = p.id
+                    GROUP BY p.id, u.username
                     ORDER BY p.datePosted DESC
                     LIMIT %s OFFSET %s
                 """, (page_size, offset))
@@ -332,13 +334,13 @@ def getPosts(event, context):
                 cursor.execute("SELECT COUNT(*) FROM posts")
                 total_posts = cursor.fetchone()['count']
 
-                # Fetch first image data for each post
+                # Clean up null images and format response
                 for post in posts:
-                    if post['first_image']:
-                        image_id = post['first_image']['id']
-                        image = get_image(cursor, image_id)
-                        if image:
-                            post['first_image']['data'] = image['data']
+                    if post['images'] and post['images'][0] is None:
+                        post['images'] = []
+                    else:
+                        # Convert images array to a more friendly format
+                        post['images'] = [img for img in post['images'] if img is not None]
 
                 return cors_response(200, {
                     "message": "Posts retrieved successfully",
