@@ -9,6 +9,7 @@ import 'package:sample/posts/postDetails.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:typed_data';
 
 void main() {
   GoRouter.optionURLReflectsImperativeAPIs = true;
@@ -213,34 +214,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                               mainAxisAlignment:
                                                   MainAxisAlignment.center,
                                               children: [
-                                                if (post['images'] != null &&
-                                                    post['images'] is List &&
-                                                    post['images'].isNotEmpty &&
-                                                    post['images'][0] != null)
-                                                  Expanded(
-                                                    child: Image.memory(
-                                                      base64Decode(
-                                                          post['images'][0]
-                                                              ['data']),
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context,
-                                                              error,
-                                                              stackTrace) =>
-                                                          Icon(
-                                                        Icons.image,
-                                                        size: 40,
-                                                        color: Colors.grey[400],
-                                                      ),
-                                                    ),
-                                                  )
-                                                else
-                                                  Expanded(
-                                                    child: Icon(
-                                                      Icons.image,
-                                                      size: 40,
-                                                      color: Colors.grey[400],
-                                                    ),
-                                                  ),
+                                                Expanded(
+                                                  child: _buildPostImage(post),
+                                                ),
                                                 Padding(
                                                   padding:
                                                       const EdgeInsets.all(8.0),
@@ -290,6 +266,56 @@ class _MyHomePageState extends State<MyHomePage> {
                           )),
       ),
       bottomNavigationBar: BottomNavBar(),
+    );
+  }
+}
+
+Widget _buildPostImage(Map<String, dynamic> post) {
+  try {
+    if (post['images'] != null &&
+        post['images'] is List &&
+        post['images'].isNotEmpty &&
+        post['images'][0] != null &&
+        post['images'][0]['data'] != null) {
+      // For debugging
+      print('Image data length: ${post['images'][0]['data'].length}');
+      print('Image content type: ${post['images'][0]['content_type']}');
+
+      Uint8List imageBytes;
+      try {
+        imageBytes = base64Decode(post['images'][0]['data']);
+        return Image.memory(
+          imageBytes,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error loading image: $error');
+            return Icon(
+              Icons.image_not_supported,
+              size: 40,
+              color: Colors.grey[400],
+            );
+          },
+        );
+      } catch (e) {
+        print('Error decoding base64: $e');
+        return Icon(
+          Icons.broken_image,
+          size: 40,
+          color: Colors.grey[400],
+        );
+      }
+    }
+    return Icon(
+      Icons.image,
+      size: 40,
+      color: Colors.grey[400],
+    );
+  } catch (e) {
+    print('Error in _buildPostImage: $e');
+    return Icon(
+      Icons.error_outline,
+      size: 40,
+      color: Colors.grey[400],
     );
   }
 }
