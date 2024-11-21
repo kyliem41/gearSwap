@@ -352,7 +352,7 @@ void _debugPrintPostData(Map<String, dynamic> post) {
       if (firstImage['data'] != null) {
         print('Data length: ${firstImage['data'].length}');
         print(
-            'First 100 chars of data: ${firstImage['data'].substring(0, min(100, firstImage['data'].length))}');
+            'First 100 chars of data: ${firstImage['data'].substring(0, min<int>(100, firstImage['data'].length))}');
       } else {
         print('Image data is null');
       }
