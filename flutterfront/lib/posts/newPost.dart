@@ -260,95 +260,57 @@ class _NewPostPageState extends State<NewPostPage> {
         border: Border.all(color: Colors.grey),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Listener(
-        onPointerDown: (event) {
-          // Prevent default browser behavior
-          html.window.document.onDragOver
-              .listen((event) => event.preventDefault());
-          html.window.document.onDrop.listen((event) {
-            event.preventDefault();
-            final files = event.dataTransfer?.files;
-            if (files != null && files.isNotEmpty) {
-              _processDroppedFile(files.first);
-            }
-          });
-        },
-        child: Column(
-          children: [
-            Text(
-              "Photos (${photos.length}/5)",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      child: Column(
+        children: [
+          Text(
+            "Photos (${photos.length}/5)",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 16),
+          if (_isProcessingImage)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: CircularProgressIndicator(),
             ),
-            SizedBox(height: 16),
-            if (_isProcessingImage)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: CircularProgressIndicator(),
+          if (photos.isNotEmpty)
+            Container(
+              height: 120,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: photos.length,
+                separatorBuilder: (context, index) => SizedBox(width: 8),
+                itemBuilder: (context, index) => _buildPhotoPreview(index),
               ),
-            if (photos.isNotEmpty)
-              Container(
-                height: 120,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: photos.length,
-                  separatorBuilder: (context, index) => SizedBox(width: 8),
-                  itemBuilder: (context, index) => _buildPhotoPreview(index),
+            ),
+          SizedBox(height: 16),
+          if (photos.length < 5)
+            ElevatedButton.icon(
+              onPressed: _pickImageAlternative,
+              icon: Icon(
+                Icons.photo_library,
+                color: Colors.white,
+              ),
+              label: Text(
+                "Choose from Gallery",
+                style: TextStyle(color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepOrange,
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
-            SizedBox(height: 16),
-            if (photos.length < 5)
-              GestureDetector(
-                onTap: _pickImageAlternative,
-                child: Container(
-                  width: double.infinity,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: Colors.grey[400]!,
-                      style: BorderStyle.solid, // Set border style
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.add_photo_alternate,
-                        size: 48,
-                        color: Colors.deepOrange,
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        "Click to upload photos",
-                        style: TextStyle(
-                          color: Colors.deepOrange,
-                          fontSize: 16,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        "Drag and drop or click to upload\nJPEG or PNG, max 5MB",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Text(
-                "Maximum number of photos reached",
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
-                ),
+            )
+          else
+            Text(
+              "Maximum number of photos reached",
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -462,8 +424,8 @@ class _NewPostPageState extends State<NewPostPage> {
 
       final input = html.FileUploadInputElement()
         ..accept = 'image/*'
-        ..multiple = false;
-      input.click();
+        ..multiple = false
+        ..click();
 
       await input.onChange.first;
       if (input.files?.isEmpty ?? true) {
@@ -474,6 +436,12 @@ class _NewPostPageState extends State<NewPostPage> {
       final file = input.files!.first;
       if (file.size > 5 * 1024 * 1024) {
         _showErrorDialog('File size must be less than 5MB');
+        setState(() => _isProcessingImage = false);
+        return;
+      }
+
+      if (!file.type!.startsWith('image/')) {
+        _showErrorDialog('Only image files are allowed');
         setState(() => _isProcessingImage = false);
         return;
       }
