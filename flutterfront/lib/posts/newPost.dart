@@ -10,6 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:html' as html;
 import 'package:flutter/services.dart';
 import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'package:image/image.dart' as img;
+import 'dart:math' as math;
 
 class NewPostPage extends StatefulWidget {
   @override
@@ -54,7 +57,6 @@ class _NewPostPageState extends State<NewPostPage> {
 
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
@@ -388,8 +390,8 @@ class _NewPostPageState extends State<NewPostPage> {
 
       final input = html.FileUploadInputElement()
         ..accept = 'image/*'
-        ..multiple = true // Allow multiple file selection
-        ..click();
+        ..multiple = true;
+      input.click();
 
       await input.onChange.first;
       if (input.files == null || input.files!.isEmpty) {
@@ -397,38 +399,17 @@ class _NewPostPageState extends State<NewPostPage> {
         return;
       }
 
-      // Handle multiple files
-      for (var file in input.files!) {
-        if (photos.length >= 5) break; // Stop if we've reached the limit
+      // Process all selected images
+      final processedImages =
+          await ImageUploadHandler.handleMultipleImages(input.files!);
 
-        if (file.size > 2 * 1024 * 1024) {
-          // Reduced to 2MB per image
-          _showErrorDialog('Each image must be less than 2MB');
-          continue;
+      setState(() {
+        for (var image in processedImages) {
+          if (photos.length < 5) {
+            photos.add(image);
+          }
         }
-
-        if (!file.type!.startsWith('image/')) {
-          _showErrorDialog('Only image files are allowed');
-          continue;
-        }
-
-        final reader = html.FileReader();
-        reader.readAsArrayBuffer(file);
-
-        await reader.onLoad.first;
-        final bytes = reader.result as List<int>;
-
-        // Compress the image before converting to base64
-        final compressedBytes = await compressImage(bytes);
-        final base64Image = base64Encode(compressedBytes);
-
-        setState(() {
-          photos.add({
-            'data': base64Image,
-            'content_type': file.type ?? 'image/jpeg',
-          });
-        });
-      }
+      });
 
       setState(() => _isProcessingImage = false);
       print('Images added successfully');
@@ -436,50 +417,6 @@ class _NewPostPageState extends State<NewPostPage> {
       print('Error picking images: $e');
       _showErrorDialog('Failed to load images');
       setState(() => _isProcessingImage = false);
-    }
-  }
-
-  Future<List<int>> compressImage(List<int> bytes) async {
-    try {
-      // Create an image from bytes
-      final img = await decodeImageFromList(Uint8List.fromList(bytes));
-
-      // Calculate new dimensions while maintaining aspect ratio
-      double ratio = img.width / img.height;
-      int targetWidth = 800; // Max width
-      int targetHeight = (targetWidth / ratio).round();
-
-      // If height is too large, scale based on height instead
-      if (targetHeight > 800) {
-        targetHeight = 800;
-        targetWidth = (targetHeight * ratio).round();
-      }
-
-      // Create a resized image
-      ui.Image resizedImage = await img
-          .toByteData(
-        format: ui.ImageByteFormat.png,
-      )
-          .then((byteData) {
-        return ui
-            .instantiateImageCodec(
-              byteData!.buffer.asUint8List(),
-              targetWidth: targetWidth,
-              targetHeight: targetHeight,
-            )
-            .then((codec) => codec.getNextFrame())
-            .then((frame) => frame.image);
-      });
-
-      // Convert back to bytes with JPEG compression
-      final compressedData = await resizedImage.toByteData(
-        format: ui.ImageByteFormat.png,
-      );
-
-      return compressedData!.buffer.asUint8List();
-    } catch (e) {
-      print('Error compressing image: $e');
-      return bytes; // Return original bytes if compression fails
     }
   }
 
@@ -608,5 +545,82 @@ class _NewPostPageState extends State<NewPostPage> {
       ),
       bottomNavigationBar: BottomNavBar(),
     );
+  }
+}
+
+
+class ImageUploadHandler {
+  static const int MAX_IMAGE_SIZE = 500 * 1024; // 500KB target size per image
+  static const int MAX_DIMENSION = 1024; // Maximum width/height
+
+  static Future<List<Map<String, dynamic>>> handleMultipleImages(List<html.File> files) async {
+    List<Map<String, dynamic>> processedImages = [];
+
+    for (var file in files) {
+      if (processedImages.length >= 5) break; // Maximum 5 images
+
+      if (!file.type!.startsWith('image/')) {
+        throw Exception('Only image files are allowed');
+      }
+
+      try {
+        // Read file
+        final reader = html.FileReader();
+        reader.readAsArrayBuffer(file);
+        await reader.onLoad.first;
+
+        // Get file data
+        final Uint8List originalData = reader.result as Uint8List;
+
+        // Compress and resize image
+        final compressedData = await compressImage(originalData, MAX_IMAGE_SIZE);
+
+        // Convert to base64
+        final base64Image = base64Encode(compressedData);
+
+        processedImages.add({
+          'data': base64Image,
+          'content_type': file.type ?? 'image/jpeg',
+        });
+      } catch (e) {
+        print('Error processing image: $e');
+        throw Exception('Failed to process image: ${file.name}');
+      }
+    }
+
+    return processedImages;
+  }
+
+  static Future<Uint8List> compressImage(Uint8List inputData, int targetSize) async {
+    // Decode image
+    final img.Image? originalImage = img.decodeImage(inputData);
+    if (originalImage == null) throw Exception('Failed to decode image');
+    
+    // Calculate scale factor to maintain aspect ratio
+    double scale = 1.0;
+    if (originalImage.width > MAX_DIMENSION || originalImage.height > MAX_DIMENSION) {
+      scale = MAX_DIMENSION / math.max(originalImage.width, originalImage.height);
+    }
+    
+    // Resize image
+    final newWidth = (originalImage.width * scale).round();
+    final newHeight = (originalImage.height * scale).round();
+    final resizedImage = img.copyResize(
+      originalImage,
+      width: newWidth,
+      height: newHeight,
+      interpolation: img.Interpolation.linear
+    );
+    
+    // Compress with different quality levels until we get desired size
+    int quality = 85; // Start with good quality
+    Uint8List compressedData;
+    
+    do {
+      compressedData = Uint8List.fromList(img.encodeJpg(resizedImage, quality: quality));
+      quality = (quality * 0.8).round(); // Reduce quality by 20% each iteration
+    } while (compressedData.length > targetSize && quality > 20);
+    
+    return compressedData;
   }
 }
