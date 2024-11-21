@@ -10,6 +10,7 @@ import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:typed_data';
+import 'dart:math';
 
 void main() {
   GoRouter.optionURLReflectsImperativeAPIs = true;
@@ -116,7 +117,7 @@ class _MyHomePageState extends State<MyHomePage> {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
-          'Accept': 'application/json',
+          // 'Accept': 'application/json',
         },
       );
 
@@ -125,10 +126,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
-        // Extract the posts array from the response
         List<dynamic> postsData = data['posts'];
 
         print('Fetched ${postsData.length} posts');
+
+        print('\n--- Starting Post Debug Information ---');
+        for (var post in postsData) {
+          _debugPrintPostData(post);
+          print('----------------------------------------');
+        }
+        print('--- End Post Debug Information ---\n');
 
         setState(() {
           posts = postsData;
@@ -277,24 +284,37 @@ Widget _buildPostImage(Map<String, dynamic> post) {
         post['images'].isNotEmpty &&
         post['images'][0] != null &&
         post['images'][0]['data'] != null) {
-      // For debugging
-      print('Image data length: ${post['images'][0]['data'].length}');
-      print('Image content type: ${post['images'][0]['content_type']}');
+      String base64String = post['images'][0]['data'];
 
-      Uint8List imageBytes;
+      // Clean the base64 string
+      base64String = base64String.trim();
+
+      // Add padding if needed
+      while (base64String.length % 4 != 0) {
+        base64String += '=';
+      }
+
+      // For debugging
+      print('Image content type: ${post['images'][0]['content_type']}');
+      print('Base64 string length: ${base64String.length}');
+
       try {
-        imageBytes = base64Decode(post['images'][0]['data']);
-        return Image.memory(
-          imageBytes,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            print('Error loading image: $error');
-            return Icon(
-              Icons.image_not_supported,
-              size: 40,
-              color: Colors.grey[400],
-            );
-          },
+        final Uint8List imageBytes = base64Decode(base64String);
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          child: Image.memory(
+            imageBytes,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              print('Error displaying image: $error');
+              return Icon(
+                Icons.image_not_supported,
+                size: 40,
+                color: Colors.grey[400],
+              );
+            },
+          ),
         );
       } catch (e) {
         print('Error decoding base64: $e');
@@ -317,5 +337,27 @@ Widget _buildPostImage(Map<String, dynamic> post) {
       size: 40,
       color: Colors.grey[400],
     );
+  }
+}
+
+void _debugPrintPostData(Map<String, dynamic> post) {
+  print('Post ID: ${post['id']}');
+  if (post['images'] != null &&
+      post['images'] is List &&
+      post['images'].isNotEmpty) {
+    final firstImage = post['images'][0];
+    if (firstImage != null) {
+      print('Image ID: ${firstImage['id']}');
+      print('Content Type: ${firstImage['content_type']}');
+      if (firstImage['data'] != null) {
+        print('Data length: ${firstImage['data'].length}');
+        print(
+            'First 100 chars of data: ${firstImage['data'].substring(0, min(100, firstImage['data'].length))}');
+      } else {
+        print('Image data is null');
+      }
+    }
+  } else {
+    print('No images for this post');
   }
 }

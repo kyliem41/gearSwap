@@ -315,11 +315,13 @@ def getPosts(event, context):
                 cursor.execute("""
                     SELECT p.*, u.username,
                         array_agg(
-                            json_build_object(
-                                'id', pi.id,
-                                'content_type', pi.content_type,
-                                'data', encode(pi.image_data, 'base64')
-                            )
+                            CASE WHEN pi.id IS NOT NULL THEN
+                                json_build_object(
+                                    'id', pi.id,
+                                    'content_type', pi.content_type,
+                                    'data', encode(pi.image_data, 'base64')
+                                )
+                            ELSE NULL END
                         ) as images
                     FROM posts p
                     JOIN users u ON p.userId = u.id
@@ -330,17 +332,26 @@ def getPosts(event, context):
                 """, (page_size, offset))
                 posts = cursor.fetchall()
 
-                # Get total count
-                cursor.execute("SELECT COUNT(*) FROM posts")
-                total_posts = cursor.fetchone()['count']
-
                 # Clean up null images and format response
                 for post in posts:
                     if post['images'] and post['images'][0] is None:
                         post['images'] = []
                     else:
-                        # Convert images array to a more friendly format
-                        post['images'] = [img for img in post['images'] if img is not None]
+                        # Clean and validate base64 data
+                        post['images'] = [
+                            {
+                                'id': img['id'],
+                                'content_type': img['content_type'],
+                                'data': img['data'].replace('\n', '').replace('\r', '')
+                                    if img and img.get('data') else None
+                            }
+                            for img in post['images']
+                            if img is not None
+                        ]
+
+                # Get total count
+                cursor.execute("SELECT COUNT(*) FROM posts")
+                total_posts = cursor.fetchone()['count']
 
                 return cors_response(200, {
                     "message": "Posts retrieved successfully",
