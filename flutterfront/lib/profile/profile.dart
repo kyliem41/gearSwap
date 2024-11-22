@@ -177,12 +177,19 @@ class _ProfilePageState extends State<ProfilePage>
 
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
+        var allPosts = data['posts'] as List;
+        var userPosts =
+            allPosts.where((post) => post['userid'] == userData!.id).toList();
+
+        print('Found ${userPosts.length} posts for user ${userData!.id}');
+        // Debug first post's image data
+        if (userPosts.isNotEmpty) {
+          print('First post images: ${userPosts[0]['images']}');
+        }
+
         setState(() {
-          userData!.posts = (data['posts'] as List)
-              .where((post) => post['userid'] == userData!.id)
-              .toList();
+          userData!.posts = userPosts;
         });
-        print('Found ${userData!.posts.length} posts for user ${userData!.id}');
       }
     } catch (e) {
       print('Error fetching user posts: $e');
@@ -441,15 +448,20 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildPostImage(Map<String, dynamic> post) {
     try {
+      print('Building image for post ${post['id']}');
+      print('Images data: ${post['images']}');
+
       if (post['images'] != null &&
           post['images'] is List &&
           post['images'].isNotEmpty &&
           post['images'][0] != null) {
         if (post['images'][0]['data'] != null) {
           String base64String = post['images'][0]['data'];
+          // Clean up base64 string
           base64String = base64String.trim();
           base64String = base64String.replaceAll(RegExp(r'\s+'), '');
 
+          // Add padding if needed
           while (base64String.length % 4 != 0) {
             base64String += '=';
           }
@@ -463,41 +475,21 @@ class _ProfilePageState extends State<ProfilePage>
                 imageBytes,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
-                  print('Error displaying image: $error');
+                  print(
+                      'Error displaying image for post ${post['id']}: $error');
                   return _buildPlaceholder();
                 },
               ),
             );
           } catch (e) {
-            print('Error decoding base64: $e');
+            print('Error decoding base64 for post ${post['id']}: $e');
             return _buildPlaceholder();
           }
-        } else {
-          return FutureBuilder<Uint8List>(
-            future: _loadImageData(post['images'][0]['id']),
-            builder: (context, AsyncSnapshot<Uint8List> snapshot) {
-              if (snapshot.hasData) {
-                return Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  child: Image.memory(
-                    snapshot.data!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      print('Error displaying loaded image: $error');
-                      return _buildPlaceholder();
-                    },
-                  ),
-                );
-              }
-              return _buildPlaceholder();
-            },
-          );
         }
       }
       return _buildPlaceholder();
     } catch (e) {
-      print('Error in _buildPostImage: $e');
+      print('Error in _buildPostImage for post ${post['id']}: $e');
       return _buildPlaceholder();
     }
   }
