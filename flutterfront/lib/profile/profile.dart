@@ -9,6 +9,7 @@ import 'package:sample/shared/config_utils.dart';
 import 'package:sample/wishlist/wishlist.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 
 class UserData {
   final int id;
@@ -161,20 +162,18 @@ class _ProfilePageState extends State<ProfilePage>
     if (baseUrl == null) return;
 
     try {
-      var postsUrl = Uri.parse('$baseUrl/posts');
-
+      final url = Uri.parse('$baseUrl/posts');
       print('Fetching posts for user ID: ${userData!.id}');
-      var response = await http.get(
-        postsUrl,
+
+      final response = await http.get(
+        url,
         headers: {
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
       );
 
       print('Posts response status: ${response.statusCode}');
-      print('Posts response: ${response.body}');
 
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
@@ -371,7 +370,6 @@ class _ProfilePageState extends State<ProfilePage>
                               ),
                             ),
                           ).then((_) {
-                            // Refresh the posts when returning from detail page
                             _fetchUserPosts();
                           });
                         },
@@ -382,37 +380,24 @@ class _ProfilePageState extends State<ProfilePage>
                             children: <Widget>[
                               Expanded(
                                 child: Container(
+                                  width: double.infinity,
                                   color: Colors.grey[200],
                                   child: Center(
                                     child: Column(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       children: [
-                                        if (post['photos'] != null &&
-                                            post['photos'].isNotEmpty)
-                                          Image.network(
-                                            post['photos'][0],
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    Icon(
-                                              Icons.image,
-                                              size: 40,
-                                              color: Colors.grey[400],
+                                        Expanded(
+                                          child: _buildPostImage(post),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: Text(
+                                            '\$${post['price']}',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
                                             ),
-                                          )
-                                        else
-                                          Icon(
-                                            Icons.image,
-                                            size: 40,
-                                            color: Colors.grey[400],
-                                          ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          '\$${post['price']}',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                       ],
@@ -452,6 +437,101 @@ class _ProfilePageState extends State<ProfilePage>
         ],
       ),
     );
+  }
+
+  Widget _buildPostImage(Map<String, dynamic> post) {
+    try {
+      if (post['images'] != null &&
+          post['images'] is List &&
+          post['images'].isNotEmpty &&
+          post['images'][0] != null) {
+        if (post['images'][0]['data'] != null) {
+          String base64String = post['images'][0]['data'];
+          base64String = base64String.trim();
+          base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+
+          while (base64String.length % 4 != 0) {
+            base64String += '=';
+          }
+
+          try {
+            final Uint8List imageBytes = base64Decode(base64String);
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              child: Image.memory(
+                imageBytes,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error displaying image: $error');
+                  return _buildPlaceholder();
+                },
+              ),
+            );
+          } catch (e) {
+            print('Error decoding base64: $e');
+            return _buildPlaceholder();
+          }
+        } else {
+          return FutureBuilder<Uint8List>(
+            future: _loadImageData(post['images'][0]['id']),
+            builder: (context, AsyncSnapshot<Uint8List> snapshot) {
+              if (snapshot.hasData) {
+                return Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: Image.memory(
+                    snapshot.data!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Error displaying loaded image: $error');
+                      return _buildPlaceholder();
+                    },
+                  ),
+                );
+              }
+              return _buildPlaceholder();
+            },
+          );
+        }
+      }
+      return _buildPlaceholder();
+    } catch (e) {
+      print('Error in _buildPostImage: $e');
+      return _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.grey[200],
+      child: Icon(
+        Icons.image,
+        size: 40,
+        color: Colors.grey[400],
+      ),
+    );
+  }
+
+  Future<Uint8List> _loadImageData(String imageId) async {
+    if (baseUrl == null) {
+      throw Exception('Base URL not initialized');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/posts/images/$imageId'),
+      headers: {
+        'Authorization': 'Bearer $_idToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return base64Decode(response.body);
+    }
+    throw Exception('Failed to load image');
   }
 
   Widget _buildStatColumn(String label, int count) {

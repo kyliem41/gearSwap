@@ -312,73 +312,50 @@ def getPosts(event, context):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Modified query to only get first image and compress image data
+                # Modified query to properly include image data
                 cursor.execute("""
-                    WITH first_images AS (
-                        SELECT DISTINCT ON (post_id)
-                            post_id,
-                            id as image_id,
-                            content_type,
-                            -- Resize image data to thumbnail size
-                            image_data
-                        FROM post_images
-                        ORDER BY post_id, id
-                    )
                     SELECT 
                         p.*,
                         u.username,
-                        CASE 
-                            WHEN fi.image_id IS NOT NULL THEN
-                                json_build_object(
-                                    'id', fi.image_id,
-                                    'content_type', fi.content_type,
-                                    'data', encode(fi.image_data, 'base64')
+                        COALESCE(
+                            (
+                                SELECT json_agg(
+                                    json_build_object(
+                                        'id', pi.id,
+                                        'content_type', pi.content_type,
+                                        'data', encode(pi.image_data, 'base64')
+                                    )
                                 )
-                            ELSE NULL 
-                        END as first_image
+                                FROM (
+                                    SELECT id, content_type, image_data
+                                    FROM post_images
+                                    WHERE post_id = p.id
+                                    ORDER BY id
+                                    LIMIT 1
+                                ) pi
+                            ),
+                            '[]'::json
+                        ) as images
                     FROM posts p
                     JOIN users u ON p.userId = u.id
-                    LEFT JOIN first_images fi ON fi.post_id = p.id
                     ORDER BY p.datePosted DESC
                     LIMIT %s OFFSET %s
                 """, (page_size, offset))
                 
                 posts = cursor.fetchall()
 
-                # Clean up the response data
-                for post in posts:
-                    if post['first_image'] is None:
-                        post['images'] = []
-                    else:
-                        post['images'] = [post['first_image']]
-                        del post['first_image']
-
                 # Get total count
                 cursor.execute("SELECT COUNT(*) FROM posts")
                 total_posts = cursor.fetchone()['count']
 
-                response_data = {
+                return cors_response(200, {
                     "message": "Posts retrieved successfully",
                     "posts": posts,
                     "page": page,
                     "page_size": page_size,
                     "total_posts": total_posts,
                     "total_pages": -(-total_posts // page_size)
-                }
-
-                # Check response size before sending
-                response_str = json.dumps(response_data, default=str)
-                if len(response_str) > 5 * 1024 * 1024:  # 5MB limit
-                    # If still too large, return posts without image data
-                    for post in posts:
-                        if post.get('images'):
-                            post['images'] = [{'id': img['id'], 'content_type': img['content_type']} 
-                                        for img in post['images']]
-                    
-                    response_data['posts'] = posts
-                    response_data['message'] += " (images excluded due to size limits)"
-
-                return cors_response(200, response_data)
+                })
 
     except Exception as e:
         print(f"Failed to get posts: {str(e)}")
