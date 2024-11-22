@@ -228,6 +228,7 @@ class _ProfilePageState extends State<ProfilePage>
 
       final file = input.files!.first;
 
+      // Validate file size (5MB limit)
       if (file.size! > 5 * 1024 * 1024) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Image size must be less than 5MB')),
@@ -235,6 +236,7 @@ class _ProfilePageState extends State<ProfilePage>
         return;
       }
 
+      // Validate file type
       if (!['image/jpeg', 'image/png'].contains(file.type)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Only JPEG and PNG images are allowed')),
@@ -249,9 +251,14 @@ class _ProfilePageState extends State<ProfilePage>
       final reader = html.FileReader();
       reader.readAsArrayBuffer(file);
 
-      final bytes =
-          await reader.onLoad.first.then((_) => reader.result as Uint8List);
+      await reader.onLoad.first;
+      final bytes = reader.result as Uint8List;
       final base64Image = base64Encode(bytes);
+
+      // Print request details for debugging
+      print(
+          'Making request to: $baseUrl/userProfile/${userData!.id}/profilePicture');
+      print('Content type: ${file.type}');
 
       final response = await http.put(
         Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
@@ -259,11 +266,14 @@ class _ProfilePageState extends State<ProfilePage>
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
         },
-        body: json.encode({
+        body: jsonEncode({
           'profilePicture': base64Image,
           'content_type': file.type,
         }),
       );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         await _fetchUserProfile();
@@ -276,7 +286,10 @@ class _ProfilePageState extends State<ProfilePage>
     } catch (e) {
       print('Error updating profile picture: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update profile picture')),
+        SnackBar(
+          content: Text('Failed to update profile picture: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() {
