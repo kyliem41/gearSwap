@@ -10,7 +10,6 @@ import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:typed_data';
-import 'dart:math';
 
 void main() {
   GoRouter.optionURLReflectsImperativeAPIs = true;
@@ -96,7 +95,6 @@ class _MyHomePageState extends State<MyHomePage> {
         throw Exception('Configuration not initialized');
       }
 
-      // Get the stored tokens
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
 
@@ -109,33 +107,22 @@ class _MyHomePageState extends State<MyHomePage> {
         return;
       }
 
-      var url = Uri.parse('$baseUrl/posts');
+      // Add pagination parameters
+      final url = Uri.parse('$baseUrl/posts?page=1&page_size=20');
 
-      print('Fetching posts with token...');
-      var response = await http.get(
+      final response = await http.get(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
-          // 'Accept': 'application/json',
         },
       );
 
       print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
         List<dynamic> postsData = data['posts'];
-
-        print('Fetched ${postsData.length} posts');
-
-        print('\n--- Starting Post Debug Information ---');
-        for (var post in postsData) {
-          _debugPrintPostData(post);
-          print('----------------------------------------');
-        }
-        print('--- End Post Debug Information ---\n');
 
         setState(() {
           posts = postsData;
@@ -157,6 +144,103 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _refreshPosts() async {
     await _getPosts();
+  }
+
+  Widget _buildPostImage(Map<String, dynamic> post) {
+    try {
+      if (post['images'] != null &&
+          post['images'] is List &&
+          post['images'].isNotEmpty &&
+          post['images'][0] != null) {
+        if (post['images'][0]['data'] != null) {
+          // Display image from data
+          String base64String = post['images'][0]['data'];
+          base64String = base64String.trim();
+          while (base64String.length % 4 != 0) {
+            base64String += '=';
+          }
+
+          try {
+            final Uint8List imageBytes = base64Decode(base64String);
+            return Image.memory(
+              imageBytes,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                print('Error displaying image: $error');
+                return _buildPlaceholder();
+              },
+            );
+          } catch (e) {
+            print('Error decoding base64: $e');
+            return _buildPlaceholder();
+          }
+        } else {
+          // Handle case where image data needs to be loaded separately
+          return FutureBuilder<Uint8List>(
+            // Added type here
+            future: _loadImageData(post['images'][0]['id']),
+            builder: (context, AsyncSnapshot<Uint8List> snapshot) {
+              // Added type here
+              if (snapshot.hasError) {
+                print('Error loading image: ${snapshot.error}');
+                return _buildPlaceholder();
+              }
+
+              if (snapshot.hasData) {
+                return Image.memory(
+                  snapshot.data!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Error displaying image: $error');
+                    return _buildPlaceholder();
+                  },
+                );
+              }
+
+              return _buildPlaceholder();
+            },
+          );
+        }
+      }
+      return _buildPlaceholder();
+    } catch (e) {
+      print('Error in _buildPostImage: $e');
+      return _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Icon(
+      Icons.image,
+      size: 40,
+      color: Colors.grey[400],
+    );
+  }
+
+  Future<Uint8List> _loadImageData(String imageId) async {
+    if (baseUrl == null) {
+      throw Exception('Base URL not initialized');
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final idToken = prefs.getString('idToken');
+
+    if (idToken == null) {
+      throw Exception('Not authenticated');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/posts/$imageId/images'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return base64Decode(response.body);
+    }
+    throw Exception('Failed to load image: ${response.statusCode}');
   }
 
   @override
@@ -274,90 +358,5 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       bottomNavigationBar: BottomNavBar(),
     );
-  }
-}
-
-Widget _buildPostImage(Map<String, dynamic> post) {
-  try {
-    if (post['images'] != null &&
-        post['images'] is List &&
-        post['images'].isNotEmpty &&
-        post['images'][0] != null &&
-        post['images'][0]['data'] != null) {
-      String base64String = post['images'][0]['data'];
-
-      // Clean the base64 string
-      base64String = base64String.trim();
-
-      // Add padding if needed
-      while (base64String.length % 4 != 0) {
-        base64String += '=';
-      }
-
-      // For debugging
-      print('Image content type: ${post['images'][0]['content_type']}');
-      print('Base64 string length: ${base64String.length}');
-
-      try {
-        final Uint8List imageBytes = base64Decode(base64String);
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: Image.memory(
-            imageBytes,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              print('Error displaying image: $error');
-              return Icon(
-                Icons.image_not_supported,
-                size: 40,
-                color: Colors.grey[400],
-              );
-            },
-          ),
-        );
-      } catch (e) {
-        print('Error decoding base64: $e');
-        return Icon(
-          Icons.broken_image,
-          size: 40,
-          color: Colors.grey[400],
-        );
-      }
-    }
-    return Icon(
-      Icons.image,
-      size: 40,
-      color: Colors.grey[400],
-    );
-  } catch (e) {
-    print('Error in _buildPostImage: $e');
-    return Icon(
-      Icons.error_outline,
-      size: 40,
-      color: Colors.grey[400],
-    );
-  }
-}
-
-void _debugPrintPostData(Map<String, dynamic> post) {
-  print('Post ID: ${post['id']}');
-  if (post['images'] != null &&
-      post['images'] is List &&
-      post['images'].isNotEmpty) {
-    final firstImage = post['images'][0];
-    if (firstImage != null) {
-      print('Image ID: ${firstImage['id']}');
-      print('Content Type: ${firstImage['content_type']}');
-      if (firstImage['data'] != null) {
-        print('Data length: ${firstImage['data'].length}');
-        print(
-            'First 100 chars of data: ${firstImage['data'].substring(0, min<int>(100, firstImage['data'].length))}');
-      } else {
-        print('Image data is null');
-      }
-    }
-  } else {
-    print('No images for this post');
   }
 }
