@@ -623,40 +623,20 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /userProfile/{Id}
             Method: DELETE
-        # AddImage:
-        #   Type: Api
-        #   Properties:
-        #     RestApiId: !Ref gearSwap
-        #     Path: /posts/{postId}/images
-        #     Method: POST
-        # AddImageOptions:
-        #   Type: Api
-        #   Properties:
-        #     RestApiId: !Ref gearSwap
-        #     Path: /posts/{postId}/images
-        #     Method: OPTIONS
-        #     Auth:
-        #       Authorizer: NONE
-        # GetImage:
-        #   Type: Api
-        #   Properties:
-        #     RestApiId: !Ref gearSwap
-        #     Path: /posts/{postId}/images/{imageId}
-        #     Method: GET
-        # DeleteImage:
-        #   Type: Api
-        #   Properties:
-        #     RestApiId: !Ref gearSwap
-        #     Path: /posts/{postId}/images/{imageId}
-        #     Method: DELETE
-        # PostImageOptions:
-        #   Type: Api
-        #   Properties:
-        #     RestApiId: !Ref gearSwap
-        #     Path: /posts/{postId}/images/{imageId}
-        #     Method: OPTIONS
-        #     Auth:
-        #       Authorizer: NONE
+        UpdateProfilePicture:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /userProfile/{Id}/profilePicture
+            Method: PUT
+        ProfilePictureOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /userProfile/{Id}/profilePicture
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
 
   # Cart Functions
   CartFunctions:

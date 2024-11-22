@@ -623,6 +623,20 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /userProfile/{Id}
             Method: DELETE
+        UpdateProfilePicture:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /userProfile/{Id}/profilePicture
+            Method: PUT
+        ProfilePictureOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /userProfile/{Id}/profilePicture
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
 
   # Cart Functions
   CartFunctions:

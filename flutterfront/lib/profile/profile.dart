@@ -10,6 +10,10 @@ import 'package:sample/wishlist/wishlist.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:html' as html;
+import 'package:flutter/services.dart';
+import 'dart:ui' as ui;
+import 'package:image/image.dart' as img;
 
 class UserData {
   final int id;
@@ -212,6 +216,108 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
+  Future<void> _updateProfilePicture() async {
+    try {
+      final input = html.FileUploadInputElement()..accept = 'image/*';
+      input.click();
+
+      await input.onChange.first;
+      if (input.files?.isEmpty ?? true) return;
+
+      final file = input.files!.first;
+      final reader = html.FileReader();
+      reader.readAsArrayBuffer(file);
+
+      await reader.onLoad.first;
+      final bytes = reader.result as Uint8List;
+      final base64Image = base64Encode(bytes);
+
+      if (baseUrl == null || _idToken == null || userData == null) return;
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
+        headers: {
+          'Authorization': 'Bearer $_idToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'profilePicture': base64Image,
+          'content_type': file.type,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        await _fetchUserProfile();
+      } else {
+        print('Failed to update profile picture: ${response.body}');
+      }
+    } catch (e) {
+      print('Error updating profile picture: $e');
+    }
+  }
+
+  Widget _buildProfilePicture() {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _updateProfilePicture,
+        child: Stack(
+          children: [
+            CircleAvatar(
+              radius: 50,
+              backgroundImage: userData?.profilePicture != null
+                  ? _buildProfileImage()
+                  : null,
+              child: userData?.profilePicture == null
+                  ? Text(
+                      '${userData!.firstName[0]}${userData!.lastName[0]}',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepOrange,
+                      ),
+                    )
+                  : null,
+            ),
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.3),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.camera_alt,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  ImageProvider _buildProfileImage() {
+    if (userData?.profilePicture == null) return NetworkImage('path_to_default_image');
+    
+    try {
+      if (userData!.profilePicture!.startsWith('data:image')) {
+        // Handle base64 image
+        final base64String = userData!.profilePicture!.split(',').last;
+        return MemoryImage(base64Decode(base64String));
+      } else {
+        // Handle URL image
+        return NetworkImage(userData!.profilePicture!);
+      }
+    } catch (e) {
+      print('Error loading profile image: $e');
+      return NetworkImage('path_to_default_image');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -276,22 +382,23 @@ class _ProfilePageState extends State<ProfilePage>
             color: Colors.grey[200],
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundImage: userData!.profilePicture != null
-                      ? NetworkImage(userData!.profilePicture!)
-                      : null,
-                  child: userData!.profilePicture == null
-                      ? Text(
-                          '${userData!.firstName[0]}${userData!.lastName[0]}',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepOrange,
-                          ),
-                        )
-                      : null,
-                ),
+                _buildProfilePicture(),
+                // CircleAvatar(
+                //   radius: 50,
+                //   backgroundImage: userData!.profilePicture != null
+                //       ? NetworkImage(userData!.profilePicture!)
+                //       : null,
+                //   child: userData!.profilePicture == null
+                //       ? Text(
+                //           '${userData!.firstName[0]}${userData!.lastName[0]}',
+                //           style: TextStyle(
+                //             fontSize: 32,
+                //             fontWeight: FontWeight.bold,
+                //             color: Colors.deepOrange,
+                //           ),
+                //         )
+                //       : null,
+                // ),
                 const SizedBox(height: 16),
                 Text(
                   '${userData!.firstName} ${userData!.lastName}',
