@@ -217,6 +217,8 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Future<void> _updateProfilePicture() async {
+    if (baseUrl == null || _idToken == null || userData == null) return;
+
     try {
       final input = html.FileUploadInputElement()..accept = 'image/*';
       input.click();
@@ -225,14 +227,31 @@ class _ProfilePageState extends State<ProfilePage>
       if (input.files?.isEmpty ?? true) return;
 
       final file = input.files!.first;
+
+      if (file.size! > 5 * 1024 * 1024) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Image size must be less than 5MB')),
+        );
+        return;
+      }
+
+      if (!['image/jpeg', 'image/png'].contains(file.type)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Only JPEG and PNG images are allowed')),
+        );
+        return;
+      }
+
+      setState(() {
+        isLoading = true;
+      });
+
       final reader = html.FileReader();
       reader.readAsArrayBuffer(file);
 
-      await reader.onLoad.first;
-      final bytes = reader.result as Uint8List;
+      final bytes =
+          await reader.onLoad.first.then((_) => reader.result as Uint8List);
       final base64Image = base64Encode(bytes);
-
-      if (baseUrl == null || _idToken == null || userData == null) return;
 
       final response = await http.put(
         Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
@@ -248,11 +267,21 @@ class _ProfilePageState extends State<ProfilePage>
 
       if (response.statusCode == 200) {
         await _fetchUserProfile();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profile picture updated successfully')),
+        );
       } else {
-        print('Failed to update profile picture: ${response.body}');
+        throw Exception('Failed to update profile picture: ${response.body}');
       }
     } catch (e) {
       print('Error updating profile picture: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update profile picture')),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -260,24 +289,28 @@ class _ProfilePageState extends State<ProfilePage>
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: _updateProfilePicture,
+        onTap: _showImageOptions,
         child: Stack(
           children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundImage: userData?.profilePicture != null
-                  ? _buildProfileImage()
-                  : null,
-              child: userData?.profilePicture == null
-                  ? Text(
-                      '${userData!.firstName[0]}${userData!.lastName[0]}',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.deepOrange,
-                      ),
-                    )
-                  : null,
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.grey[300]!, width: 2),
+              ),
+              child: ClipOval(
+                child: userData?.profilePicture != null
+                    ? Image.memory(
+                        _getImageData(userData!.profilePicture!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          print('Error loading profile image: $error');
+                          return _buildDefaultAvatar();
+                        },
+                      )
+                    : _buildDefaultAvatar(),
+              ),
             ),
             Positioned.fill(
               child: Container(
@@ -300,23 +333,84 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  ImageProvider _buildProfileImage() {
-    if (userData?.profilePicture == null) return NetworkImage('path_to_default_image');
-    
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: Colors.grey[200],
+      child: Center(
+        child: Text(
+          '${userData?.firstName[0] ?? ""}${userData?.lastName[0] ?? ""}',
+          style: TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: Colors.deepOrange,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Uint8List _getImageData(String profilePicture) {
     try {
-      if (userData!.profilePicture!.startsWith('data:image')) {
-        // Handle base64 image
-        final base64String = userData!.profilePicture!.split(',').last;
-        return MemoryImage(base64Decode(base64String));
+      if (profilePicture.startsWith('data:image')) {
+        final base64String = profilePicture.split(',')[1];
+        return base64Decode(base64String);
       } else {
-        // Handle URL image
-        return NetworkImage(userData!.profilePicture!);
+        // Handle URL-based images if needed
+        throw Exception('Unsupported image format');
       }
     } catch (e) {
-      print('Error loading profile image: $e');
-      return NetworkImage('path_to_default_image');
+      print('Error decoding image data: $e');
+      throw e;
     }
   }
+
+  void _showImageOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.photo_library),
+                title: Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateProfilePicture();
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.cancel),
+                title: Text('Cancel'),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ImageProvider _buildProfileImage() {
+  //   if (userData?.profilePicture == null)
+  //     return NetworkImage('path_to_default_image');
+
+  //   try {
+  //     if (userData!.profilePicture!.startsWith('data:image')) {
+  //       // Handle base64 image
+  //       final base64String = userData!.profilePicture!.split(',').last;
+  //       return MemoryImage(base64Decode(base64String));
+  //     } else {
+  //       // Handle URL image
+  //       return NetworkImage(userData!.profilePicture!);
+  //     }
+  //   } catch (e) {
+  //     print('Error loading profile image: $e');
+  //     return NetworkImage('path_to_default_image');
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
