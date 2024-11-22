@@ -14,6 +14,7 @@ import 'dart:html' as html;
 import 'package:flutter/services.dart';
 import 'dart:ui' as ui;
 import 'package:image/image.dart' as img;
+import 'dart:math';
 
 class UserData {
   final int id;
@@ -668,7 +669,7 @@ class _ProfilePageState extends State<ProfilePage>
   Widget _buildPostImage(Map<String, dynamic> post) {
     try {
       print('Building image for post ${post['id']}');
-      print('Images data: ${post['images']}');
+      print('Raw images data: ${post['images']}');
 
       if (post['images'] != null &&
           post['images'] is List &&
@@ -676,16 +677,27 @@ class _ProfilePageState extends State<ProfilePage>
           post['images'][0] != null) {
         String? base64String;
 
+        // Debug first image data
+        print('First image data type: ${post['images'][0].runtimeType}');
+        print('First image content: ${post['images'][0]}');
+
         // Handle different image data formats
-        if (post['images'][0]['data'] != null) {
+        if (post['images'][0] is Map && post['images'][0]['data'] != null) {
           base64String = post['images'][0]['data'].toString();
+          print('Using data field: $base64String');
         } else if (post['images'][0] is String) {
           base64String = post['images'][0].toString();
+          print('Using direct string: $base64String');
         }
 
         if (base64String?.isNotEmpty ?? false) {
+          // Debug base64 string before cleaning
+          print('Original base64 string length: ${base64String!.length}');
+          print(
+              'Base64 string starts with: ${base64String.substring(0, min(50, base64String.length))}');
+
           // Clean up base64 string
-          base64String = base64String!.trim();
+          base64String = base64String.trim();
           base64String = base64String.replaceAll(RegExp(r'\s+'), '');
 
           // Remove data:image prefix if present
@@ -693,6 +705,7 @@ class _ProfilePageState extends State<ProfilePage>
             List<String> parts = base64String.split(',');
             if (parts.length > 1) {
               base64String = parts[1];
+              print('Found data URI, using part after comma');
             }
           }
 
@@ -705,8 +718,16 @@ class _ProfilePageState extends State<ProfilePage>
             );
           }
 
+          // Debug final base64 string
+          print('Final base64 string length: ${base64String.length}');
+          print(
+              'Final base64 string starts with: ${base64String.substring(0, min(50, base64String.length))}');
+
           try {
             final Uint8List imageBytes = base64Decode(base64String);
+            print(
+                'Successfully decoded base64 to bytes. Length: ${imageBytes.length}');
+
             return Container(
               width: double.infinity,
               height: double.infinity,
@@ -716,19 +737,32 @@ class _ProfilePageState extends State<ProfilePage>
                 errorBuilder: (context, error, stackTrace) {
                   print(
                       'Error displaying image for post ${post['id']}: $error');
+                  print('Stack trace: $stackTrace');
                   return _buildPlaceholder();
                 },
               ),
             );
           } catch (e) {
             print('Error decoding base64 for post ${post['id']}: $e');
+            // Print a small portion of the problematic string
+            if (base64String.length > 100) {
+              print(
+                  'Problematic base64 string (first 100 chars): ${base64String.substring(0, 100)}');
+            } else {
+              print('Problematic base64 string: $base64String');
+            }
             return _buildPlaceholder();
           }
+        } else {
+          print('Base64 string is empty or null');
         }
+      } else {
+        print('No valid images data found in post');
       }
       return _buildPlaceholder();
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error in _buildPostImage for post ${post['id']}: $e');
+      print('Stack trace: $stackTrace');
       return _buildPlaceholder();
     }
   }
@@ -738,10 +772,12 @@ class _ProfilePageState extends State<ProfilePage>
       width: double.infinity,
       height: double.infinity,
       color: Colors.grey[200],
-      child: Icon(
-        Icons.image,
-        size: 40,
-        color: Colors.grey[400],
+      child: Center(
+        child: Icon(
+          Icons.image,
+          size: 40,
+          color: Colors.grey[400],
+        ),
       ),
     );
   }
