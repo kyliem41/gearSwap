@@ -130,12 +130,7 @@ class _NewPostPageState extends State<NewPostPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userStr = prefs.getString('user');
-      final accessToken = prefs.getString('accessToken');
       final idToken = prefs.getString('idToken');
-
-      print('User string: $userStr');
-      print('Access token available: ${accessToken != null}');
-      print('ID token available: ${idToken != null}');
 
       if (userStr == null || idToken == null) {
         _showErrorDialog('Please log in to create a post');
@@ -145,8 +140,26 @@ class _NewPostPageState extends State<NewPostPage> {
       final userData = json.decode(userStr);
       final userId = userData['id'];
 
-      print('User ID: $userId');
+      // First, upload all images and get their IDs
+      List<String> uploadedImageIds = [];
+      for (var photo in photos) {
+        try {
+          final imageId = await _uploadSingleImage(userId, photo, idToken);
+          if (imageId != null) {
+            uploadedImageIds.add(imageId);
+          }
+        } catch (e) {
+          print('Error uploading image: $e');
+          // Continue with other images if one fails
+        }
+      }
 
+      if (uploadedImageIds.isEmpty) {
+        _showErrorDialog('Failed to upload images. Please try again.');
+        return;
+      }
+
+      // Now create the post with image references
       final requestBody = {
         'price': double.parse(priceController.text),
         'description': descriptionController.text.trim(),
@@ -154,26 +167,18 @@ class _NewPostPageState extends State<NewPostPage> {
         'category': selectedCategory,
         'clothingType': selectedClothingType,
         'tags': selectedTags,
-        'photos': photos,
+        'photoIds': uploadedImageIds, // Only send the image IDs now
       };
 
-      print('Request body: ${json.encode(requestBody)}');
       final url = '$baseUrl/posts/create/$userId';
-      print('Endpoint URL: $url');
-
       final response = await http.post(
         Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
-          // 'Accept': 'application/json',
         },
         body: json.encode(requestBody),
       );
-
-      print('Response status code: ${response.statusCode}');
-      print('Response headers: ${response.headers}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         showDialog(
@@ -200,21 +205,7 @@ class _NewPostPageState extends State<NewPostPage> {
           },
         );
       } else {
-        String errorMessage;
-        try {
-          final errorData = json.decode(response.body);
-          errorMessage = errorData is String
-              ? errorData
-              : (errorData['error'] ??
-                  errorData['message'] ??
-                  errorData['body'] ??
-                  'Failed to create post');
-        } catch (e) {
-          print('Error parsing response body: $e');
-          errorMessage = response.body;
-        }
-        print('Error message: $errorMessage');
-        _showErrorDialog('Error: $errorMessage');
+        _handleErrorResponse(response);
       }
     } catch (e, stackTrace) {
       print('Exception details: $e');
@@ -254,6 +245,53 @@ class _NewPostPageState extends State<NewPostPage> {
     }
 
     return true;
+  }
+
+  Future<String?> _uploadSingleImage(
+      String userId, Map<String, dynamic> photo, String idToken) async {
+    try {
+      final uploadUrl = '$baseUrl/images/upload/$userId';
+      final response = await http.post(
+        Uri.parse(uploadUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: json.encode({
+          'data': photo['data'],
+          'content_type': photo['content_type'],
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return responseData['imageId'];
+      } else {
+        print('Failed to upload image: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
+  }
+
+  void _handleErrorResponse(http.Response response) {
+    String errorMessage;
+    try {
+      final errorData = json.decode(response.body);
+      errorMessage = errorData is String
+          ? errorData
+          : (errorData['error'] ??
+              errorData['message'] ??
+              errorData['body'] ??
+              'Failed to create post');
+    } catch (e) {
+      print('Error parsing response body: $e');
+      errorMessage = response.body;
+    }
+    print('Error message: $errorMessage');
+    _showErrorDialog('Error: $errorMessage');
   }
 
   Widget _buildImageUploadSection() {
