@@ -291,19 +291,24 @@ class _ProfilePageState extends State<ProfilePage>
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: _updateProfilePicture,
+        onTap: _showImageOptions,
         child: Stack(
           children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.grey[300]!, width: 2),
-              ),
-              child: ClipOval(
-                child: _buildProfileImage(),
-              ),
+            CircleAvatar(
+              radius: 50,
+              backgroundColor: Colors.grey[200],
+              child: userData?.profilePicture != null
+                  ? ClipOval(
+                      child: _buildProfileImage(),
+                    )
+                  : Text(
+                      '${userData!.firstName[0]}${userData!.lastName[0]}',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepOrange,
+                      ),
+                    ),
             ),
             Positioned.fill(
               child: Container(
@@ -327,16 +332,13 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildDefaultAvatar() {
-    return Container(
-      color: Colors.grey[200],
-      child: Center(
-        child: Text(
-          '${userData?.firstName[0] ?? ""}${userData?.lastName[0] ?? ""}',
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: Colors.deepOrange,
-          ),
+    return Center(
+      child: Text(
+        '${userData?.firstName[0] ?? ''}${userData?.lastName[0] ?? ''}',
+        style: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: Colors.deepOrange,
         ),
       ),
     );
@@ -389,34 +391,41 @@ class _ProfilePageState extends State<ProfilePage>
   Widget _buildProfileImage() {
     try {
       if (userData?.profilePicture != null) {
-        String profilePicture = userData!.profilePicture!;
+        // Handle the base64 string
+        String imageData = userData!.profilePicture!;
 
-        // Handle the data:image prefix if present
-        if (!profilePicture.contains('data:image')) {
-          profilePicture = 'data:image/jpeg;base64,' + profilePicture;
+        // Remove header if it exists
+        if (imageData.contains(',')) {
+          imageData = imageData.split(',')[1];
         }
 
         // Clean up the base64 string
-        String base64String = profilePicture.split(',')[1].trim();
-        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+        imageData = imageData.trim().replaceAll(RegExp(r'[\n\r\s]'), '');
 
         // Add padding if needed
-        while (base64String.length % 4 != 0) {
-          base64String += '=';
+        while (imageData.length % 4 != 0) {
+          imageData += '=';
         }
 
-        return Image.memory(
-          base64Decode(base64String),
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            print('Error loading profile image: $error');
-            return _buildDefaultAvatar();
-          },
-        );
+        try {
+          return Image.memory(
+            base64Decode(imageData),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              print('Error loading profile image: $error');
+              return _buildDefaultAvatar();
+            },
+          );
+        } catch (e) {
+          print('Error decoding base64: $e');
+          return _buildDefaultAvatar();
+        }
       }
       return _buildDefaultAvatar();
     } catch (e) {
-      print('Error processing profile image: $e');
+      print('Error in _buildProfileImage: $e');
       return _buildDefaultAvatar();
     }
   }
@@ -669,24 +678,31 @@ class _ProfilePageState extends State<ProfilePage>
 
         // Handle different image data formats
         if (post['images'][0]['data'] != null) {
-          base64String = post['images'][0]['data'];
+          base64String = post['images'][0]['data'].toString();
         } else if (post['images'][0] is String) {
-          base64String = post['images'][0];
+          base64String = post['images'][0].toString();
         }
 
-        if (base64String != null) {
+        if (base64String?.isNotEmpty ?? false) {
           // Clean up base64 string
-          base64String = base64String.trim();
+          base64String = base64String!.trim();
           base64String = base64String.replaceAll(RegExp(r'\s+'), '');
 
           // Remove data:image prefix if present
           if (base64String.contains(',')) {
-            base64String = base64String.split(',')[1];
+            List<String> parts = base64String.split(',');
+            if (parts.length > 1) {
+              base64String = parts[1];
+            }
           }
 
           // Add padding if needed
-          while (base64String.length % 4 != 0) {
-            base64String += '=';
+          int padLength = base64String.length % 4;
+          if (padLength > 0) {
+            base64String = base64String.padRight(
+              base64String.length + (4 - padLength),
+              '=',
+            );
           }
 
           try {
