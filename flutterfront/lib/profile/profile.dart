@@ -236,29 +236,18 @@ class _ProfilePageState extends State<ProfilePage>
         return;
       }
 
-      // Validate file type
-      if (!['image/jpeg', 'image/png'].contains(file.type)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Only JPEG and PNG images are allowed')),
-        );
-        return;
-      }
-
       setState(() {
         isLoading = true;
       });
 
       final reader = html.FileReader();
-      reader.readAsArrayBuffer(file);
+      reader.readAsDataUrl(file); // Changed to readAsDataUrl
 
       await reader.onLoad.first;
-      final bytes = reader.result as Uint8List;
-      final base64Image = base64Encode(bytes);
+      String base64Image = reader.result as String;
 
-      // Print request details for debugging
-      print(
-          'Making request to: $baseUrl/userProfile/${userData!.id}/profilePicture');
-      print('Content type: ${file.type}');
+      // Extract just the base64 data, removing the data:image prefix
+      base64Image = base64Image.split(',')[1];
 
       final response = await http.put(
         Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
@@ -266,7 +255,7 @@ class _ProfilePageState extends State<ProfilePage>
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
+        body: json.encode({
           'profilePicture': base64Image,
           'content_type': file.type,
         }),
@@ -302,7 +291,7 @@ class _ProfilePageState extends State<ProfilePage>
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: _showImageOptions,
+        onTap: _updateProfilePicture,
         child: Stack(
           children: [
             Container(
@@ -313,16 +302,7 @@ class _ProfilePageState extends State<ProfilePage>
                 border: Border.all(color: Colors.grey[300]!, width: 2),
               ),
               child: ClipOval(
-                child: userData?.profilePicture != null
-                    ? Image.memory(
-                        _getImageData(userData!.profilePicture!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          print('Error loading profile image: $error');
-                          return _buildDefaultAvatar();
-                        },
-                      )
-                    : _buildDefaultAvatar(),
+                child: _buildProfileImage(),
               ),
             ),
             Positioned.fill(
@@ -406,24 +386,40 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  // ImageProvider _buildProfileImage() {
-  //   if (userData?.profilePicture == null)
-  //     return NetworkImage('path_to_default_image');
+  Widget _buildProfileImage() {
+    try {
+      if (userData?.profilePicture != null) {
+        String profilePicture = userData!.profilePicture!;
 
-  //   try {
-  //     if (userData!.profilePicture!.startsWith('data:image')) {
-  //       // Handle base64 image
-  //       final base64String = userData!.profilePicture!.split(',').last;
-  //       return MemoryImage(base64Decode(base64String));
-  //     } else {
-  //       // Handle URL image
-  //       return NetworkImage(userData!.profilePicture!);
-  //     }
-  //   } catch (e) {
-  //     print('Error loading profile image: $e');
-  //     return NetworkImage('path_to_default_image');
-  //   }
-  // }
+        // Handle the data:image prefix if present
+        if (!profilePicture.contains('data:image')) {
+          profilePicture = 'data:image/jpeg;base64,' + profilePicture;
+        }
+
+        // Clean up the base64 string
+        String base64String = profilePicture.split(',')[1].trim();
+        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+
+        // Add padding if needed
+        while (base64String.length % 4 != 0) {
+          base64String += '=';
+        }
+
+        return Image.memory(
+          base64Decode(base64String),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error loading profile image: $error');
+            return _buildDefaultAvatar();
+          },
+        );
+      }
+      return _buildDefaultAvatar();
+    } catch (e) {
+      print('Error processing profile image: $e');
+      return _buildDefaultAvatar();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -669,11 +665,24 @@ class _ProfilePageState extends State<ProfilePage>
           post['images'] is List &&
           post['images'].isNotEmpty &&
           post['images'][0] != null) {
+        String? base64String;
+
+        // Handle different image data formats
         if (post['images'][0]['data'] != null) {
-          String base64String = post['images'][0]['data'];
+          base64String = post['images'][0]['data'];
+        } else if (post['images'][0] is String) {
+          base64String = post['images'][0];
+        }
+
+        if (base64String != null) {
           // Clean up base64 string
           base64String = base64String.trim();
           base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+
+          // Remove data:image prefix if present
+          if (base64String.contains(',')) {
+            base64String = base64String.split(',')[1];
+          }
 
           // Add padding if needed
           while (base64String.length % 4 != 0) {
