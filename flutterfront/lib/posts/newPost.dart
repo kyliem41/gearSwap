@@ -548,79 +548,123 @@ class _NewPostPageState extends State<NewPostPage> {
   }
 }
 
-
 class ImageUploadHandler {
-  static const int MAX_IMAGE_SIZE = 500 * 1024; // 500KB target size per image
-  static const int MAX_DIMENSION = 1024; // Maximum width/height
+  static const int MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+  static const int MAX_DIMENSION = 1600;
 
-  static Future<List<Map<String, dynamic>>> handleMultipleImages(List<html.File> files) async {
+  static Future<List<Map<String, dynamic>>> handleMultipleImages(
+      List<html.File> files) async {
     List<Map<String, dynamic>> processedImages = [];
+    List<String> errors = [];
 
     for (var file in files) {
-      if (processedImages.length >= 5) break; // Maximum 5 images
+      if (processedImages.length >= 5) break; // Keep maximum of 5 images
 
       if (!file.type!.startsWith('image/')) {
-        throw Exception('Only image files are allowed');
+        errors.add('${file.name}: Only image files are allowed');
+        continue;
       }
 
       try {
-        // Read file
+        // Check original file size
+        if (file.size > 10 * 1024 * 1024) {
+          // 10MB limit for original files
+          errors.add('${file.name}: File too large (max 10MB)');
+          continue;
+        }
+
         final reader = html.FileReader();
         reader.readAsArrayBuffer(file);
         await reader.onLoad.first;
 
-        // Get file data
         final Uint8List originalData = reader.result as Uint8List;
-
-        // Compress and resize image
-        final compressedData = await compressImage(originalData, MAX_IMAGE_SIZE);
+        final compressedData =
+            await compressImage(originalData, MAX_IMAGE_SIZE);
 
         // Convert to base64
         final base64Image = base64Encode(compressedData);
+
+        // Verify final size
+        final finalSize =
+            base64Image.length * 3 ~/ 4; // Approximate decoded size
+        if (finalSize > MAX_IMAGE_SIZE) {
+          errors.add('${file.name}: Failed to compress to target size');
+          continue;
+        }
 
         processedImages.add({
           'data': base64Image,
           'content_type': file.type ?? 'image/jpeg',
         });
+
+        print('Processed ${file.name}: ${finalSize ~/ 1024}KB');
       } catch (e) {
-        print('Error processing image: $e');
-        throw Exception('Failed to process image: ${file.name}');
+        print('Error processing ${file.name}: $e');
+        errors.add('${file.name}: ${e.toString()}');
       }
+    }
+
+    // If we have errors but also some successful images, continue with what worked
+    if (errors.isNotEmpty && processedImages.isEmpty) {
+      throw Exception('Failed to process images:\n${errors.join('\n')}');
     }
 
     return processedImages;
   }
 
-  static Future<Uint8List> compressImage(Uint8List inputData, int targetSize) async {
-    // Decode image
+  static Future<Uint8List> compressImage(
+      Uint8List inputData, int targetSize) async {
     final img.Image? originalImage = img.decodeImage(inputData);
     if (originalImage == null) throw Exception('Failed to decode image');
-    
-    // Calculate scale factor to maintain aspect ratio
+
+    // Calculate initial scale factor
     double scale = 1.0;
-    if (originalImage.width > MAX_DIMENSION || originalImage.height > MAX_DIMENSION) {
-      scale = MAX_DIMENSION / math.max(originalImage.width, originalImage.height);
+    if (originalImage.width > MAX_DIMENSION ||
+        originalImage.height > MAX_DIMENSION) {
+      scale =
+          MAX_DIMENSION / math.max(originalImage.width, originalImage.height);
     }
-    
-    // Resize image
-    final newWidth = (originalImage.width * scale).round();
-    final newHeight = (originalImage.height * scale).round();
-    final resizedImage = img.copyResize(
-      originalImage,
-      width: newWidth,
-      height: newHeight,
-      interpolation: img.Interpolation.linear
-    );
-    
-    // Compress with different quality levels until we get desired size
-    int quality = 85; // Start with good quality
+
+    // Initial resize
+    var newWidth = (originalImage.width * scale).round();
+    var newHeight = (originalImage.height * scale).round();
+    var resizedImage = img.copyResize(originalImage,
+        width: newWidth,
+        height: newHeight,
+        interpolation: img.Interpolation.linear);
+
+    // Progressive compression
+    int quality = 92; // Start with higher quality
     Uint8List compressedData;
-    
+    int attempts = 0;
+
     do {
-      compressedData = Uint8List.fromList(img.encodeJpg(resizedImage, quality: quality));
-      quality = (quality * 0.8).round(); // Reduce quality by 20% each iteration
-    } while (compressedData.length > targetSize && quality > 20);
-    
+      compressedData =
+          Uint8List.fromList(img.encodeJpg(resizedImage, quality: quality));
+
+      // If size is still too large, try more aggressive compression
+      if (compressedData.length > targetSize && attempts < 3) {
+        quality = (quality * 0.7).round(); // More aggressive quality reduction
+        attempts++;
+      }
+      // If still too large after several attempts, reduce dimensions
+      else if (compressedData.length > targetSize) {
+        scale *= 0.7;
+        newWidth = (newWidth * 0.7).round();
+        newHeight = (newHeight * 0.7).round();
+        resizedImage = img.copyResize(originalImage,
+            width: newWidth,
+            height: newHeight,
+            interpolation: img.Interpolation.linear);
+        quality = 92; // Reset quality for the new size
+        attempts = 0;
+      }
+    } while (compressedData.length > targetSize &&
+        (newWidth > 300 || newHeight > 300));
+
+    print(
+        'Final image size: ${compressedData.length ~/ 1024}KB, Quality: $quality%, Dimensions: ${newWidth}x${newHeight}');
+
     return compressedData;
   }
 }
