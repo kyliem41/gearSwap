@@ -243,73 +243,45 @@ class _ProfilePageState extends State<ProfilePage>
         isLoading = true;
       });
 
-      try {
-        final reader = html.FileReader();
-        final completer = Completer<String>();
+      final reader = html.FileReader();
+      final completer = Completer<String>();
 
-        reader.onLoad.listen((event) {
-          final String result = reader.result as String;
-          // Get base64 part after the comma
-          final String base64String = result.split(',')[1];
-          completer.complete(base64String);
-        });
+      reader.onLoad.listen((event) {
+        final String result = reader.result as String;
+        final String base64String = result.split(',')[1]; // Remove the header.
+        completer.complete(base64String);
+      });
 
-        reader.readAsDataUrl(file);
+      reader.readAsDataUrl(file);
 
-        final String base64Data = await completer.future;
+      final String base64Data = await completer.future;
 
-        // Create request body matching the Lambda handler's expected structure
-        final Map<String, String> requestBody = {
-          'profilePicture': base64Data,
-          'content_type': file.type ?? 'image/jpeg'
-        };
+      // Prepare the request body.
+      final Map<String, String> requestBody = {
+        'profilePicture': base64Data.trim(),
+        'content_type': file.type ?? 'image/jpeg'
+      };
 
-        print(
-            'Sending request to: ${baseUrl}/userProfile/${userData!.id}/profilePicture');
+      final response = await http.put(
+        Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
+        headers: {
+          'Authorization': 'Bearer $_idToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(requestBody),
+      );
 
-        final response = await http.put(
-          Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
-          headers: {
-            'Authorization': 'Bearer $_idToken',
-            'Content-Type': 'application/json',
-          },
-          body: json.encode(requestBody),
-        );
-
-        print('Response status: ${response.statusCode}');
-        print('Response body: ${response.body}');
-
-        if (response.statusCode == 200) {
-          await _fetchUserProfile();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Profile picture updated successfully')),
-          );
-        } else {
-          String errorMessage;
-          try {
-            final errorData = json.decode(response.body);
-            errorMessage = errorData['error'] ?? 'Unknown error occurred';
-          } catch (_) {
-            errorMessage = response.body;
-          }
-          throw Exception('Failed to update profile picture: $errorMessage');
-        }
-      } catch (e) {
-        print('Error processing file: $e');
+      if (response.statusCode == 200) {
+        await _fetchUserProfile();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to process image: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Profile picture updated successfully')),
         );
+      } else {
+        throw Exception('Failed to update profile picture: ${response.body}');
       }
     } catch (e) {
-      print('Error updating profile picture: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update profile picture: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Failed to update profile picture: $e')),
       );
     } finally {
       setState(() {
