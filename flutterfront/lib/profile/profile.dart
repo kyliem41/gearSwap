@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
@@ -242,13 +244,16 @@ class _ProfilePageState extends State<ProfilePage>
       });
 
       final reader = html.FileReader();
-      reader.readAsDataUrl(file); // Changed to readAsDataUrl
+      reader.readAsArrayBuffer(file); // Changed to read as array buffer
 
-      await reader.onLoad.first;
-      String base64Image = reader.result as String;
+      var completer = Completer<String>();
+      reader.onLoad.listen((event) {
+        final bytes = (reader.result as Uint8List);
+        final base64String = base64Encode(bytes);
+        completer.complete(base64String);
+      });
 
-      // Extract just the base64 data, removing the data:image prefix
-      base64Image = base64Image.split(',')[1];
+      final base64Image = await completer.future;
 
       final response = await http.put(
         Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
@@ -256,7 +261,7 @@ class _ProfilePageState extends State<ProfilePage>
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
         },
-        body: json.encode({
+        body: jsonEncode({
           'profilePicture': base64Image,
           'content_type': file.type,
         }),
