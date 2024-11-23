@@ -76,20 +76,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('Full response data: ${json.encode(data)}');
 
-        // Debug post data
-        print('Raw post data: ${json.encode(data['post'])}');
-
-        if (data['post']['images'] != null) {
-          print('Number of images: ${data['post']['images'].length}');
-          if (data['post']['images'].isNotEmpty) {
-            final firstImage = data['post']['images'][0];
-            print('First image structure: ${json.encode(firstImage)}');
-            if (firstImage['data'] != null) {
-              print(
-                  'First image data length: ${firstImage['data'].toString().length}');
-            }
-          }
+        if (data['post']['images'] != null &&
+            data['post']['images'].isNotEmpty) {
+          print('First image raw data: ${data['post']['images'][0]}');
         }
 
         setState(() {
@@ -464,13 +455,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         !(post!['images'] is List) ||
         post!['images'].isEmpty) {
       print('No images available');
-      return Container(
-        height: 300,
-        color: Colors.grey[200],
-        child: const Center(
-          child: Icon(Icons.image, size: 100, color: Colors.grey),
-        ),
-      );
+      return _buildPlaceholder();
     }
 
     List<dynamic> images = post!['images'];
@@ -492,54 +477,76 @@ class _PostDetailPageState extends State<PostDetailPage> {
               final image = images[index];
               print('Building image at index $index');
 
-              // Skip null checks if the image object is malformed
               if (image == null) {
                 print('Null image at index $index');
                 return _buildPlaceholder();
               }
 
               try {
-                // Clean and validate the base64 string
                 String base64String = '';
                 if (image['data'] != null) {
-                  base64String = image['data'].toString().trim();
+                  base64String = image['data'].toString();
 
-                  // Remove any unwanted characters (whitespace, newlines)
+                  // Remove all whitespace and newlines
                   base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-                  base64String = base64String.replaceAll('\n', '');
 
-                  // Remove data URI prefix if present
-                  if (base64String.contains(';base64,')) {
-                    base64String = base64String.split(';base64,')[1];
+                  // Remove any non-base64 characters
+                  base64String =
+                      base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+                  // Split on commas and take the last part (in case there's a data URI prefix)
+                  if (base64String.contains(',')) {
+                    base64String = base64String.split(',').last;
                   }
 
-                  // Add padding if needed
-                  while (base64String.length % 4 != 0) {
-                    base64String += '=';
+                  // Add padding if missing
+                  int padLength = base64String.length % 4;
+                  if (padLength > 0) {
+                    base64String = base64String.padRight(
+                      base64String.length + (4 - padLength),
+                      '=',
+                    );
                   }
 
+                  print('Cleaned base64 string length: ${base64String.length}');
                   print(
-                      'Processed base64 string length: ${base64String.length}');
-                  print(
-                      'Base64 string preview: ${base64String.substring(0, min(50, base64String.length))}');
+                      'First 50 chars: ${base64String.substring(0, min(50, base64String.length))}');
 
                   try {
-                    final imageData = base64Decode(base64String);
+                    final imageBytes = base64Decode(base64String);
                     return Container(
                       width: MediaQuery.of(context).size.width,
                       child: Image.memory(
-                        imageData,
+                        imageBytes,
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {
                           print('Error displaying image: $error');
-                          return _buildErrorDisplay(
-                              'Error displaying image: $error');
+                          return _buildErrorDisplay('Error displaying image');
                         },
                       ),
                     );
                   } catch (e) {
-                    print('Base64 decode error: $e');
-                    return _buildErrorDisplay('Error decoding image data');
+                    print('Base64 decode error for image $index: $e');
+                    // Try an alternative decode method
+                    try {
+                      final codec = const Base64Codec();
+                      final imageBytes = codec.decode(base64String);
+                      return Container(
+                        width: MediaQuery.of(context).size.width,
+                        child: Image.memory(
+                          imageBytes,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            print(
+                                'Error displaying image (alternative method): $error');
+                            return _buildErrorDisplay('Error displaying image');
+                          },
+                        ),
+                      );
+                    } catch (e2) {
+                      print('Alternative decode method also failed: $e2');
+                      return _buildErrorDisplay('Error decoding image data');
+                    }
                   }
                 }
                 return _buildPlaceholder();
@@ -576,7 +583,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Widget _buildPlaceholder() {
     return Container(
-      width: double.infinity,
+      height: 300,
       color: Colors.grey[200],
       child: const Center(
         child: Icon(Icons.image, size: 100, color: Colors.grey),
@@ -584,23 +591,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Widget _buildErrorDisplay(String error) {
+  Widget _buildErrorDisplay(String message) {
     return Container(
-      width: double.infinity,
+      height: 300,
       color: Colors.grey[200],
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.error_outline, size: 50, color: Colors.red),
-            SizedBox(height: 16),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                error,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.red[700]),
-              ),
+            SizedBox(height: 8),
+            Text(
+              message,
+              style: TextStyle(color: Colors.red[700]),
             ),
           ],
         ),
