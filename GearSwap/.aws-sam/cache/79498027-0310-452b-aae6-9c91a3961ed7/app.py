@@ -192,10 +192,9 @@ def getUserProfile(event, context):
     user_id = event['pathParameters']['Id']
 
     get_query = """
-    SELECT *
-    FROM userProfile up
-    JOIN users u ON up.userId = u.id
-    WHERE up.userId = %s
+    SELECT profilePicture, profile_picture_content_type, bio, location
+    FROM userProfile
+    WHERE userId = %s
     """
     
     try:
@@ -205,6 +204,11 @@ def getUserProfile(event, context):
                 userProfile = cursor.fetchone()
 
         if userProfile:
+            # Encode binary data to base64
+            if userProfile['profilePicture']:
+                userProfile['profilePicture'] = f"data:{userProfile['profile_picture_content_type']};base64," + \
+                    base64.b64encode(userProfile['profilePicture']).decode('utf-8')
+
             return cors_response(200, {
                 "message": "UserProfile retrieved successfully",
                 "userProfile": userProfile
@@ -213,7 +217,6 @@ def getUserProfile(event, context):
             return cors_response(404, "UserProfile not found")
             
     except Exception as e:
-        print(f"Failed to get profile. Error: {str(e)}")
         return cors_response(500, f"Error getting profile: {str(e)}")
 
 ############
@@ -319,31 +322,24 @@ def updateProfilePicture(event, context):
         if content_type not in ALLOWED_CONTENT_TYPES:
             return cors_response(400, {'error': f'Invalid content type. Allowed types: {ALLOWED_CONTENT_TYPES}'})
         
-        # Clean up base64 data
-        base64_data = base64_data.strip().replace('\n', '').replace('\r', '')
-        if len(base64_data) % 4 != 0:
-            base64_data += '=' * (4 - len(base64_data) % 4)
-
+        # Decode base64 into binary
         try:
-            decoded_image = base64.b64decode(base64_data)
+            decoded_image = base64.b64decode(base64_data.strip())
             if len(decoded_image) > MAX_FILE_SIZE:
                 return cors_response(400, {'error': 'Image size exceeds maximum allowed size'})
         except Exception as e:
             return cors_response(400, {'error': f'Invalid base64 image data: {str(e)}'})
 
-        # Format full image data string
-        full_image_data = f'data:{content_type};base64,{base64_data}'
-
-        # Update the database
+        # Update the database with the binary data
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 update_query = """
                 UPDATE userProfile
-                SET profilePicture = %s
+                SET profilePicture = %s, profile_picture_content_type = %s
                 WHERE userId = %s
                 RETURNING id, userId, profilePicture;
                 """
-                cursor.execute(update_query, (full_image_data, user_id))
+                cursor.execute(update_query, (psycopg2.Binary(decoded_image), content_type, user_id))
                 updated_profile = cursor.fetchone()
                 conn.commit()
 

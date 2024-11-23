@@ -392,45 +392,18 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildProfileImage() {
-    try {
-      if (userData?.profilePicture != null) {
-        // Handle the base64 string
-        String imageData = userData!.profilePicture!;
-
-        // Remove header if it exists
-        if (imageData.contains(',')) {
-          imageData = imageData.split(',')[1];
-        }
-
-        // Clean up the base64 string
-        imageData = imageData.trim().replaceAll(RegExp(r'[\n\r\s]'), '');
-
-        // Add padding if needed
-        while (imageData.length % 4 != 0) {
-          imageData += '=';
-        }
-
-        try {
-          return Image.memory(
-            base64Decode(imageData),
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            errorBuilder: (context, error, stackTrace) {
-              print('Error loading profile image: $error');
-              return _buildDefaultAvatar();
-            },
-          );
-        } catch (e) {
-          print('Error decoding base64: $e');
+    if (userData?.profilePicture != null) {
+      return Image.network(
+        userData!.profilePicture!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
           return _buildDefaultAvatar();
-        }
-      }
-      return _buildDefaultAvatar();
-    } catch (e) {
-      print('Error in _buildProfileImage: $e');
-      return _buildDefaultAvatar();
+        },
+      );
     }
+    return _buildDefaultAvatar();
   }
 
   @override
