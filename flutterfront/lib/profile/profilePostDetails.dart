@@ -46,23 +46,89 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Future<void> _initialize() async {
-    baseUrl = await ConfigUtils.getBaseUrl();
-    await _loadUserId();
-    await _loadPostDetails();
-    await _verifyCurrentUser();
+    try {
+      baseUrl = await ConfigUtils.getBaseUrl();
+      await _loadUserData(); // Load user data first
+      if (userId != null) {
+        // Only load post details if we have a user
+        await _loadPostDetails();
+        await _verifyCurrentUser();
+      } else {
+        print('No user ID available');
+        setState(() {
+          hasError = true;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Initialization error: $e');
+      setState(() {
+        hasError = true;
+        isLoading = false;
+      });
+    }
   }
 
+  Future<void> _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userString = prefs.getString('user');
+
+      print('Raw user string from prefs: $userString'); // Debug log
+
+      if (userString != null) {
+        final userData = json.decode(userString);
+        setState(() {
+          userId = userData['id'].toString();
+        });
+        print('User ID loaded: $userId');
+      } else {
+        print('No user data found in SharedPreferences');
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+      throw Exception('Failed to load user data: $e');
+    }
+  }
+
+  bool get isCurrentUserPost =>
+      userId != null && post != null && post!['userid'].toString() == userId;
+
   Future<void> _verifyCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final storedUserId = prefs.getString('userId');
-    print('Current user ID from storage: $storedUserId');
-    if (post != null) {
-      print('Post user ID: ${post!['userId']}');
+    try {
+      if (post == null) {
+        print('Post data not available for verification');
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final userString = prefs.getString('user');
+
+      if (userString != null) {
+        final userData = json.decode(userString);
+        final currentUserId = userData['id'].toString();
+        final postUserId = post!['userid'].toString();
+
+        print('Verifying user access:');
+        print('Current user ID: $currentUserId');
+        print('Post user ID: $postUserId');
+
+        // Store whether this post belongs to the current user
+        setState(() {
+          isCurrentUserPost = currentUserId == postUserId;
+        });
+      }
+    } catch (e) {
+      print('Error verifying current user: $e');
     }
   }
 
   Future<void> _loadPostDetails() async {
-    if (baseUrl == null) return;
+    if (baseUrl == null || widget.postId == null) {
+      print(
+          'Missing required data - baseUrl: $baseUrl, postId: ${widget.postId}');
+      return;
+    }
 
     setState(() {
       isLoading = true;
@@ -77,9 +143,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         throw Exception('No authentication token found');
       }
 
-      print('Loading details for post ${widget.postId}');
       final url = Uri.parse('$baseUrl/posts/${widget.postId}');
-      print('Requesting URL: $url');
+      print('Loading post details from URL: $url');
 
       final response = await http.get(
         url,
@@ -89,37 +154,22 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         },
       );
 
-      print('Response status code: ${response.statusCode}');
+      print('Post details response status: ${response.statusCode}');
+      print('Post details response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('Raw response data: ${json.encode(data)}');
-
-        if (data['post']['images'] != null) {
-          print(
-              'Number of images in response: ${data['post']['images'].length}');
-          if (data['post']['images'].isNotEmpty) {
-            final firstImage = data['post']['images'][0];
-            print('First image structure: ${json.encode(firstImage)}');
-            if (firstImage['data'] != null) {
-              print(
-                  'First image data length: ${firstImage['data'].toString().length}');
-            }
-          }
-        }
-
         setState(() {
           post = data['post'];
           isLoading = false;
         });
         print(
-            'Post loaded. Post user ID: ${post!['userid']}, Current user ID: $userId');
+            'Post loaded successfully. Post ID: ${post!['id']}, User ID: ${post!['userid']}');
       } else {
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('Error loading post details: $e');
-      print('Stack trace: $stackTrace');
       setState(() {
         hasError = true;
         isLoading = false;
@@ -133,34 +183,34 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     );
   }
 
-  Future<void> _loadUserId() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userStr = prefs.getString('user');
-      final idToken = prefs.getString('idToken');
+  // Future<void> _loadUserId() async {
+  //   try {
+  //     final prefs = await SharedPreferences.getInstance();
+  //     final userStr = prefs.getString('user');
+  //     final idToken = prefs.getString('idToken');
 
-      print('User string: $userStr');
-      print('ID token available: ${idToken != null}');
+  //     print('User string: $userStr');
+  //     print('ID token available: ${idToken != null}');
 
-      if (userStr == null || idToken == null) {
-        throw Exception('No authentication data found');
-      }
+  //     if (userStr == null || idToken == null) {
+  //       throw Exception('No authentication data found');
+  //     }
 
-      final userData = json.decode(userStr);
-      final loadedUserId = userData['id']?.toString();
+  //     final userData = json.decode(userStr);
+  //     final loadedUserId = userData['id']?.toString();
 
-      print('Loaded user ID from preferences: $loadedUserId');
+  //     print('Loaded user ID from preferences: $loadedUserId');
 
-      setState(() {
-        userId = loadedUserId;
-      });
-    } catch (e) {
-      print('Error loading user ID: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading user data')),
-      );
-    }
-  }
+  //     setState(() {
+  //       userId = loadedUserId;
+  //     });
+  //   } catch (e) {
+  //     print('Error loading user ID: $e');
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text('Error loading user data')),
+  //     );
+  //   }
+  // }
 
   Future<void> _checkIfPostLiked() async {
     if (baseUrl == null) return;
