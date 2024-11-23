@@ -298,7 +298,15 @@ def deleteUserProfile(event, context):
 ##########
 # IMAGES
 def updateProfilePicture(event, context):
+    MAX_PAYLOAD_SIZE = 6 * 1024 * 1024
+    
     try:
+        body_size = len(event['body']) if isinstance(event['body'], str) else len(json.dumps(event['body']))
+        if body_size > MAX_PAYLOAD_SIZE:
+            return cors_response(413, {
+                'error': f'Request payload size ({body_size} bytes) exceeds maximum allowed size ({MAX_PAYLOAD_SIZE} bytes)'
+            })
+            
         user_id = event['pathParameters']['Id']
         
         # Ensure body exists and is properly formatted

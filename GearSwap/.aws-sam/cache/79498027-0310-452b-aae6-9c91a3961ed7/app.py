@@ -298,11 +298,16 @@ def deleteUserProfile(event, context):
 ##########
 # IMAGES
 def updateProfilePicture(event, context):
+    MAX_PAYLOAD_SIZE = 6 * 1024 * 1024
+    
     try:
+        body_size = len(event['body']) if isinstance(event['body'], str) else len(json.dumps(event['body']))
+        if body_size > MAX_PAYLOAD_SIZE:
+            return cors_response(413, {
+                'error': f'Request payload size ({body_size} bytes) exceeds maximum allowed size ({MAX_PAYLOAD_SIZE} bytes)'
+            })
+            
         user_id = event['pathParameters']['Id']
-        
-        # Debug logging
-        print("Received event:", json.dumps(event, indent=2))
         
         # Ensure body exists and is properly formatted
         if 'body' not in event:
@@ -310,15 +315,10 @@ def updateProfilePicture(event, context):
             
         # Parse body
         try:
-            if isinstance(event['body'], str):
-                body = json.loads(event['body'])
-            else:
-                body = event['body']
+            body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
         except json.JSONDecodeError as e:
             print("JSON Decode Error:", str(e))
             return cors_response(400, {'error': f'Invalid JSON format: {str(e)}'})
-            
-        print("Parsed body:", json.dumps(body, indent=2))
         
         profile_picture = body.get('profilePicture')
         content_type = body.get('content_type')
@@ -334,8 +334,18 @@ def updateProfilePicture(event, context):
                 'error': f'Invalid content type. Allowed types: {ALLOWED_CONTENT_TYPES}'
             })
             
-        # Validate image size
+        # Validate base64 data
         try:
+            # Remove any potential data URI prefix
+            if ',' in profile_picture:
+                profile_picture = profile_picture.split(',')[1]
+                
+            # Clean the base64 string
+            profile_picture = profile_picture.strip()
+            profile_picture = profile_picture.replace('\n', '')
+            profile_picture = profile_picture.replace('\r', '')
+            
+            # Validate decoded size
             decoded_data = base64.b64decode(profile_picture)
             if len(decoded_data) > MAX_FILE_SIZE:
                 return cors_response(400, {
@@ -346,7 +356,7 @@ def updateProfilePicture(event, context):
             return cors_response(400, {'error': f'Invalid image data: {str(e)}'})
 
         update_query = """
-        UPDATE userProfile
+        UPDATE userProfile 
         SET profilePicture = %s
         WHERE userId = %s
         RETURNING id, userId, profilePicture;

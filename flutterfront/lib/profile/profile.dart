@@ -220,78 +220,97 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Future<void> _updateProfilePicture() async {
-    if (baseUrl == null || _idToken == null || userData == null) return;
+  if (baseUrl == null || _idToken == null || userData == null) return;
 
-    try {
-      final input = html.FileUploadInputElement()..accept = 'image/*';
-      input.click();
+  try {
+    final input = html.FileUploadInputElement()..accept = 'image/*';
+    input.click();
 
-      await input.onChange.first;
-      if (input.files?.isEmpty ?? true) return;
+    await input.onChange.first;
+    if (input.files?.isEmpty ?? true) return;
 
-      final file = input.files!.first;
+    final file = input.files!.first;
 
-      // Validate file size (5MB limit)
-      if (file.size! > 5 * 1024 * 1024) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Image size must be less than 5MB')),
-        );
-        return;
-      }
-
-      setState(() {
-        isLoading = true;
-      });
-
-      final reader = html.FileReader();
-      reader.readAsArrayBuffer(file); // Changed to read as array buffer
-
-      var completer = Completer<String>();
-      reader.onLoad.listen((event) {
-        final bytes = (reader.result as Uint8List);
-        final base64String = base64Encode(bytes);
-        completer.complete(base64String);
-      });
-
-      final base64Image = await completer.future;
-
-      final response = await http.put(
-        Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
-        headers: {
-          'Authorization': 'Bearer $_idToken',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'profilePicture': base64Image,
-          'content_type': file.type,
-        }),
-      );
-
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        await _fetchUserProfile();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profile picture updated successfully')),
-        );
-      } else {
-        throw Exception('Failed to update profile picture: ${response.body}');
-      }
-    } catch (e) {
-      print('Error updating profile picture: $e');
+    // Validate file size (5MB limit)
+    if (file.size! > 5 * 1024 * 1024) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update profile picture: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Image size must be less than 5MB')),
       );
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
+      return;
     }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    // Create a completer to handle the async file reading
+    final completer = Completer<String>();
+    final reader = html.FileReader();
+    
+    reader.onLoadEnd.listen((event) {
+      if (reader.readyState == html.FileReader.DONE) {
+        // Extract the base64 data after the comma
+        final String result = reader.result as String;
+        final String base64Image = result.split(',')[1];
+        completer.complete(base64Image);
+      }
+    });
+
+    // Read the file as data URL
+    reader.readAsDataUrl(file);
+    
+    // Wait for the file to be read
+    final String base64Image = await completer.future;
+
+    // Print debug information
+    print('Original base64 string length: ${base64Image.length}');
+    print('Base64 string starts with: ${base64Image.substring(0, min(50, base64Image.length))}');
+
+    // Prepare the request body
+    final Map<String, dynamic> requestBody = {
+      'profilePicture': base64Image.trim(),
+      'content_type': file.type,
+    };
+
+    // Verify the JSON encoding
+    final String jsonBody = json.encode(requestBody);
+    print('Request body length: ${jsonBody.length}');
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
+      headers: {
+        'Authorization': 'Bearer $_idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonBody,
+    );
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      await _fetchUserProfile();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profile picture updated successfully')),
+      );
+    } else {
+      final errorMessage = json.decode(response.body)['error'] ?? 'Unknown error occurred';
+      throw Exception('Failed to update profile picture: $errorMessage');
+    }
+  } catch (e) {
+    print('Error updating profile picture: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to update profile picture: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  } finally {
+    setState(() {
+      isLoading = false;
+    });
   }
+}
 
   Widget _buildProfilePicture() {
     return MouseRegion(
