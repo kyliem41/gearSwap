@@ -298,54 +298,50 @@ def deleteUserProfile(event, context):
 ##########
 # IMAGES
 def updateProfilePicture(event, context):
-    MAX_PAYLOAD_SIZE = 6 * 1024 * 1024
-    
     try:
-        body_size = len(event['body']) if isinstance(event['body'], str) else len(json.dumps(event['body']))
-        if body_size > MAX_PAYLOAD_SIZE:
-            return cors_response(413, {
-                'error': f'Request payload size ({body_size} bytes) exceeds maximum allowed size ({MAX_PAYLOAD_SIZE} bytes)'
-            })
-            
         user_id = event['pathParameters']['Id']
         
-        # Ensure body exists and is properly formatted
-        if 'body' not in event:
+        # Ensure body exists
+        if not event.get('body'):
             return cors_response(400, {'error': 'Missing request body'})
-            
-        # Parse body
+        
+        # Parse the body carefully
         try:
-            body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
+            if isinstance(event['body'], str):
+                body = json.loads(event['body'])
+            else:
+                body = event['body']
         except json.JSONDecodeError as e:
             print("JSON Decode Error:", str(e))
-            return cors_response(400, {'error': f'Invalid JSON format: {str(e)}'})
+            print("Received body:", event['body'][:100] if isinstance(event['body'], str) else "non-string body")
+            return cors_response(400, {'error': 'Invalid JSON format in request body'})
         
-        profile_picture = body.get('profilePicture')
-        content_type = body.get('content_type')
+        # Validate required fields
+        if 'profilePicture' not in body or 'content_type' not in body:
+            return cors_response(400, {'error': 'Missing required fields: profilePicture and content_type'})
         
-        if not profile_picture:
-            return cors_response(400, {'error': 'Missing profile picture data'})
-            
-        if not content_type:
-            return cors_response(400, {'error': 'Missing content type'})
-            
+        profile_picture = body['profilePicture']
+        content_type = body['content_type']
+        
+        # Validate content type
         if content_type not in ALLOWED_CONTENT_TYPES:
             return cors_response(400, {
                 'error': f'Invalid content type. Allowed types: {ALLOWED_CONTENT_TYPES}'
             })
-            
-        # Validate base64 data
+        
+        # Clean and validate base64 data
         try:
-            # Remove any potential data URI prefix
-            if ',' in profile_picture:
-                profile_picture = profile_picture.split(',')[1]
-                
             # Clean the base64 string
             profile_picture = profile_picture.strip()
             profile_picture = profile_picture.replace('\n', '')
             profile_picture = profile_picture.replace('\r', '')
             
-            # Validate decoded size
+            # Add padding if needed
+            padding = len(profile_picture) % 4
+            if padding:
+                profile_picture += '=' * (4 - padding)
+            
+            # Test decode
             decoded_data = base64.b64decode(profile_picture)
             if len(decoded_data) > MAX_FILE_SIZE:
                 return cors_response(400, {
@@ -353,8 +349,9 @@ def updateProfilePicture(event, context):
                 })
         except Exception as e:
             print("Base64 decode error:", str(e))
-            return cors_response(400, {'error': f'Invalid image data: {str(e)}'})
+            return cors_response(400, {'error': 'Invalid base64 image data'})
 
+        # Update the profile picture
         update_query = """
         UPDATE userProfile 
         SET profilePicture = %s
