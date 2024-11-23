@@ -8,7 +8,6 @@ import 'package:sample/profile/sellerProfile.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:typed_data';
 import 'dart:math';
 
 class PostDetailPage extends StatefulWidget {

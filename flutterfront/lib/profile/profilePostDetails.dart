@@ -8,6 +8,7 @@ import 'package:sample/profile/sellerProfile.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math';
 
 class ProfilePostDetailPage extends StatefulWidget {
   final String postId;
@@ -29,11 +30,19 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   String? userId;
   String? baseUrl;
   TextEditingController messageController = TextEditingController();
+  int _currentImageIndex = 0;
+  PageController _pageController = PageController();
 
   @override
   void initState() {
     super.initState();
     _initialize();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _initialize() async {
@@ -69,9 +78,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       }
 
       print('Loading details for post ${widget.postId}');
-
       final url = Uri.parse('$baseUrl/posts/${widget.postId}');
-
       print('Requesting URL: $url');
 
       final response = await http.get(
@@ -83,10 +90,24 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       );
 
       print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('Raw response data: ${json.encode(data)}');
+
+        if (data['post']['images'] != null) {
+          print(
+              'Number of images in response: ${data['post']['images'].length}');
+          if (data['post']['images'].isNotEmpty) {
+            final firstImage = data['post']['images'][0];
+            print('First image structure: ${json.encode(firstImage)}');
+            if (firstImage['data'] != null) {
+              print(
+                  'First image data length: ${firstImage['data'].toString().length}');
+            }
+          }
+        }
+
         setState(() {
           post = data['post'];
           isLoading = false;
@@ -96,8 +117,9 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       } else {
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error loading post details: $e');
+      print('Stack trace: $stackTrace');
       setState(() {
         hasError = true;
         isLoading = false;
@@ -448,61 +470,138 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Widget _buildPhotoSection() {
-    if (post?['photos'] == null || post!['photos'].isEmpty) {
-      return Container(
-        height: 300,
-        color: Colors.grey[200],
-        child: const Center(
-          child: Icon(Icons.image, size: 100, color: Colors.grey),
+    if (post == null ||
+        post!['images'] == null ||
+        !(post!['images'] is List) ||
+        post!['images'].isEmpty) {
+      print('No images available');
+      return _buildPlaceholder();
+    }
+
+    List<dynamic> images = post!['images'];
+    print('Number of images: ${images.length}');
+
+    return Column(
+      children: [
+        Container(
+          height: 300,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentImageIndex = index;
+              });
+            },
+            itemCount: images.length,
+            itemBuilder: (context, index) {
+              final image = images[index];
+              print('Building image at index $index');
+
+              if (image == null) {
+                print('Null image at index $index');
+                return _buildPlaceholder();
+              }
+
+              try {
+                String base64String = '';
+                if (image['data'] != null) {
+                  base64String = image['data'].toString();
+
+                  // Clean up base64 string
+                  base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+                  base64String =
+                      base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+                  if (base64String.contains(',')) {
+                    base64String = base64String.split(',').last;
+                  }
+
+                  // Add padding if needed
+                  int padLength = base64String.length % 4;
+                  if (padLength > 0) {
+                    base64String = base64String.padRight(
+                      base64String.length + (4 - padLength),
+                      '=',
+                    );
+                  }
+
+                  try {
+                    final imageBytes = base64Decode(base64String);
+                    return Container(
+                      width: MediaQuery.of(context).size.width,
+                      child: Image.memory(
+                        imageBytes,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          print('Error displaying image: $error');
+                          return _buildErrorDisplay('Error displaying image');
+                        },
+                      ),
+                    );
+                  } catch (e) {
+                    print('Base64 decode error for image $index: $e');
+                    return _buildErrorDisplay('Error decoding image data');
+                  }
+                }
+                return _buildPlaceholder();
+              } catch (e) {
+                print('Error processing image at index $index: $e');
+                return _buildErrorDisplay('Error processing image');
+              }
+            },
+          ),
         ),
-      );
-    }
-
-    List<dynamic> photoList = [];
-    if (post!['photos'] is String) {
-      photoList.add(post!['photos']);
-    } else if (post!['photos'] is List) {
-      photoList = post!['photos'];
-    }
-
-    if (photoList.isEmpty) {
-      return Container(
-        height: 300,
-        color: Colors.grey[200],
-        child: const Center(
-          child: Icon(Icons.image, size: 100, color: Colors.grey),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 300,
-      child: PageView.builder(
-        itemCount: photoList.length,
-        itemBuilder: (context, index) {
-          final photo = photoList[index];
-          if (photo is! String || !Uri.tryParse(photo)!.hasScheme ?? true) {
-            return Container(
-              width: MediaQuery.of(context).size.width,
-              color: Colors.grey[200],
-              child: const Center(
-                child: Icon(Icons.image, size: 100, color: Colors.grey),
-              ),
-            );
-          }
-
-          return Image.network(
-            photo,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Container(
-              width: MediaQuery.of(context).size.width,
-              color: Colors.grey[200],
-              child: const Center(
-                child: Icon(Icons.image, size: 100, color: Colors.grey),
+        if (images.length > 1) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              images.length,
+              (index) => Container(
+                width: 8.0,
+                height: 8.0,
+                margin: EdgeInsets.symmetric(horizontal: 4.0),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentImageIndex == index
+                      ? Colors.deepOrange
+                      : Colors.grey,
+                ),
               ),
             ),
-          );
-        },
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      height: 300,
+      color: Colors.grey[200],
+      child: const Center(
+        child: Icon(Icons.image, size: 100, color: Colors.grey),
+      ),
+    );
+  }
+
+  Widget _buildErrorDisplay(String message) {
+    return Container(
+      height: 300,
+      color: Colors.grey[200],
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 50, color: Colors.red),
+            SizedBox(height: 8),
+            Text(
+              message,
+              style: TextStyle(color: Colors.red[700]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
