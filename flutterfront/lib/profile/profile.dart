@@ -248,7 +248,8 @@ class _ProfilePageState extends State<ProfilePage>
 
       reader.onLoad.listen((event) {
         final String result = reader.result as String;
-        final String base64String = result.split(',')[1]; // Remove the header.
+        final String base64String =
+            result.split(',')[1]; // Remove the data URI header.
         completer.complete(base64String);
       });
 
@@ -256,9 +257,18 @@ class _ProfilePageState extends State<ProfilePage>
 
       final String base64Data = await completer.future;
 
-      // Prepare the request body.
-      final Map<String, String> requestBody = {
-        'profilePicture': base64Data.trim(),
+      // Clean and validate the base64 string
+      final cleanedBase64Data =
+          base64Data.trim().replaceAll(RegExp(r'\s+'), '');
+      final int padding = cleanedBase64Data.length % 4;
+      final paddedBase64Data = padding > 0
+          ? cleanedBase64Data.padRight(
+              cleanedBase64Data.length + (4 - padding), '=')
+          : cleanedBase64Data;
+
+      // Prepare the request body
+      final Map<String, dynamic> requestBody = {
+        'profilePicture': paddedBase64Data,
         'content_type': file.type ?? 'image/jpeg'
       };
 
@@ -268,7 +278,7 @@ class _ProfilePageState extends State<ProfilePage>
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
         },
-        body: json.encode(requestBody),
+        body: json.encode(requestBody), // Properly serialize to JSON
       );
 
       if (response.statusCode == 200) {
