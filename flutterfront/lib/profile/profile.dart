@@ -243,60 +243,72 @@ class _ProfilePageState extends State<ProfilePage>
         isLoading = true;
       });
 
-      // Create a completer to handle the async file reading
-      final completer = Completer<String>();
-      final reader = html.FileReader();
+      try {
+        // Read file as data URL
+        final reader = html.FileReader();
+        final completer = Completer<String>();
 
-      reader.onLoadEnd.listen((event) async {
-        try {
-          if (reader.readyState == html.FileReader.DONE) {
-            final Uint8List bytes = reader.result as Uint8List;
-            final String base64String = base64Encode(bytes);
-            completer.complete(base64String);
-          }
-        } catch (e) {
-          completer.completeError(e);
-        }
-      });
+        reader.onLoad.listen((event) {
+          final String result = reader.result as String;
+          // The result contains the full data URL, we only want the base64 part
+          final String base64String = result.split(',')[1];
+          completer.complete(base64String);
+        });
 
-      reader.readAsArrayBuffer(file);
+        reader.readAsDataUrl(file);
 
-      final String base64Image = await completer.future;
+        final String base64Data = await completer.future;
 
-      print('Original base64 string length: ${base64Image.length}');
+        // Prepare request body
+        final Map<String, dynamic> requestBody = {
+          'data': [
+            {'data': base64Data, 'content_type': file.type ?? 'image/jpeg'}
+          ]
+        };
 
-      // Create request body similar to the posts structure
-      final Map<String, dynamic> requestBody = {
-        'profilePicture': base64Image.trim(),
-        'content_type': file.type ?? 'image/jpeg'
-      };
-
-      final response = await http.put(
-        Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
-        headers: {
+        print(
+            'Sending request to: ${baseUrl}/userProfile/${userData!.id}/profilePicture');
+        print('Request headers: ${{
           'Authorization': 'Bearer $_idToken',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(requestBody),
-      );
+          'Content-Type': 'application/json'
+        }}');
+        print('Request body structure: ${jsonEncode(requestBody)}');
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        await _fetchUserProfile();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profile picture updated successfully')),
+        final response = await http.put(
+          Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
+          headers: {
+            'Authorization': 'Bearer $_idToken',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(requestBody),
         );
-      } else {
-        String errorMessage;
-        try {
-          final errorData = json.decode(response.body);
-          errorMessage = errorData['error'] ?? 'Unknown error occurred';
-        } catch (_) {
-          errorMessage = response.body;
+
+        print('Response status: ${response.statusCode}');
+        print('Response body: ${response.body}');
+
+        if (response.statusCode == 200) {
+          await _fetchUserProfile();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Profile picture updated successfully')),
+          );
+        } else {
+          String errorMessage;
+          try {
+            final errorData = json.decode(response.body);
+            errorMessage = errorData['error'] ?? 'Unknown error occurred';
+          } catch (_) {
+            errorMessage = response.body;
+          }
+          throw Exception('Failed to update profile picture: $errorMessage');
         }
-        throw Exception('Failed to update profile picture: $errorMessage');
+      } catch (e) {
+        print('Error processing file: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to process image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       print('Error updating profile picture: $e');
