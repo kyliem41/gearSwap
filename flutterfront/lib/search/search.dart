@@ -248,7 +248,6 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _performSearch(String query) async {
-    // Validate query before sending
     final trimmedQuery = query.trim();
     if (trimmedQuery.isEmpty) {
       print('Empty search query, skipping search');
@@ -280,19 +279,18 @@ class _SearchPageState extends State<SearchPage> {
       if (response.statusCode == 201) {
         var data = json.decode(response.body);
         print('Search response: ${response.body}');
+
+        // Ensure we're getting the posts array correctly
+        var posts = data['posts'] ?? [];
+
         setState(() {
-          searchResults = data['posts'] ?? [];
+          searchResults = posts;
           isLoading = false;
         });
-        // Only reload recent searches if the search was successful
+
         _loadRecentSearches();
-      } else if (response.statusCode == 400) {
-        print('Invalid search query: ${response.body}');
-        setState(() {
-          isLoading = false;
-        });
       } else {
-        throw Exception('Failed to perform search: ${response.body}');
+        throw Exception('Failed to perform search: ${response.statusCode}');
       }
     } catch (e) {
       print('Error performing search: $e');
@@ -332,9 +330,11 @@ class _SearchPageState extends State<SearchPage> {
       final data = json.decode(response.body);
       if (data['images'] != null &&
           data['images'] is List &&
-          data['images'].isNotEmpty &&
-          data['images'][0]['data'] != null) {
-        return base64Decode(data['images'][0]['data']);
+          data['images'].isNotEmpty) {
+        var imageData = data['images'][0];
+        if (imageData is Map && imageData.containsKey('data')) {
+          return base64Decode(imageData['data']);
+        }
       }
     }
     throw Exception('Failed to load image: ${response.statusCode}');
@@ -345,60 +345,74 @@ class _SearchPageState extends State<SearchPage> {
       print('Post ID: ${post['id']}');
       print('Images data: ${post['images']}');
 
-      if (post['images'] != null &&
-          post['images'] is List &&
-          post['images'].isNotEmpty &&
-          post['images'][0] != null &&
-          post['images'][0]['data'] != null) {
-        String base64String = post['images'][0]['data'];
-        base64String = base64String.trim();
-        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+      // Check for new image format in search response
+      if (post['images'] is List && post['images'].isNotEmpty) {
+        var imageData = post['images'][0];
+        if (imageData is Map && imageData.containsKey('data')) {
+          String base64String = imageData['data'];
+          base64String = base64String.trim();
+          base64String = base64String.replaceAll(RegExp(r'\s+'), '');
 
-        while (base64String.length % 4 != 0) {
-          base64String += '=';
-        }
+          while (base64String.length % 4 != 0) {
+            base64String += '=';
+          }
 
-        try {
-          final Uint8List imageBytes = base64Decode(base64String);
+          try {
+            final Uint8List imageBytes = base64Decode(base64String);
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              child: Image.memory(
+                imageBytes,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error displaying image: $error');
+                  return _buildPlaceholder();
+                },
+              ),
+            );
+          } catch (e) {
+            print('Error decoding base64 for post ${post['id']}: $e');
+            return _buildPlaceholder();
+          }
+        } else if (imageData is String) {
+          // Handle direct URL case
           return Container(
             width: double.infinity,
             height: double.infinity,
-            child: Image.memory(
-              imageBytes,
+            child: Image.network(
+              imageData,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
-                print('Error displaying image: $error');
+                print('Error displaying image URL: $error');
                 return _buildPlaceholder();
               },
             ),
           );
-        } catch (e) {
-          print('Error decoding base64 for post ${post['id']}: $e');
-          return _buildPlaceholder();
         }
-      } else {
-        print('No image data available for post ${post['id']}');
-        return FutureBuilder<Uint8List>(
-          future: _loadImageData(post['id'].toString()),
-          builder: (context, AsyncSnapshot<Uint8List> snapshot) {
-            if (snapshot.hasData) {
-              return Container(
-                width: double.infinity,
-                height: double.infinity,
-                child: Image.memory(
-                  snapshot.data!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    print('Error displaying loaded image: $error');
-                    return _buildPlaceholder();
-                  },
-                ),
-              );
-            }
-            return _buildPlaceholder();
-          },
-        );
       }
+
+      // If no immediate image data, try loading it separately
+      return FutureBuilder<Uint8List>(
+        future: _loadImageData(post['id'].toString()),
+        builder: (context, AsyncSnapshot<Uint8List> snapshot) {
+          if (snapshot.hasData) {
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              child: Image.memory(
+                snapshot.data!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error displaying loaded image: $error');
+                  return _buildPlaceholder();
+                },
+              ),
+            );
+          }
+          return _buildPlaceholder();
+        },
+      );
     } catch (e) {
       print('Error in _buildPostImage for post ${post['id']}: $e');
       return _buildPlaceholder();
