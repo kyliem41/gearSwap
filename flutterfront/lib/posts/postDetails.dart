@@ -447,7 +447,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _buildPhotoSection() {
-    if (post == null || post!['images'] == null || post!['images'].isEmpty) {
+    if (post == null ||
+        post!['images'] == null ||
+        !(post!['images'] is List) ||
+        post!['images'].isEmpty) {
+      print('No images available'); // Debug log
       return Container(
         height: 300,
         color: Colors.grey[200],
@@ -458,6 +462,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
 
     List<dynamic> images = post!['images'];
+    print('Number of images: ${images.length}'); // Debug log
 
     return Column(
       children: [
@@ -473,24 +478,56 @@ class _PostDetailPageState extends State<PostDetailPage> {
             itemCount: images.length,
             itemBuilder: (context, index) {
               final image = images[index];
+              print('Building image at index $index'); // Debug log
+              print(
+                  'Image data: ${image['data']?.substring(0, 50)}...'); // Debug first 50 chars
+
               if (image != null && image['data'] != null) {
-                return Container(
-                  width: MediaQuery.of(context).size.width,
-                  child: Image.memory(
-                    base64Decode(image['data']),
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      print('Error loading image: $error');
-                      return Container(
-                        color: Colors.grey[200],
-                        child: const Center(
-                          child:
+                String base64String = image['data'];
+
+                // Remove data URI prefix if present
+                if (base64String.contains(';base64,')) {
+                  base64String = base64String.split(';base64,')[1];
+                }
+
+                try {
+                  final imageData = base64Decode(base64String);
+                  return Container(
+                    width: MediaQuery.of(context).size.width,
+                    child: Image.memory(
+                      imageData,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Error loading image: $error');
+                        return Container(
+                          color: Colors.grey[200],
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
                               Icon(Icons.error, size: 50, color: Colors.grey),
-                        ),
-                      );
-                    },
-                  ),
-                );
+                              Text('Error loading image: $error'),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                } catch (e) {
+                  print('Error decoding base64: $e');
+                  return Container(
+                    width: MediaQuery.of(context).size.width,
+                    color: Colors.grey[200],
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error, size: 50, color: Colors.red),
+                          Text('Error decoding image'),
+                        ],
+                      ),
+                    ),
+                  );
+                }
               } else {
                 return Container(
                   width: MediaQuery.of(context).size.width,
