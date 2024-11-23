@@ -244,13 +244,12 @@ class _ProfilePageState extends State<ProfilePage>
       });
 
       try {
-        // Read file as data URL
         final reader = html.FileReader();
         final completer = Completer<String>();
 
         reader.onLoad.listen((event) {
           final String result = reader.result as String;
-          // The result contains the full data URL, we only want the base64 part
+          // Get base64 part after the comma
           final String base64String = result.split(',')[1];
           completer.complete(base64String);
         });
@@ -259,20 +258,18 @@ class _ProfilePageState extends State<ProfilePage>
 
         final String base64Data = await completer.future;
 
-        // Prepare request body
-        final Map<String, dynamic> requestBody = {
-          'data': [
-            {'data': base64Data, 'content_type': file.type ?? 'image/jpeg'}
-          ]
+        // Create request body
+        final Map<String, String> requestBody = {
+          'profilePicture': base64Data,
+          'content_type': file.type ?? 'image/jpeg'
         };
 
         print(
             'Sending request to: ${baseUrl}/userProfile/${userData!.id}/profilePicture');
-        print('Request headers: ${{
-          'Authorization': 'Bearer $_idToken',
-          'Content-Type': 'application/json'
-        }}');
-        print('Request body structure: ${jsonEncode(requestBody)}');
+
+        // Create the JSON string
+        final String jsonBody = json.encode(requestBody);
+        print('JSON body length: ${jsonBody.length}');
 
         final response = await http.put(
           Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
@@ -280,7 +277,7 @@ class _ProfilePageState extends State<ProfilePage>
             'Authorization': 'Bearer $_idToken',
             'Content-Type': 'application/json',
           },
-          body: jsonEncode(requestBody),
+          body: jsonBody,
         );
 
         print('Response status: ${response.statusCode}');
