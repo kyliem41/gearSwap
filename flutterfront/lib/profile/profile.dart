@@ -243,44 +243,54 @@ class _ProfilePageState extends State<ProfilePage>
         isLoading = true;
       });
 
-      // Create a completer to handle the async file reading
-      final completer = Completer<Uint8List>();
+      // Read file as array buffer
       final reader = html.FileReader();
+      final completer = Completer<String>();
 
-      reader.onLoadEnd.listen((event) {
-        if (reader.readyState == html.FileReader.DONE) {
-          final Uint8List result = reader.result as Uint8List;
-          completer.complete(result);
+      reader.onLoad.listen((e) async {
+        try {
+          final Uint8List bytes = reader.result as Uint8List;
+          final String base64String = base64Encode(bytes);
+
+          // Debug prints
+          print('Base64 length: ${base64String.length}');
+          print('Content type: ${file.type}');
+
+          // Ensure the content type is properly formatted
+          String contentType = file.type ?? 'image/jpeg';
+          if (!contentType.startsWith('image/')) {
+            contentType = 'image/jpeg';
+          }
+
+          completer.complete(base64String);
+        } catch (e) {
+          completer.completeError(e);
         }
       });
 
-      // Read the file as an array buffer instead of data URL
       reader.readAsArrayBuffer(file);
 
-      // Wait for the file to be read
-      final Uint8List fileData = await completer.future;
-      final String base64Image = base64Encode(fileData);
+      // Wait for base64 string
+      final String base64Image = await completer.future;
 
-      // Print debug information
-      print('Base64 string length: ${base64Image.length}');
-
-      // Create a properly formatted request body
+      // Create request body with minimal string manipulation
       final Map<String, dynamic> requestBody = {
         'profilePicture': base64Image,
-        'content_type': file.type,
+        'content_type': file.type ?? 'image/jpeg'
       };
 
-      // Convert to JSON string
-      final String jsonBody = json.encode(requestBody);
-
+      // Convert to JSON and send request
       final response = await http.put(
         Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
         headers: {
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
         },
-        body: jsonBody,
+        body: json.encode(requestBody),
       );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         await _fetchUserProfile();
@@ -288,11 +298,12 @@ class _ProfilePageState extends State<ProfilePage>
           SnackBar(content: Text('Profile picture updated successfully')),
         );
       } else {
+        // Try to parse error message from response
         String errorMessage;
         try {
-          final errorResponse = json.decode(response.body);
-          errorMessage = errorResponse['error'] ?? 'Unknown error occurred';
-        } catch (e) {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['error'] ?? 'Unknown error occurred';
+        } catch (_) {
           errorMessage = response.body;
         }
         throw Exception('Failed to update profile picture: $errorMessage');
