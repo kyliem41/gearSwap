@@ -29,6 +29,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   bool isLiked = false;
   String? userId;
   String? baseUrl;
+  bool _isCurrentUserPost = false;
   TextEditingController messageController = TextEditingController();
   int _currentImageIndex = 0;
   PageController _pageController = PageController();
@@ -91,9 +92,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     }
   }
 
-  bool get isCurrentUserPost =>
-      userId != null && post != null && post!['userid'].toString() == userId;
-
   Future<void> _verifyCurrentUser() async {
     try {
       if (post == null) {
@@ -113,9 +111,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         print('Current user ID: $currentUserId');
         print('Post user ID: $postUserId');
 
-        // Store whether this post belongs to the current user
         setState(() {
-          isCurrentUserPost = currentUserId == postUserId;
+          _isCurrentUserPost = currentUserId == postUserId;
         });
       }
     } catch (e) {
@@ -557,16 +554,19 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                 if (image['data'] != null) {
                   base64String = image['data'].toString();
 
-                  // Clean up base64 string
+                  // Remove all whitespace and newlines
                   base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+
+                  // Remove any non-base64 characters
                   base64String =
                       base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
 
+                  // Split on commas and take the last part (in case there's a data URI prefix)
                   if (base64String.contains(',')) {
                     base64String = base64String.split(',').last;
                   }
 
-                  // Add padding if needed
+                  // Add padding if missing
                   int padLength = base64String.length % 4;
                   if (padLength > 0) {
                     base64String = base64String.padRight(
@@ -574,6 +574,10 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                       '=',
                     );
                   }
+
+                  print('Cleaned base64 string length: ${base64String.length}');
+                  print(
+                      'First 50 chars: ${base64String.substring(0, min(50, base64String.length))}');
 
                   try {
                     final imageBytes = base64Decode(base64String);
@@ -590,7 +594,26 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                     );
                   } catch (e) {
                     print('Base64 decode error for image $index: $e');
-                    return _buildErrorDisplay('Error decoding image data');
+                    // Try an alternative decode method
+                    try {
+                      final codec = const Base64Codec();
+                      final imageBytes = codec.decode(base64String);
+                      return Container(
+                        width: MediaQuery.of(context).size.width,
+                        child: Image.memory(
+                          imageBytes,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            print(
+                                'Error displaying image (alternative method): $error');
+                            return _buildErrorDisplay('Error displaying image');
+                          },
+                        ),
+                      );
+                    } catch (e2) {
+                      print('Alternative decode method also failed: $e2');
+                      return _buildErrorDisplay('Error decoding image data');
+                    }
                   }
                 }
                 return _buildPlaceholder();
@@ -656,13 +679,14 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     );
   }
 
-  bool _canModifyPost() {
-    if (post == null || userId == null) return false;
-    return post!['userid'].toString() == userId.toString();
+  bool canModifyPost() {
+    return userId != null &&
+        post != null &&
+        post!['userid'].toString() == userId;
   }
 
   Widget _buildPostMenu() {
-    if (!_canModifyPost()) return Container();
+    if (!_isCurrentUserPost) return Container();
 
     return PopupMenuButton<String>(
       icon: const Icon(
