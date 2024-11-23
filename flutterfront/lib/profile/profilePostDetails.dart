@@ -528,123 +528,186 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     List<dynamic> images = post!['images'];
     print('Number of images: ${images.length}');
 
-    return Column(
-      children: [
-        Container(
-          height: 300,
-          child: PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentImageIndex = index;
-              });
-            },
-            itemCount: images.length,
-            itemBuilder: (context, index) {
-              final image = images[index];
-              print('Building image at index $index');
+    return MouseRegion(
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          bool showArrows = false;
 
-              if (image == null) {
-                print('Null image at index $index');
-                return _buildPlaceholder();
-              }
+          return MouseRegion(
+            onEnter: (_) => setState(() => showArrows = true),
+            onExit: (_) => setState(() => showArrows = false),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Column(
+                  children: [
+                    Container(
+                      height: 300,
+                      child: PageView.builder(
+                        controller: _pageController,
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentImageIndex = index;
+                          });
+                        },
+                        itemCount: images.length,
+                        itemBuilder: (context, index) {
+                          // ... existing image building code ...
+                          final image = images[index];
+                          if (image == null) {
+                            return _buildPlaceholder();
+                          }
 
-              try {
-                String base64String = '';
-                if (image['data'] != null) {
-                  base64String = image['data'].toString();
+                          try {
+                            String base64String = '';
+                            if (image['data'] != null) {
+                              base64String = image['data'].toString();
+                              base64String =
+                                  base64String.replaceAll(RegExp(r'\s+'), '');
+                              base64String = base64String.replaceAll(
+                                  RegExp(r'[^A-Za-z0-9+/=]'), '');
+                              if (base64String.contains(',')) {
+                                base64String = base64String.split(',').last;
+                              }
+                              int padLength = base64String.length % 4;
+                              if (padLength > 0) {
+                                base64String = base64String.padRight(
+                                  base64String.length + (4 - padLength),
+                                  '=',
+                                );
+                              }
 
-                  // Remove all whitespace and newlines
-                  base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-
-                  // Remove any non-base64 characters
-                  base64String =
-                      base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-
-                  // Split on commas and take the last part (in case there's a data URI prefix)
-                  if (base64String.contains(',')) {
-                    base64String = base64String.split(',').last;
-                  }
-
-                  // Add padding if missing
-                  int padLength = base64String.length % 4;
-                  if (padLength > 0) {
-                    base64String = base64String.padRight(
-                      base64String.length + (4 - padLength),
-                      '=',
-                    );
-                  }
-
-                  print('Cleaned base64 string length: ${base64String.length}');
-                  print(
-                      'First 50 chars: ${base64String.substring(0, min(50, base64String.length))}');
-
-                  try {
-                    final imageBytes = base64Decode(base64String);
-                    return Container(
-                      width: MediaQuery.of(context).size.width,
-                      child: Image.memory(
-                        imageBytes,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          print('Error displaying image: $error');
-                          return _buildErrorDisplay('Error displaying image');
+                              try {
+                                final imageBytes = base64Decode(base64String);
+                                return Container(
+                                  width: MediaQuery.of(context).size.width,
+                                  child: Image.memory(
+                                    imageBytes,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return _buildErrorDisplay(
+                                          'Error displaying image');
+                                    },
+                                  ),
+                                );
+                              } catch (e) {
+                                try {
+                                  final codec = const Base64Codec();
+                                  final imageBytes = codec.decode(base64String);
+                                  return Container(
+                                    width: MediaQuery.of(context).size.width,
+                                    child: Image.memory(
+                                      imageBytes,
+                                      fit: BoxFit.contain,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                        return _buildErrorDisplay(
+                                            'Error displaying image');
+                                      },
+                                    ),
+                                  );
+                                } catch (e2) {
+                                  return _buildErrorDisplay(
+                                      'Error decoding image data');
+                                }
+                              }
+                            }
+                            return _buildPlaceholder();
+                          } catch (e) {
+                            return _buildErrorDisplay('Error processing image');
+                          }
                         },
                       ),
-                    );
-                  } catch (e) {
-                    print('Base64 decode error for image $index: $e');
-                    // Try an alternative decode method
-                    try {
-                      final codec = const Base64Codec();
-                      final imageBytes = codec.decode(base64String);
-                      return Container(
-                        width: MediaQuery.of(context).size.width,
-                        child: Image.memory(
-                          imageBytes,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            print(
-                                'Error displaying image (alternative method): $error');
-                            return _buildErrorDisplay('Error displaying image');
-                          },
+                    ),
+                    if (images.length > 1) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          images.length,
+                          (index) => Container(
+                            width: 8.0,
+                            height: 8.0,
+                            margin: EdgeInsets.symmetric(horizontal: 4.0),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _currentImageIndex == index
+                                  ? Colors.deepOrange
+                                  : Colors.grey,
+                            ),
+                          ),
                         ),
-                      );
-                    } catch (e2) {
-                      print('Alternative decode method also failed: $e2');
-                      return _buildErrorDisplay('Error decoding image data');
-                    }
-                  }
-                }
-                return _buildPlaceholder();
-              } catch (e) {
-                print('Error processing image at index $index: $e');
-                return _buildErrorDisplay('Error processing image');
-              }
-            },
-          ),
-        ),
-        if (images.length > 1) ...[
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              images.length,
-              (index) => Container(
-                width: 8.0,
-                height: 8.0,
-                margin: EdgeInsets.symmetric(horizontal: 4.0),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _currentImageIndex == index
-                      ? Colors.deepOrange
-                      : Colors.grey,
+                      ),
+                    ],
+                  ],
                 ),
-              ),
+                if (showArrows && images.length > 1) ...[
+                  // Left Arrow
+                  Positioned(
+                    left: 16,
+                    child: AnimatedOpacity(
+                      opacity: showArrows ? 1.0 : 0.0,
+                      duration: Duration(milliseconds: 200),
+                      child: IconButton(
+                        icon: Container(
+                          padding: EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.arrow_back_ios,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        onPressed: _currentImageIndex > 0
+                            ? () {
+                                _pageController.previousPage(
+                                  duration: Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                );
+                              }
+                            : null,
+                      ),
+                    ),
+                  ),
+                  // Right Arrow
+                  Positioned(
+                    right: 16,
+                    child: AnimatedOpacity(
+                      opacity: showArrows ? 1.0 : 0.0,
+                      duration: Duration(milliseconds: 200),
+                      child: IconButton(
+                        icon: Container(
+                          padding: EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        onPressed: _currentImageIndex < images.length - 1
+                            ? () {
+                                _pageController.nextPage(
+                                  duration: Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                );
+                              }
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ),
-        ],
-      ],
+          );
+        },
+      ),
     );
   }
 
