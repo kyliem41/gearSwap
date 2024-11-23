@@ -258,18 +258,16 @@ class _ProfilePageState extends State<ProfilePage>
 
         final String base64Data = await completer.future;
 
-        // Create request body
-        final Map<String, String> requestBody = {
-          'profilePicture': base64Data,
-          'content_type': file.type ?? 'image/jpeg'
+        // Create request body matching the Lambda's expected structure
+        final Map<String, dynamic> requestBody = {
+          'data': [
+            {'data': base64Data, 'content_type': file.type ?? 'image/jpeg'}
+          ]
         };
 
         print(
             'Sending request to: ${baseUrl}/userProfile/${userData!.id}/profilePicture');
-
-        // Create the JSON string
-        final String jsonBody = json.encode(requestBody);
-        print('JSON body length: ${jsonBody.length}');
+        print('Request body structure: ${json.encode(requestBody)}');
 
         final response = await http.put(
           Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
@@ -277,7 +275,7 @@ class _ProfilePageState extends State<ProfilePage>
             'Authorization': 'Bearer $_idToken',
             'Content-Type': 'application/json',
           },
-          body: jsonBody,
+          body: json.encode(requestBody),
         );
 
         print('Response status: ${response.statusCode}');
