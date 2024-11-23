@@ -244,24 +244,20 @@ class _ProfilePageState extends State<ProfilePage>
       });
 
       final reader = html.FileReader();
-      final completer = Completer<String>();
+      reader.readAsArrayBuffer(file);
 
-      reader.onLoad.listen((event) {
-        final String result = reader.result as String;
-        final String base64String =
-            result.split(',')[1]; // Remove the data URI header.
-        completer.complete(base64String);
-      });
+      await reader.onLoad.first;
+      final Uint8List imageData = reader.result as Uint8List;
+      final String base64Data = base64Encode(imageData);
 
-      reader.readAsDataUrl(file);
-
-      final String base64Data = await completer.future;
-
-      // Prepare the request body as a JSON object
-      final Map<String, String> requestBody = {
-        'profilePicture': base64Data.trim(),
+      // Create request body
+      final Map<String, dynamic> requestBody = {
+        'profilePicture': base64Data,
         'content_type': file.type ?? 'image/jpeg'
       };
+
+      // Convert request body to JSON string
+      final String jsonBody = json.encode(requestBody);
 
       // Make the HTTP PUT request
       final response = await http.put(
@@ -270,7 +266,7 @@ class _ProfilePageState extends State<ProfilePage>
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
         },
-        body: json.encode(requestBody), // Ensure the body is serialized to JSON
+        body: jsonBody,
       );
 
       if (response.statusCode == 200) {
@@ -282,6 +278,7 @@ class _ProfilePageState extends State<ProfilePage>
         throw Exception('Failed to update profile picture: ${response.body}');
       }
     } catch (e) {
+      print('Error updating profile picture: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to update profile picture: $e')),
       );

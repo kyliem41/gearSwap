@@ -304,43 +304,43 @@ def updateProfilePicture(event, context):
     try:
         user_id = event['pathParameters']['Id']
         
-        raw_body = event.get('body', '')
-        print(f"Raw body received: {raw_body[:200]}")
-        try:
-            body = json.loads(raw_body)
-        except json.JSONDecodeError as e:
-            print(f"JSON decode error: {e}, raw_body: {raw_body}")
-            return cors_response(400, {'error': 'Invalid JSON format in request body'})
+        # Parse the request body
+        body = json.loads(event['body'])
+        
+        # Validate the request structure
+        if 'profilePicture' not in body or 'content_type' not in body:
+            return cors_response(400, {'error': 'Missing required fields'})
+            
+        base64_data = body['profilePicture']
+        content_type = body['content_type']
 
-        # Validate the JSON structure
-        base64_data = body.get('profilePicture')
-        content_type = body.get('content_type')
-
-        if not base64_data:
-            return cors_response(400, {'error': 'Missing profilePicture field'})
-        if not content_type:
-            return cors_response(400, {'error': 'Missing content_type field'})
         if content_type not in ALLOWED_CONTENT_TYPES:
             return cors_response(400, {'error': f'Invalid content type. Allowed types: {ALLOWED_CONTENT_TYPES}'})
         
         # Decode the base64 data
         try:
-            decoded_image = base64.b64decode(base64_data.strip())
+            decoded_image = base64.b64decode(base64_data)
             if len(decoded_image) > MAX_FILE_SIZE:
                 return cors_response(400, {'error': 'Image size exceeds maximum allowed size'})
         except Exception as e:
-            return cors_response(400, {'error': f'Invalid base64 image data: {str(e)}'})
+            print(f"Base64 decode error: {e}")
+            return cors_response(400, {'error': 'Invalid base64 image data'})
 
-        # Store the binary data in the database
+        # Store the image in the database
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 update_query = """
                 UPDATE userProfile
-                SET profilePicture = %s, profile_picture_content_type = %s
+                SET profilePicture = %s,
+                    profile_picture_content_type = %s
                 WHERE userId = %s
-                RETURNING id, userId, profilePicture;
+                RETURNING id, userId;
                 """
-                cursor.execute(update_query, (psycopg2.Binary(decoded_image), content_type, user_id))
+                cursor.execute(update_query, (
+                    psycopg2.Binary(decoded_image),
+                    content_type,
+                    user_id
+                ))
                 updated_profile = cursor.fetchone()
                 conn.commit()
 
@@ -352,6 +352,9 @@ def updateProfilePicture(event, context):
                     'profile': updated_profile
                 })
 
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        return cors_response(400, {'error': 'Invalid JSON format in request body'})
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
-        return cors_response(500, {'error': f'Unexpected error: {str(e)}'})
+        return cors_response(500, {'error': f'Server error: {str(e)}'})
