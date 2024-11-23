@@ -257,28 +257,20 @@ class _ProfilePageState extends State<ProfilePage>
 
       final String base64Data = await completer.future;
 
-      // Clean and validate the base64 string
-      final cleanedBase64Data =
-          base64Data.trim().replaceAll(RegExp(r'\s+'), '');
-      final int padding = cleanedBase64Data.length % 4;
-      final paddedBase64Data = padding > 0
-          ? cleanedBase64Data.padRight(
-              cleanedBase64Data.length + (4 - padding), '=')
-          : cleanedBase64Data;
-
-      // Prepare the request body
-      final Map<String, dynamic> requestBody = {
-        'profilePicture': paddedBase64Data,
+      // Prepare the request body as a JSON object
+      final Map<String, String> requestBody = {
+        'profilePicture': base64Data.trim(),
         'content_type': file.type ?? 'image/jpeg'
       };
 
+      // Make the HTTP PUT request
       final response = await http.put(
         Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
         headers: {
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
         },
-        body: json.encode(requestBody), // Properly serialize to JSON
+        body: json.encode(requestBody), // Ensure the body is serialized to JSON
       );
 
       if (response.statusCode == 200) {

@@ -304,15 +304,15 @@ def updateProfilePicture(event, context):
     try:
         user_id = event['pathParameters']['Id']
         
-        # Parse the request body
         raw_body = event.get('body', '')
+        print(f"Raw body received: {raw_body[:200]}")
         try:
             body = json.loads(raw_body)
-        except json.JSONDecodeError:
-            print(f"Invalid JSON body: {raw_body[:100]}")
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}, raw_body: {raw_body}")
             return cors_response(400, {'error': 'Invalid JSON format in request body'})
-        
-        # Validate profilePicture and content_type fields
+
+        # Validate the JSON structure
         base64_data = body.get('profilePicture')
         content_type = body.get('content_type')
 
@@ -323,7 +323,7 @@ def updateProfilePicture(event, context):
         if content_type not in ALLOWED_CONTENT_TYPES:
             return cors_response(400, {'error': f'Invalid content type. Allowed types: {ALLOWED_CONTENT_TYPES}'})
         
-        # Decode base64 into binary
+        # Decode the base64 data
         try:
             decoded_image = base64.b64decode(base64_data.strip())
             if len(decoded_image) > MAX_FILE_SIZE:
@@ -331,7 +331,7 @@ def updateProfilePicture(event, context):
         except Exception as e:
             return cors_response(400, {'error': f'Invalid base64 image data: {str(e)}'})
 
-        # Update the database with the binary data
+        # Store the binary data in the database
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 update_query = """
