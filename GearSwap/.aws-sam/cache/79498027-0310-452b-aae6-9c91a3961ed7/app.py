@@ -315,73 +315,65 @@ def updateProfilePicture(event, context):
             body = json.loads(decoded_body)
             print(f"Parsed body structure: {json.dumps(body)[:100]}")
             
-            # Validate body structure
-            if not isinstance(body, dict) or 'data' not in body or not isinstance(body['data'], list) or not body['data']:
-                return cors_response(400, {'error': 'Invalid request format'})
-                
-            # Get the first image data
-            image_data = body['data'][0]
+            # Extract profile picture data and content type
+            if 'profilePicture' not in body:
+                return cors_response(400, {'error': 'Missing profilePicture field'})
             
-            if 'data' not in image_data or 'content_type' not in image_data:
-                return cors_response(400, {'error': 'Missing required fields'})
-                
-            base64_data = image_data['data']
-            content_type = image_data['content_type']
+            if 'content_type' not in body:
+                return cors_response(400, {'error': 'Missing content_type field'})
+            
+            base64_data = body['profilePicture']
+            content_type = body['content_type']
+            
+            # Validate content type
+            if content_type not in ALLOWED_CONTENT_TYPES:
+                return cors_response(400, {
+                    'error': f'Invalid content type. Allowed types: {ALLOWED_CONTENT_TYPES}'
+                })
+
+            # Clean and validate base64 data
+            base64_data = base64_data.strip()
+            base64_data = base64_data.replace('\n', '')
+            base64_data = base64_data.replace('\r', '')
+            base64_data = base64_data.replace(' ', '')
+            
+            try:
+                decoded_image = base64.b64decode(base64_data)
+                if len(decoded_image) > MAX_FILE_SIZE:
+                    return cors_response(400, {'error': f'Image size exceeds maximum allowed size'})
+            except Exception as e:
+                print(f"Base64 decode error: {str(e)}")
+                return cors_response(400, {'error': 'Invalid base64 image data'})
+
+            # Format full image data string
+            full_image_data = f'data:{content_type};base64,{base64_data}'
+            
+            # Update database
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    update_query = """
+                    UPDATE userProfile 
+                    SET profilePicture = %s
+                    WHERE userId = %s
+                    RETURNING id, userId, profilePicture;
+                    """
+                    cursor.execute(update_query, (full_image_data, user_id))
+                    updated_profile = cursor.fetchone()
+                    conn.commit()
+                    
+                    if not updated_profile:
+                        return cors_response(404, {'error': 'Profile not found'})
+                    
+                    return cors_response(200, {
+                        'message': 'Profile picture updated successfully',
+                        'profile': updated_profile
+                    })
             
         except json.JSONDecodeError as e:
             print(f"JSON Decode Error: {str(e)}")
             print(f"Raw body: {raw_body[:100]}")
             return cors_response(400, {'error': 'Invalid JSON format in request body'})
             
-        # Validate content type
-        if content_type not in ALLOWED_CONTENT_TYPES:
-            return cors_response(400, {
-                'error': f'Invalid content type. Allowed types: {ALLOWED_CONTENT_TYPES}'
-            })
-            
-        try:
-            # Clean the base64 data
-            base64_data = base64_data.strip()
-            base64_data = base64_data.replace('\n', '')
-            base64_data = base64_data.replace('\r', '')
-            base64_data = base64_data.replace(' ', '')
-            
-            # Test decode the base64 data
-            decoded_image = base64.b64decode(base64_data)
-            
-            if len(decoded_image) > MAX_FILE_SIZE:
-                return cors_response(400, {
-                    'error': f'Image size exceeds maximum allowed size of {MAX_FILE_SIZE} bytes'
-                })
-                
-        except Exception as e:
-            print(f"Base64 decode error: {str(e)}")
-            return cors_response(400, {'error': 'Invalid base64 image data'})
-            
-        # Format the full image data string
-        full_image_data = f'data:{content_type};base64,{base64_data}'
-        
-        # Update the database
-        with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                update_query = """
-                UPDATE userProfile 
-                SET profilePicture = %s
-                WHERE userId = %s
-                RETURNING id, userId, profilePicture;
-                """
-                cursor.execute(update_query, (full_image_data, user_id))
-                updated_profile = cursor.fetchone()
-                conn.commit()
-                
-                if not updated_profile:
-                    return cors_response(404, {'error': 'Profile not found'})
-                    
-                return cors_response(200, {
-                    'message': 'Profile picture updated successfully',
-                    'profile': updated_profile
-                })
-                
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return cors_response(500, {'error': str(e)})
