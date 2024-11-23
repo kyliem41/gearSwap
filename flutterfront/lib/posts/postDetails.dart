@@ -30,11 +30,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
   bool isInCart = false;
   TextEditingController messageController = TextEditingController();
   String? baseUrl;
+  int _currentImageIndex = 0;
+  PageController _pageController = PageController();
 
   @override
   void initState() {
     super.initState();
     _initializeBaseUrl();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _initializeBaseUrl() async {
@@ -52,7 +60,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
       }
 
       final url = Uri.parse('$baseUrl/posts/${widget.postId}');
-
       print('Loading post details from: $url');
 
       final response = await http.get(
@@ -64,7 +71,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
 
       print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -72,6 +78,13 @@ class _PostDetailPageState extends State<PostDetailPage> {
           post = data['post'];
           isLoading = false;
         });
+
+        // Debug log to check images data
+        print('Number of images: ${post!['images']?.length ?? 0}');
+        if (post!['images'] != null && post!['images'].isNotEmpty) {
+          print(
+              'First image data available: ${post!['images'][0]['data'] != null}');
+        }
       } else {
         throw Exception('Failed to load post details');
       }
@@ -307,7 +320,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       if (!isLiked) {
         // Add like
         final url = Uri.parse('$baseUrl/likedPosts/$userId');
-        
+
         final response = await http.post(
           url,
           headers: {
@@ -335,7 +348,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       } else {
         // Remove like
         final url = Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}');
-        
+
         final response = await http.delete(
           url,
           headers: {
@@ -361,7 +374,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
       print('Error toggling like: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to ${isLiked ? 'remove from' : 'add to'} wishlist'),
+          content:
+              Text('Failed to ${isLiked ? 'remove from' : 'add to'} wishlist'),
         ),
       );
     }
@@ -433,7 +447,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _buildPhotoSection() {
-    if (post?['photos'] == null || post!['photos'].isEmpty) {
+    if (post == null || post!['images'] == null || post!['images'].isEmpty) {
       return Container(
         height: 300,
         color: Colors.grey[200],
@@ -443,52 +457,73 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
     }
 
-    List<dynamic> photoList = [];
-    if (post!['photos'] is String) {
-      photoList.add(post!['photos']);
-    } else if (post!['photos'] is List) {
-      photoList = post!['photos'];
-    }
+    List<dynamic> images = post!['images'];
 
-    if (photoList.isEmpty) {
-      return Container(
-        height: 300,
-        color: Colors.grey[200],
-        child: const Center(
-          child: Icon(Icons.image, size: 100, color: Colors.grey),
+    return Column(
+      children: [
+        Container(
+          height: 300,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentImageIndex = index;
+              });
+            },
+            itemCount: images.length,
+            itemBuilder: (context, index) {
+              final image = images[index];
+              if (image != null && image['data'] != null) {
+                return Container(
+                  width: MediaQuery.of(context).size.width,
+                  child: Image.memory(
+                    base64Decode(image['data']),
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Error loading image: $error');
+                      return Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child:
+                              Icon(Icons.error, size: 50, color: Colors.grey),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              } else {
+                return Container(
+                  width: MediaQuery.of(context).size.width,
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: Icon(Icons.image, size: 100, color: Colors.grey),
+                  ),
+                );
+              }
+            },
+          ),
         ),
-      );
-    }
-
-    return SizedBox(
-      height: 300,
-      child: PageView.builder(
-        itemCount: photoList.length,
-        itemBuilder: (context, index) {
-          final photo = photoList[index];
-          if (photo is! String || !Uri.tryParse(photo)!.hasScheme ?? true) {
-            return Container(
-              width: MediaQuery.of(context).size.width,
-              color: Colors.grey[200],
-              child: const Center(
-                child: Icon(Icons.image, size: 100, color: Colors.grey),
-              ),
-            );
-          }
-
-          return Image.network(
-            photo,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Container(
-              width: MediaQuery.of(context).size.width,
-              color: Colors.grey[200],
-              child: const Center(
-                child: Icon(Icons.image, size: 100, color: Colors.grey),
+        if (images.length > 1) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              images.length,
+              (index) => Container(
+                width: 8.0,
+                height: 8.0,
+                margin: EdgeInsets.symmetric(horizontal: 4.0),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentImageIndex == index
+                      ? Colors.deepOrange
+                      : Colors.grey,
+                ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        ],
+      ],
     );
   }
 

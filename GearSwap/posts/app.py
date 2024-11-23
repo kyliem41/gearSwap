@@ -368,26 +368,29 @@ def getPostById(event, context):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # First get the post details
                 cursor.execute("""
-                    SELECT p.*, u.username, u.firstname, u.lastname,
-                        array_agg(json_build_object('id', pi.id, 'content_type', pi.content_type)) as images
+                    SELECT p.*, u.username, u.firstname, u.lastname
                     FROM posts p
                     JOIN users u ON p.userId = u.id
-                    LEFT JOIN post_images pi ON pi.post_id = p.id
                     WHERE p.id = %s
-                    GROUP BY p.id, u.username, u.firstname, u.lastname
                 """, (post_id,))
                 post = cursor.fetchone()
 
                 if not post:
                     return cors_response(404, {'error': "Post not found"})
 
-                # Fetch image data for each image
-                if post['images'] and post['images'][0] is not None:
-                    for image in post['images']:
-                        image_data = get_image(cursor, image['id'])
-                        if image_data:
-                            image['data'] = image_data['data']
+                # Then get all images for the post
+                cursor.execute("""
+                    SELECT id, content_type, encode(image_data, 'base64') as data
+                    FROM post_images
+                    WHERE post_id = %s
+                    ORDER BY id
+                """, (post_id,))
+                images = cursor.fetchall()
+                
+                # Add images to post data
+                post['images'] = images
 
                 return cors_response(200, {
                     "message": "Post retrieved successfully",
