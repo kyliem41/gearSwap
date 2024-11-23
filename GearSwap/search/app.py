@@ -8,6 +8,7 @@ import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
+import base64
 
 def cors_response(status_code, body):
     """Helper function to create responses with proper CORS headers"""
@@ -117,30 +118,31 @@ def get_db_connection():
 ###########
 def postSearch(event, context):
     try:
-        if isinstance(event.get('body'), str):
-            body = json.loads(event['body'])
-        else:
-            body = json.loads(event.get('body', '{}'))
-
-        userId = event['pathParameters']['userId']
-        searchQuery = (body.get('searchQuery', '')).lower()
+        try:
+            if isinstance(event.get('body'), str):
+                decoded_body = base64.b64decode(event['body']).decode('utf-8')
+                body = json.loads(decoded_body)
+            else:
+                body = event.get('body', {})
+        except Exception as e:
+            print(f"Error decoding/parsing body: {str(e)}")
+            print(f"Raw body: {event.get('body')}")
+            return cors_response(400, {'error': f"Invalid request body: {str(e)}"})
         
-        required_fields = ['searchQuery']
-        for field in required_fields:
-            if field not in body:
-                return cors_response(400, f"Missing required field: {field}")
+        userId = event.get('pathParameters', {}).get('userId')
+        if not userId:
+            return cors_response(400, {"error": "Missing userId in path parameters"})
 
-    except json.JSONDecodeError:
-        return cors_response(400, "Invalid JSON format in request body")
+        searchQuery = body.get('searchQuery', '').strip().lower()
+        if not searchQuery:
+            return cors_response(400, {"error": "searchQuery is required and cannot be empty"})
 
-    try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Check if the user exists and get their username
                 cursor.execute("SELECT username FROM users WHERE id = %s", (userId,))
                 user = cursor.fetchone()
                 if not user:
-                    return cors_response(404, "User not found")
+                    return cors_response(404, {"error": "User not found"})
 
                 # Save the search query
                 insert_query = """
@@ -148,53 +150,72 @@ def postSearch(event, context):
                 VALUES (%s, %s)
                 RETURNING id, userId, searchQuery, timeStamp;
                 """
-                
                 cursor.execute(insert_query, (userId, searchQuery))
                 new_search = cursor.fetchone()
                 
-                # Get filtered posts
-                search_pattern = f'%{searchQuery}%'
-                get_posts_query = """
+                # Get filtered posts with improved search and image handling
+                search_terms = [term.strip() for term in searchQuery.split()]
+                search_conditions = []
+                search_params = []
+                
+                for term in search_terms:
+                    pattern = f'%{term}%'
+                    search_conditions.extend([
+                        "LOWER(description) LIKE %s",
+                        "LOWER(category) LIKE %s",
+                        "LOWER(clothingtype) LIKE %s",
+                        "EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) tag WHERE LOWER(tag) LIKE %s)"
+                    ])
+                    search_params.extend([pattern] * 4)
+
+                search_query = f"""
                     SELECT 
-                        id,
-                        userid,
-                        CAST(price AS float) as price,
-                        description,
-                        size,
-                        category,
-                        clothingtype,
-                        tags,
-                        photos,
-                        dateposted,
-                        likecount
-                    FROM posts 
-                    WHERE 
-                        LOWER(description) LIKE %s 
-                        OR LOWER(category) LIKE %s
-                        OR LOWER(clothingtype) LIKE %s
-                        OR EXISTS (
-                            SELECT 1 FROM jsonb_array_elements_text(tags) tag 
-                            WHERE LOWER(tag) LIKE %s
-                        )
-                    ORDER BY dateposted DESC;
+                        p.*,
+                        u.username,
+                        COALESCE(
+                            (
+                                SELECT json_agg(
+                                    json_build_object(
+                                        'id', pi.id,
+                                        'content_type', pi.content_type,
+                                        'data', encode(pi.image_data, 'base64')
+                                    )
+                                )
+                                FROM (
+                                    SELECT id, content_type, image_data
+                                    FROM post_images
+                                    WHERE post_id = p.id
+                                    ORDER BY id
+                                    LIMIT 1
+                                ) pi
+                            ),
+                            '[]'::json
+                        ) as images
+                    FROM posts p
+                    JOIN users u ON p.userId = u.id
+                    WHERE {' OR '.join(search_conditions)}
+                    ORDER BY p.dateposted DESC
                 """
                 
-                cursor.execute(get_posts_query, (search_pattern, search_pattern, search_pattern, search_pattern))
+                cursor.execute(search_query, search_params)
                 filtered_posts = cursor.fetchall()
 
                 conn.commit()
 
-        return cors_response(201, {
-            "message": "Search posted successfully",
-            "search": new_search,
-            "posts": filtered_posts,
-            "total_count": len(filtered_posts)
-        })
+                return cors_response(201, {
+                    "message": "Search successful",
+                    "search": new_search,
+                    "posts": filtered_posts,
+                    "total_count": len(filtered_posts)
+                })
 
+    except psycopg2.Error as e:
+        print(f"Database error: {str(e)}")
+        return cors_response(500, {"error": "Database operation failed"})
     except Exception as e:
-        print(f"Failed to post search. Error: {str(e)}")
-        return cors_response(500, f"Error posting search: {str(e)}")
-
+        print(f"Unexpected error: {str(e)}")
+        return cors_response(500, {"error": f"An unexpected error occurred"})
+    
 ################
 def getSearchHistory(event, context):
     try:

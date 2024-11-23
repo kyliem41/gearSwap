@@ -6,6 +6,7 @@ import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/posts/postDetails.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:typed_data';
 
 class SearchPage extends StatefulWidget {
   @override
@@ -310,6 +311,113 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
+  Future<Uint8List> _loadImageData(String postId) async {
+    if (baseUrl == null) {
+      throw Exception('Base URL not initialized');
+    }
+
+    if (_idToken == null) {
+      throw Exception('Not authenticated');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/posts/$postId/images'),
+      headers: {
+        'Authorization': 'Bearer $_idToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['images'] != null &&
+          data['images'] is List &&
+          data['images'].isNotEmpty &&
+          data['images'][0]['data'] != null) {
+        return base64Decode(data['images'][0]['data']);
+      }
+    }
+    throw Exception('Failed to load image: ${response.statusCode}');
+  }
+
+  Widget _buildPostImage(Map<String, dynamic> post) {
+    try {
+      print('Post ID: ${post['id']}');
+      print('Images data: ${post['images']}');
+
+      if (post['images'] != null &&
+          post['images'] is List &&
+          post['images'].isNotEmpty &&
+          post['images'][0] != null &&
+          post['images'][0]['data'] != null) {
+        String base64String = post['images'][0]['data'];
+        base64String = base64String.trim();
+        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+
+        while (base64String.length % 4 != 0) {
+          base64String += '=';
+        }
+
+        try {
+          final Uint8List imageBytes = base64Decode(base64String);
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: Image.memory(
+              imageBytes,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                print('Error displaying image: $error');
+                return _buildPlaceholder();
+              },
+            ),
+          );
+        } catch (e) {
+          print('Error decoding base64 for post ${post['id']}: $e');
+          return _buildPlaceholder();
+        }
+      } else {
+        print('No image data available for post ${post['id']}');
+        return FutureBuilder<Uint8List>(
+          future: _loadImageData(post['id'].toString()),
+          builder: (context, AsyncSnapshot<Uint8List> snapshot) {
+            if (snapshot.hasData) {
+              return Container(
+                width: double.infinity,
+                height: double.infinity,
+                child: Image.memory(
+                  snapshot.data!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Error displaying loaded image: $error');
+                    return _buildPlaceholder();
+                  },
+                ),
+              );
+            }
+            return _buildPlaceholder();
+          },
+        );
+      }
+    } catch (e) {
+      print('Error in _buildPostImage for post ${post['id']}: $e');
+      return _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.grey[200],
+      child: Icon(
+        Icons.image,
+        size: 40,
+        color: Colors.grey[400],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -397,7 +505,6 @@ class _SearchPageState extends State<SearchPage> {
                           final post = searchResults[index];
                           return GestureDetector(
                             onTap: () {
-                              print('Post tapped: ${post['id']}');
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -425,25 +532,9 @@ class _SearchPageState extends State<SearchPage> {
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
                                           children: [
-                                            if (post['photos'] != null &&
-                                                post['photos'].isNotEmpty)
-                                              Image.network(
-                                                post['photos'][0],
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error,
-                                                        stackTrace) =>
-                                                    Icon(
-                                                  Icons.image,
-                                                  size: 40,
-                                                  color: Colors.grey[400],
-                                                ),
-                                              )
-                                            else
-                                              Icon(
-                                                Icons.image,
-                                                size: 40,
-                                                color: Colors.grey[400],
-                                              ),
+                                            Expanded(
+                                              child: _buildPostImage(post),
+                                            ),
                                             SizedBox(height: 8),
                                             Text(
                                               '\$${post['price']}',
@@ -455,30 +546,6 @@ class _SearchPageState extends State<SearchPage> {
                                           ],
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          post['description'] ??
-                                              'No description',
-                                          style: TextStyle(fontSize: 14),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (post['size'] != null)
-                                          Text(
-                                            'Size: ${post['size']}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                      ],
                                     ),
                                   ),
                                 ],
