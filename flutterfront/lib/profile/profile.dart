@@ -243,26 +243,17 @@ class _ProfilePageState extends State<ProfilePage>
         isLoading = true;
       });
 
-      // Read file as array buffer
-      final reader = html.FileReader();
+      // Create a completer to handle the async file reading
       final completer = Completer<String>();
+      final reader = html.FileReader();
 
-      reader.onLoad.listen((e) async {
+      reader.onLoadEnd.listen((event) async {
         try {
-          final Uint8List bytes = reader.result as Uint8List;
-          final String base64String = base64Encode(bytes);
-
-          // Debug prints
-          print('Base64 length: ${base64String.length}');
-          print('Content type: ${file.type}');
-
-          // Ensure the content type is properly formatted
-          String contentType = file.type ?? 'image/jpeg';
-          if (!contentType.startsWith('image/')) {
-            contentType = 'image/jpeg';
+          if (reader.readyState == html.FileReader.DONE) {
+            final Uint8List bytes = reader.result as Uint8List;
+            final String base64String = base64Encode(bytes);
+            completer.complete(base64String);
           }
-
-          completer.complete(base64String);
         } catch (e) {
           completer.completeError(e);
         }
@@ -270,23 +261,23 @@ class _ProfilePageState extends State<ProfilePage>
 
       reader.readAsArrayBuffer(file);
 
-      // Wait for base64 string
       final String base64Image = await completer.future;
 
-      // Create request body with minimal string manipulation
+      print('Original base64 string length: ${base64Image.length}');
+
+      // Create request body similar to the posts structure
       final Map<String, dynamic> requestBody = {
-        'profilePicture': base64Image,
+        'profilePicture': base64Image.trim(),
         'content_type': file.type ?? 'image/jpeg'
       };
 
-      // Convert to JSON and send request
       final response = await http.put(
         Uri.parse('$baseUrl/userProfile/${userData!.id}/profilePicture'),
         headers: {
           'Authorization': 'Bearer $_idToken',
           'Content-Type': 'application/json',
         },
-        body: json.encode(requestBody),
+        body: jsonEncode(requestBody),
       );
 
       print('Response status: ${response.statusCode}');
@@ -298,7 +289,6 @@ class _ProfilePageState extends State<ProfilePage>
           SnackBar(content: Text('Profile picture updated successfully')),
         );
       } else {
-        // Try to parse error message from response
         String errorMessage;
         try {
           final errorData = json.decode(response.body);
