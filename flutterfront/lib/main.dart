@@ -107,18 +107,19 @@ class _MyHomePageState extends State<MyHomePage> {
         return;
       }
 
-      // Add pagination parameters
       final url = Uri.parse('$baseUrl/posts?page=1&page_size=20');
-
       final response = await http.get(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
+          'Accept': 'application/json',
+          'Origin': 'http://localhost', // Add your actual origin
         },
       );
 
       print('Response status: ${response.statusCode}');
+      print('Response headers: ${response.headers}');
 
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);

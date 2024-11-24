@@ -321,45 +321,56 @@ def getPosts(event, context):
     try:
         query_params = event.get('queryStringParameters') or {}
         page = int(query_params.get('page', 1))
-        page_size = int(query_params.get('page_size', 10))        
+        page_size = int(query_params.get('page_size', 10))
         offset = (page - 1) * page_size
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # First, get total count
+                cursor.execute("SELECT COUNT(*) FROM posts")
+                total_posts = cursor.fetchone()['count']
+
+                # Then get paginated posts with limited image data
                 cursor.execute("""
                     SELECT 
                         p.*,
                         u.username,
-                        COALESCE(
-                            (
-                                SELECT json_agg(
-                                    json_build_object(
-                                        'id', pi.id,
-                                        'content_type', pi.content_type,
-                                        'data', encode(pi.image_data, 'base64')
+                        CASE 
+                            WHEN pi.image_data IS NOT NULL THEN
+                                json_build_object(
+                                    'id', pi.id,
+                                    'content_type', pi.content_type,
+                                    'data', encode(
+                                        substring(pi.image_data, 1, 500000), -- Limit image data size
+                                        'base64'
                                     )
                                 )
-                                FROM (
-                                    SELECT id, content_type, image_data
-                                    FROM post_images
-                                    WHERE post_id = p.id
-                                    ORDER BY id
-                                    LIMIT 1
-                                ) pi
-                            ),
-                            '[]'::json
-                        ) as images
+                            ELSE NULL
+                        END as first_image
                     FROM posts p
                     JOIN users u ON p.userId = u.id
+                    LEFT JOIN LATERAL (
+                        SELECT id, content_type, image_data
+                        FROM post_images
+                        WHERE post_id = p.id
+                        ORDER BY id
+                        LIMIT 1
+                    ) pi ON true
                     ORDER BY p.datePosted DESC
                     LIMIT %s OFFSET %s
                 """, (page_size, offset))
                 
                 posts = cursor.fetchall()
 
-                # Get total count
-                cursor.execute("SELECT COUNT(*) FROM posts")
-                total_posts = cursor.fetchone()['count']
+                # Process posts to ensure proper JSON serialization
+                for post in posts:
+                    # Convert any Decimal objects to float
+                    if 'price' in post:
+                        post['price'] = float(post['price'])
+                    
+                    # Handle date serialization
+                    if 'datePosted' in post:
+                        post['datePosted'] = post['datePosted'].isoformat()
 
                 return cors_response(200, {
                     "message": "Posts retrieved successfully",
@@ -367,7 +378,7 @@ def getPosts(event, context):
                     "page": page,
                     "page_size": page_size,
                     "total_posts": total_posts,
-                    "total_pages": -(-total_posts // page_size)
+                    "total_pages": -(-total_posts // page_size)  # Ceiling division
                 })
 
     except Exception as e:
