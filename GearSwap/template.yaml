@@ -777,7 +777,13 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /posts/{postId}/images
             Method: POST
-        AddImageOptions:
+        GetPostImages:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /posts/{postId}/images
+            Method: GET
+        ImageOptions:
           Type: Api
           Properties:
             RestApiId: !Ref gearSwap

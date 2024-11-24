@@ -148,25 +148,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _buildPostImage(Map<String, dynamic> post) {
     try {
-      // Debug print to check the image data structure
-      print('Post ID: ${post['id']}');
-      print('Images data: ${post['images']}');
-
-      if (post['images'] != null &&
-          post['images'] is List &&
-          post['images'].isNotEmpty &&
-          post['images'][0] != null &&
-          post['images'][0]['data'] != null) {
-        String base64String = post['images'][0]['data'];
-        // Clean up base64 string
-        base64String = base64String.trim();
-        base64String = base64String.replaceAll(
-            RegExp(r'\s+'), ''); // Remove all whitespace
-
-        // Add padding if needed
-        while (base64String.length % 4 != 0) {
-          base64String += '=';
-        }
+      final images = post['images'];
+      if (images != null &&
+          images is List &&
+          images.isNotEmpty &&
+          images[0] != null &&
+          images[0]['data'] != null) {
+        String base64String = images[0]['data'];
 
         try {
           final Uint8List imageBytes = base64Decode(base64String);
@@ -187,28 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
           return _buildPlaceholder();
         }
       } else {
-        print('No image data available for post ${post['id']}');
-        // If no immediate image data, try loading it separately
-        return FutureBuilder<Uint8List>(
-          future: _loadImageData(post['id'].toString()),
-          builder: (context, AsyncSnapshot<Uint8List> snapshot) {
-            if (snapshot.hasData) {
-              return Container(
-                width: double.infinity,
-                height: double.infinity,
-                child: Image.memory(
-                  snapshot.data!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    print('Error displaying loaded image: $error');
-                    return _buildPlaceholder();
-                  },
-                ),
-              );
-            }
-            return _buildPlaceholder();
-          },
-        );
+        return _buildPlaceholder();
       }
     } catch (e) {
       print('Error in _buildPostImage for post ${post['id']}: $e');

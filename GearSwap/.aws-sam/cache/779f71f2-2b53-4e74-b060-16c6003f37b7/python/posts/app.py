@@ -95,6 +95,11 @@ def lambda_handler(event, context):
                 return deleteImage(event, context)
             elif http_method == 'GET':
                 return getImage(event, context)
+    elif resource_path == '/posts/{postId}/images':
+        if http_method == 'GET':
+            return getPostImages(event, context)
+        elif http_method == 'POST':
+            return addImage(event, context)
 
     return cors_response(400, {'error': 'Unsupported route'})
     
@@ -321,7 +326,6 @@ def getPosts(event, context):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Modified query to properly include image data
                 cursor.execute("""
                     SELECT 
                         p.*,
@@ -680,6 +684,7 @@ def addImage(event, context):
         print(f"Failed to add image: {str(e)}")
         return cors_response(500, {'error': f"Error adding image: {str(e)}"})
     
+################
 def deleteImage(event, context):
     try:
         user_id = event['pathParameters']['userId']
@@ -733,6 +738,7 @@ def deleteImage(event, context):
         print(f"Failed to delete image: {str(e)}")
         return cors_response(500, {'error': f"Error deleting image: {str(e)}"})
 
+#################
 def getImage(event, context):
     try:
         image_id = event['pathParameters']['imageId']
@@ -748,17 +754,41 @@ def getImage(event, context):
                 if not image:
                     return cors_response(404, {'error': "Image not found"})
 
-                # Return the image with proper content type
-                return {
-                    'statusCode': 200,
-                    'headers': {
-                        'Content-Type': image['content_type'],
-                        'Access-Control-Allow-Origin': '*'
-                    },
-                    'body': base64.b64encode(image['image_data']).decode('utf-8'),
-                    'isBase64Encoded': True
-                }
+                # Use the existing cors_response helper with the image's content type
+                return cors_response(
+                    200, 
+                    base64.b64encode(image['image_data']).decode('utf-8'),
+                    content_type=image['content_type']
+                )
 
     except Exception as e:
         print(f"Failed to get image: {str(e)}")
         return cors_response(500, {'error': f"Error getting image: {str(e)}"})
+
+#############
+def getPostImages(event, context):
+    try:
+        post_id = event['pathParameters']['postId']
+
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # Get all images for the post
+                cursor.execute("""
+                    SELECT id, content_type, encode(image_data, 'base64') as data
+                    FROM post_images
+                    WHERE post_id = %s
+                    ORDER BY id
+                """, (post_id,))
+                images = cursor.fetchall()
+                
+                if not images:
+                    return cors_response(404, {'error': 'No images found for this post'})
+
+                return cors_response(200, {
+                    'message': 'Images retrieved successfully',
+                    'images': images
+                })
+
+    except Exception as e:
+        print(f"Failed to get post images: {str(e)}")
+        return cors_response(500, {'error': f"Error getting post images: {str(e)}"})
