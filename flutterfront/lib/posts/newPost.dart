@@ -185,8 +185,6 @@ class _NewPostPageState extends State<NewPostPage> {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
-          'Accept': '*/*',
-          'Access-Control-Allow-Origin': '*',
         },
         body: json.encode(requestBody),
       );
@@ -271,8 +269,6 @@ class _NewPostPageState extends State<NewPostPage> {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
-          'Accept': '*/*', // Add this
-          'Access-Control-Allow-Origin': '*', // Add this
         },
         body: json.encode({
           'data': photo['data'],
