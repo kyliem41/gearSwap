@@ -305,28 +305,31 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
-  Widget _buildImage(Map<String, dynamic> post) {
+  Widget _buildImage(Map<String, dynamic> item) {
     try {
-      if (post['images'] != null &&
-          post['images'] is List &&
-          post['images'].isNotEmpty &&
-          post['images'][0] != null &&
-          post['images'][0]['data'] != null) {
-        String base64String = post['images'][0]['data'];
-        // Clean up base64 string
-        base64String = base64String.trim();
-        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+      print('Building image for item: ${item['id']}');
+      print('Images data: ${item['images']}');
 
-        // Add padding if needed
-        while (base64String.length % 4 != 0) {
-          base64String += '=';
-        }
+      // Check if the image data exists in the response
+      if (item['images'] != null &&
+          item['images'] is List &&
+          (item['images'] as List).isNotEmpty &&
+          item['images'][0] != null &&
+          item['images'][0]['data'] != null) {
+        // Get the base64 string
+        String base64String = item['images'][0]['data'];
 
         try {
-          final Uint8List imageBytes = base64Decode(base64String);
+          // Decode base64 string to bytes
+          final Uint8List imageBytes = base64.decode(base64String);
+
           return Container(
             width: 80,
             height: 80,
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Image.memory(
               imageBytes,
               fit: BoxFit.cover,
@@ -337,11 +340,13 @@ class _CartPageState extends State<CartPage> {
             ),
           );
         } catch (e) {
-          print('Error decoding base64 for post: $e');
+          print('Error decoding base64: $e');
           return _buildPlaceholderImage();
         }
+      } else {
+        print('No valid image data found');
+        return _buildPlaceholderImage();
       }
-      return _buildPlaceholderImage();
     } catch (e) {
       print('Error in _buildImage: $e');
       return _buildPlaceholderImage();
@@ -352,8 +357,16 @@ class _CartPageState extends State<CartPage> {
     return Container(
       width: 80,
       height: 80,
-      color: Colors.grey[200],
-      child: Icon(Icons.image, color: Colors.grey[400]),
+      clipBehavior: Clip.hardEdge,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        Icons.image,
+        size: 40,
+        color: Colors.grey[400],
+      ),
     );
   }
 
@@ -444,7 +457,7 @@ class _CartPageState extends State<CartPage> {
         padding: EdgeInsets.symmetric(vertical: 8.0),
         child: Row(
           children: [
-            _buildImage(item), // Updated to use the new image builder
+            _buildImage(item), // Using the updated image builder
             SizedBox(width: 16),
             Expanded(
               child: Column(
