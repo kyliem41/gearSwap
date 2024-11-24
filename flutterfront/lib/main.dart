@@ -85,125 +85,131 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _getPosts() async {
-  setState(() {
-    isLoading = true;
-    hasError = false;
-  });
+    setState(() {
+      isLoading = true;
+      hasError = false;
+    });
 
-  try {
-    if (baseUrl == null) {
-      throw Exception('Configuration not initialized');
-    }
+    try {
+      if (baseUrl == null) {
+        throw Exception('Configuration not initialized');
+      }
 
-    final prefs = await SharedPreferences.getInstance();
-    final idToken = prefs.getString('idToken');
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
 
-    if (idToken == null) {
-      print('No authentication token found');
+      if (idToken == null) {
+        print('No authentication token found');
+        setState(() {
+          hasError = true;
+          isLoading = false;
+        });
+        return;
+      }
+
+      final url = Uri.parse('$baseUrl/posts?page=1&page_size=20');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+          'Accept': 'application/json',
+        },
+      );
+
+      print('Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
+        print('Full response data: $data'); // Debug full response
+
+        List<dynamic> postsData = data['posts'];
+        print(
+            'First post full data: ${postsData.isNotEmpty ? postsData[0] : 'No posts'}'); // Debug first post
+
+        if (postsData.isNotEmpty) {
+          var firstPost = postsData[0];
+          print(
+              'First post images field type: ${firstPost['images'].runtimeType}'); // Debug images field type
+          print(
+              'First post images content: ${firstPost['images']}'); // Debug images content
+
+          if (firstPost['images'] != null &&
+              firstPost['images'] is List &&
+              firstPost['images'].isNotEmpty) {
+            print(
+                'First image data: ${firstPost['images'][0]}'); // Debug first image data
+          }
+        }
+
+        setState(() {
+          posts = postsData;
+          hasError = false;
+          isLoading = false;
+        });
+      } else {
+        print('Failed to load posts: ${response.body}');
+        throw Exception('Failed to load posts');
+      }
+    } catch (e) {
+      print('Error fetching posts: $e');
       setState(() {
         hasError = true;
         isLoading = false;
       });
-      return;
     }
-
-    final url = Uri.parse('$baseUrl/posts?page=1&page_size=20');
-    final response = await http.get(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $idToken',
-        'Accept': 'application/json',
-      },
-    );
-
-    print('Response status: ${response.statusCode}');
-    print('Response headers: ${response.headers}');
-
-    if (response.statusCode == 200) {
-      var data = jsonDecode(response.body);
-      print('Response data structure: ${data.keys}'); // Debug print
-      
-      List<dynamic> postsData = data['posts'];
-      print('First post structure: ${postsData.isNotEmpty ? postsData[0].keys : 'No posts'}'); // Debug print
-      
-      if (postsData.isNotEmpty && postsData[0]['images'] != null) {
-        print('First post images: ${postsData[0]['images']}'); // Debug print
-      }
-
-      setState(() {
-        posts = postsData;
-        hasError = false;
-        isLoading = false;
-      });
-    } else {
-      print('Failed to load posts: ${response.body}');
-      throw Exception('Failed to load posts');
-    }
-  } catch (e) {
-    print('Error fetching posts: $e');
-    setState(() {
-      hasError = true;
-      isLoading = false;
-    });
   }
-}
 
   Future<void> _refreshPosts() async {
     await _getPosts();
   }
 
   Widget _buildPostImage(Map<String, dynamic> post) {
-  try {
-    print('Building image for post ${post['id']}');
-    print('Post data: $post'); // Debug print to see full post data
-    
-    final images = post['images'];
-    print('Images data: $images'); // Debug print to see images array
-    
-    if (images != null &&
-        images is List &&
-        images.isNotEmpty &&
-        images[0] != null &&
-        images[0]['data'] != null) {
-      String base64String = images[0]['data'];
-      // Remove any potential data URL prefix
-      if (base64String.contains(',')) {
-        base64String = base64String.split(',').last;
+    try {
+      print('Building image for post ${post['id']}');
+      final images = post['images'];
+      print('Post images data type: ${images.runtimeType}');
+      print('Post images content: $images');
+
+      if (images != null && images is List && images.isNotEmpty) {
+        var firstImage = images[0];
+        print('First image structure: $firstImage');
+
+        if (firstImage != null && firstImage['data'] != null) {
+          String base64String = firstImage['data'];
+          print('Base64 string length: ${base64String.length}');
+          print(
+              'First 100 chars of base64: ${base64String.substring(0, base64String.length > 100 ? 100 : base64String.length)}');
+
+          try {
+            final Uint8List imageBytes = base64Decode(base64String);
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              child: Image.memory(
+                imageBytes,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error displaying image: $error');
+                  print('Stack trace: $stackTrace');
+                  return _buildPlaceholder();
+                },
+              ),
+            );
+          } catch (e) {
+            print('Base64 decode error for post ${post['id']}: $e');
+            return _buildPlaceholder();
+          }
+        }
       }
-      
-      print('Base64 string length: ${base64String.length}'); // Debug print
-      
-      try {
-        final Uint8List imageBytes = base64Decode(base64String);
-        print('Successfully decoded image bytes: ${imageBytes.length}'); // Debug print
-        
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: Image.memory(
-            imageBytes,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              print('Error displaying image: $error');
-              print('Stack trace: $stackTrace');
-              return _buildPlaceholder();
-            },
-          ),
-        );
-      } catch (e) {
-        print('Error decoding base64 for post ${post['id']}: $e');
-        return _buildPlaceholder();
-      }
-    } else {
-      print('No valid image data found in post ${post['id']}');
+
+      print('No valid image data found for post ${post['id']}');
+      return _buildPlaceholder();
+    } catch (e) {
+      print('Error in _buildPostImage for post ${post['id']}: $e');
       return _buildPlaceholder();
     }
-  } catch (e) {
-    print('Error in _buildPostImage for post ${post['id']}: $e');
-    return _buildPlaceholder();
   }
-}
 
   Widget _buildPlaceholder() {
     return Container(
