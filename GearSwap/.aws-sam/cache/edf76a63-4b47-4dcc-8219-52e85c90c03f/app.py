@@ -1,3 +1,4 @@
+import base64
 import psycopg2
 import os
 import json
@@ -8,20 +9,45 @@ from botocore.exceptions import ClientError
 import jwt
 import requests
 from jwt.algorithms import RSAAlgorithm
-import pkg_resources
 
-def cors_response(status_code, body):
-    """Helper function to create responses with proper CORS headers"""
+def cors_response(status_code, body, content_type='application/json'):
+    headers = {
+        'Content-Type': content_type,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+    }
+    
+    if content_type == 'application/json':
+        body = json.dumps(body, default=str)
+        is_base64 = False
+    else:
+        is_base64 = True
+    
     return {
         'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
-            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
-        },
-        'body': json.dumps(body, default=str)
+        'headers': headers,
+        'body': body,
+        'isBase64Encoded': is_base64
     }
+    
+def parse_body(event):
+    """Helper function to parse request body handling both base64 and regular JSON"""
+    try:
+        if event.get('isBase64Encoded', False):
+            decoded_body = base64.b64decode(event['body']).decode('utf-8')
+            try:
+                return json.loads(decoded_body)
+            except json.JSONDecodeError:
+                return decoded_body
+        elif isinstance(event.get('body'), dict):
+            return event['body']
+        elif isinstance(event.get('body'), str):
+            return json.loads(event['body'])
+        return {}
+    except Exception as e:
+        print(f"Error parsing body: {str(e)}")
+        raise ValueError(f"Invalid request body: {str(e)}")
 
 def lambda_handler(event, context):
     if event['httpMethod'] == 'OPTIONS':
@@ -129,6 +155,7 @@ def getUsers(event, context):
     db_port = os.environ['DB_PORT']
 
     try:
+    
         conn = psycopg2.connect(
             host=db_host,
             user=db_user,
@@ -181,11 +208,10 @@ def createUser(event, context):
     cognito_client = boto3.client('cognito-idp')
 
     try:
-        # Parse request body
-        if isinstance(event.get('body'), str):
-            body = json.loads(event['body'])
-        else:
-            body = event.get('body', {})
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
 
         firstName = body.get('firstName')
         lastName = body.get('lastName')
@@ -246,7 +272,7 @@ def createUser(event, context):
                 
                 # Then, create the user profile with the returned user ID
                 insert_profile_query = """
-                INSERT INTO userProfile (userId, username, bio, location, profilePicture, profile_picture_content_type) 
+                INSERT INTO userProfile (userId, username, bio, location, profilePicture, content_type) 
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id, userId, username, bio, location;
                 """
@@ -340,9 +366,14 @@ def putUser(event, context):
     db_password = os.environ['DB_PASSWORD']
     db_port = os.environ['DB_PORT']
     
+    try:
+        body = parse_body(event)
+    except ValueError as e:
+        return cors_response(400, {'error': str(e)})
+    
     user_id = event['pathParameters']['Id']
-    new_username = json.loads(event['body'])['username']
-
+    new_username = body['username']
+    
     update_query = """
     UPDATE users 
     SET username = %s 
@@ -395,7 +426,11 @@ def updatePassword(event, context):
     cognito_client = boto3.client('cognito-idp')
 
     try:
-        body = json.loads(event['body']) if isinstance(event.get('body'), str) else event.get('body', {})
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
+        
         user_id = event['pathParameters']['Id']
         new_password = body.get('password')
 
@@ -529,8 +564,13 @@ def followUser(event, context):
     db_password = os.environ['DB_PASSWORD']
     db_port = os.environ['DB_PORT']
     
+    try:
+        body = parse_body(event)
+    except ValueError as e:
+        return cors_response(400, {'error': str(e)})
+    
     followed_id = event['pathParameters']['Id']
-    follower_id = json.loads(event['body'])['followerId']
+    follower_id = body['followerId']
     
     try:
         conn = psycopg2.connect(

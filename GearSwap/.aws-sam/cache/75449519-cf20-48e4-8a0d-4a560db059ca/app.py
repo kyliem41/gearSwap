@@ -1,3 +1,4 @@
+import base64
 import jwt
 import psycopg2
 import os
@@ -8,18 +9,44 @@ import boto3
 import requests
 from jwt.algorithms import RSAAlgorithm
 
-def cors_response(status_code, body):
-    """Helper function to create responses with proper CORS headers"""
+def cors_response(status_code, body, content_type='application/json'):
+    headers = {
+        'Content-Type': content_type,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+    }
+    
+    if content_type == 'application/json':
+        body = json.dumps(body, default=str)
+        is_base64 = False
+    else:
+        is_base64 = True
+    
     return {
         'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
-            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
-        },
-        'body': json.dumps(body, default=str)
+        'headers': headers,
+        'body': body,
+        'isBase64Encoded': is_base64
     }
+    
+def parse_body(event):
+    """Helper function to parse request body handling both base64 and regular JSON"""
+    try:
+        if event.get('isBase64Encoded', False):
+            decoded_body = base64.b64decode(event['body']).decode('utf-8')
+            try:
+                return json.loads(decoded_body)
+            except json.JSONDecodeError:
+                return decoded_body
+        elif isinstance(event.get('body'), dict):
+            return event['body']
+        elif isinstance(event.get('body'), str):
+            return json.loads(event['body'])
+        return {}
+    except Exception as e:
+        print(f"Error parsing body: {str(e)}")
+        raise ValueError(f"Invalid request body: {str(e)}")
 
 def lambda_handler(event, context):
     if event['httpMethod'] == 'OPTIONS':
@@ -107,23 +134,42 @@ def get_db_connection():
     )
 
 ########################
+def check_post_ownership(cursor, user_id, post_id):
+    """Helper function to check if a user owns a post"""
+    cursor.execute("SELECT userid FROM posts WHERE id = %s", (post_id,))
+    post = cursor.fetchone()
+    if not post:
+        raise ValueError("Post not found")
+    return str(post['userid']) == str(user_id)
+
+##################
 def add_to_cart(event, user_id):
     try:
-        body = json.loads(event['body'])
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
+        
         post_id = body['postId']
         quantity = body.get('quantity', 1)
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # Check if user owns the post
+                if check_post_ownership(cursor, user_id, post_id):
+                    return cors_response(400, {
+                        "error": "Cannot add your own post to cart"
+                    })
+
                 cursor.execute("SELECT * FROM cart WHERE userId = %s AND postId = %s", (user_id, post_id))
                 existing_item = cursor.fetchone()
 
                 if existing_item:
                     cursor.execute("UPDATE cart SET quantity = quantity + %s WHERE userId = %s AND postId = %s RETURNING *",
-                                   (quantity, user_id, post_id))
+                                (quantity, user_id, post_id))
                 else:
                     cursor.execute("INSERT INTO cart (userId, postId, quantity) VALUES (%s, %s, %s) RETURNING *",
-                                   (user_id, post_id, quantity))
+                                (user_id, post_id, quantity))
 
                 new_item = cursor.fetchone()
                 conn.commit()
@@ -133,6 +179,8 @@ def add_to_cart(event, user_id):
             "item": new_item
         })
 
+    except ValueError as e:
+        return cors_response(400, {"error": str(e)})
     except Exception as e:
         print(f"Failed to add item to cart. Error: {str(e)}")
         return cors_response(500, {"error": f"Error adding item to cart: {str(e)}"})
@@ -143,10 +191,10 @@ def get_cart(user_id):
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute("""
-                               SELECT *
-                               FROM cart
-                               WHERE userId = %s
-                               """, (user_id))
+                            SELECT *
+                            FROM cart
+                            WHERE userId = %s
+                            """, (user_id))
                 cart_items = cursor.fetchall()
 
         return cors_response(200, {
@@ -161,14 +209,18 @@ def get_cart(user_id):
 ########################
 def update_cart_item(event, user_id):
     try:
-        body = json.loads(event['body'])
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
+        
         post_id = body['postId']
         quantity = body['quantity']
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute("UPDATE cart SET quantity = %s WHERE userId = %s AND postId = %s RETURNING *",
-                               (quantity, user_id, post_id))
+                            (quantity, user_id, post_id))
                 updated_item = cursor.fetchone()
                 conn.commit()
 
@@ -188,7 +240,11 @@ def update_cart_item(event, user_id):
 ########################
 def remove_from_cart(event, user_id):
     try:
-        body = json.loads(event['body'])
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
+        
         post_id = body['postId']
 
         with get_db_connection() as conn:

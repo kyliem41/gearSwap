@@ -138,9 +138,7 @@ def createProfile(event, context):
         user_id = event['pathParameters']['Id']
         bio = body.get('bio')
         location = body.get('location')
-        
-        default_profile_picture = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQACWAJYAAD/4QAC/9sAQwADAgICAgIDAgICAwMDAwQGBAQEBAQIBgYFBgkICgoJCAkJCgwPDAoLDgsJCQ0RDQ4PEBAREAoMEhMSEBMPEBAQ/8IACwgHgAeAAQERAP/EAB4AAQACAgMBAQEAAAAAAAAAAAAICQYHBAUKAwIB/..."
-        profilePicture = body.get('profilePicture', default_profile_picture)
+        profilePicture = body.get('profilePicture')
 
     except json.JSONDecodeError:
         return cors_response(400, "Invalid JSON format in request body")

@@ -1,3 +1,4 @@
+import base64
 import psycopg2
 import os
 import json
@@ -9,18 +10,44 @@ import requests
 from jwt.algorithms import RSAAlgorithm
 import boto3
 
-def cors_response(status_code, body):
-    """Helper function to create responses with proper CORS headers"""
+def cors_response(status_code, body, content_type='application/json'):
+    headers = {
+        'Content-Type': content_type,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+    }
+    
+    if content_type == 'application/json':
+        body = json.dumps(body, default=str)
+        is_base64 = False
+    else:
+        is_base64 = True
+    
     return {
         'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',  # Configure this to match your domain in production
-            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
-        },
-        'body': json.dumps(body, default=str)
+        'headers': headers,
+        'body': body,
+        'isBase64Encoded': is_base64
     }
+    
+def parse_body(event):
+    """Helper function to parse request body handling both base64 and regular JSON"""
+    try:
+        if event.get('isBase64Encoded', False):
+            decoded_body = base64.b64decode(event['body']).decode('utf-8')
+            try:
+                return json.loads(decoded_body)
+            except json.JSONDecodeError:
+                return decoded_body
+        elif isinstance(event.get('body'), dict):
+            return event['body']
+        elif isinstance(event.get('body'), str):
+            return json.loads(event['body'])
+        return {}
+    except Exception as e:
+        print(f"Error parsing body: {str(e)}")
+        raise ValueError(f"Invalid request body: {str(e)}")
 
 def lambda_handler(event, context):
     if event['httpMethod'] == 'OPTIONS':
@@ -40,18 +67,23 @@ def lambda_handler(event, context):
     except Exception as e:
         return cors_response(401, {'error': f'Authentication failed: {str(e)}'})
 
-    if resource_path == '/likedPosts/{userId}':
-        if http_method == 'POST':
-            return addLikedPost(event, context)
-        elif http_method == 'GET':
-            return getLikedPosts(event, context)
-    elif resource_path == '/likedPosts/{userId}/{postId}':
-        if http_method == 'DELETE':
-            return removeLikedPost(event, context)
-        elif http_method == 'GET':
-            return getLikedPostById(event, context)
+    try:
+        if resource_path == '/likedPosts/{userId}':
+            if http_method == 'POST':
+                return addLikedPost(event, context)
+            elif http_method == 'GET':
+                return getLikedPosts(event, context)
+        elif resource_path == '/likedPosts/{userId}/{postId}':
+            if http_method == 'DELETE':
+                return removeLikedPost(event, context)
+            elif http_method == 'GET':
+                return getLikedPostById(event, context)
 
-    return cors_response(400, {'error': 'Unsupported route'})
+        return cors_response(400, {'error': 'Unsupported route'})
+
+    except Exception as e:
+        print(f"Error processing request: {str(e)}")
+        return cors_response(500, {'error': f'Error processing request: {str(e)}'})
     
 ########################
 #AUTH
@@ -115,9 +147,21 @@ def get_db_connection():
     )
 
 ###########
+def check_post_ownership(cursor, user_id, post_id):
+    """Helper function to check if a user owns a post"""
+    cursor.execute("SELECT userid FROM posts WHERE id = %s", (post_id,))
+    post = cursor.fetchone()
+    if not post:
+        raise ValueError("Post not found")
+    return str(post['userid']) == str(user_id)
+
+##############
 def addLikedPost(event, context):
     try:
-        body = json.loads(event['body']) if isinstance(event.get('body'), str) else event.get('body', {})
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
         
         userId = event['pathParameters']['userId']
         postId = body.get('postId')
@@ -127,6 +171,12 @@ def addLikedPost(event, context):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # Check if user owns the post
+                if check_post_ownership(cursor, userId, postId):
+                    return cors_response(400, {
+                        "error": "Cannot like your own post"
+                    })
+
                 insert_query = """
                 INSERT INTO likedPost (userId, postId) 
                 VALUES (%s, %s)
@@ -142,6 +192,8 @@ def addLikedPost(event, context):
             "likedPost": new_liked_post
         })
 
+    except ValueError as e:
+        return cors_response(400, {"error": str(e)})
     except Exception as e:
         print(f"Failed to add liked post. Error: {str(e)}")
         return cors_response(500, {"error": f"Error adding liked post: {str(e)}"})

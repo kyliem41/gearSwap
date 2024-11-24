@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/posts/postDetails.dart';
@@ -50,6 +51,112 @@ class _WishlistPageState extends State<WishlistPage> {
     } catch (e) {
       print('Error loading user data: $e');
     }
+  }
+
+  Widget _buildPostImage(Map<String, dynamic> post) {
+    try {
+      print('Post ID: ${post['id']}');
+      print('Images data: ${post['images']}');
+
+      if (post['images'] != null &&
+          post['images'] is List &&
+          post['images'].isNotEmpty &&
+          post['images'][0] != null &&
+          post['images'][0]['data'] != null) {
+        String base64String = post['images'][0]['data'];
+        base64String = base64String.trim();
+        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+
+        while (base64String.length % 4 != 0) {
+          base64String += '=';
+        }
+
+        try {
+          final Uint8List imageBytes = base64Decode(base64String);
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: Image.memory(
+              imageBytes,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                print('Error displaying image: $error');
+                return _buildPlaceholder();
+              },
+            ),
+          );
+        } catch (e) {
+          print('Error decoding base64 for post ${post['id']}: $e');
+          return _buildPlaceholder();
+        }
+      } else {
+        return FutureBuilder<Uint8List>(
+          future: _loadImageData(post['id'].toString()),
+          builder: (context, AsyncSnapshot<Uint8List> snapshot) {
+            if (snapshot.hasData) {
+              return Container(
+                width: double.infinity,
+                height: double.infinity,
+                child: Image.memory(
+                  snapshot.data!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Error displaying loaded image: $error');
+                    return _buildPlaceholder();
+                  },
+                ),
+              );
+            }
+            return _buildPlaceholder();
+          },
+        );
+      }
+    } catch (e) {
+      print('Error in _buildPostImage for post ${post['id']}: $e');
+      return _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.grey[200],
+      child: Icon(
+        Icons.image,
+        size: 40,
+        color: Colors.grey[400],
+      ),
+    );
+  }
+
+  Future<Uint8List> _loadImageData(String postId) async {
+    if (baseUrl == null) {
+      throw Exception('Base URL not initialized');
+    }
+
+    if (_idToken == null) {
+      throw Exception('Not authenticated');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/posts/$postId/images'),
+      headers: {
+        'Authorization': 'Bearer $_idToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['images'] != null &&
+          data['images'] is List &&
+          data['images'].isNotEmpty &&
+          data['images'][0]['data'] != null) {
+        return base64Decode(data['images'][0]['data']);
+      }
+    }
+    throw Exception('Failed to load image: ${response.statusCode}');
   }
 
   Future<void> _loadLikedPosts() async {
@@ -176,10 +283,7 @@ class _WishlistPageState extends State<WishlistPage> {
                               SizedBox(height: 8),
                               Text(
                                 'Items you like will appear here',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                       color: Colors.grey,
                                     ),
                               ),
@@ -187,8 +291,7 @@ class _WishlistPageState extends State<WishlistPage> {
                           ),
                         )
                       : GridView.builder(
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 4,
                             crossAxisSpacing: 10.0,
                             mainAxisSpacing: 10.0,
@@ -217,39 +320,23 @@ class _WishlistPageState extends State<WishlistPage> {
                                       child: Stack(
                                         children: [
                                           Container(
+                                            width: double.infinity,
                                             color: Colors.grey[200],
                                             child: Center(
                                               child: Column(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
+                                                mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
-                                                  if (post['photos'] != null &&
-                                                      post['photos'].isNotEmpty)
-                                                    Image.network(
-                                                      post['photos'][0],
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context,
-                                                              error,
-                                                              stackTrace) =>
-                                                          Icon(
-                                                        Icons.image,
-                                                        size: 40,
-                                                        color: Colors.grey[400],
+                                                  Expanded(
+                                                    child: _buildPostImage(post),
+                                                  ),
+                                                  Padding(
+                                                    padding: const EdgeInsets.all(8.0),
+                                                    child: Text(
+                                                      '\$${post['price']}',
+                                                      style: TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight: FontWeight.bold,
                                                       ),
-                                                    )
-                                                  else
-                                                    Icon(
-                                                      Icons.image,
-                                                      size: 40,
-                                                      color: Colors.grey[400],
-                                                    ),
-                                                  const SizedBox(height: 8),
-                                                  Text(
-                                                    '\$${post['price']}',
-                                                    style: TextStyle(
-                                                      fontSize: 18,
-                                                      fontWeight:
-                                                          FontWeight.bold,
                                                     ),
                                                   ),
                                                 ],
@@ -264,8 +351,7 @@ class _WishlistPageState extends State<WishlistPage> {
                                                 Icons.favorite,
                                                 color: Colors.red,
                                               ),
-                                              onPressed: () => _unlikePost(
-                                                  post['id'].toString()),
+                                              onPressed: () => _unlikePost(post['id'].toString()),
                                             ),
                                           ),
                                         ],
@@ -274,12 +360,10 @@ class _WishlistPageState extends State<WishlistPage> {
                                     Padding(
                                       padding: const EdgeInsets.all(8.0),
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            post['description'] ??
-                                                'No description',
+                                            post['description'] ?? 'No description',
                                             style: TextStyle(fontSize: 14),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
