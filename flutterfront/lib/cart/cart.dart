@@ -6,6 +6,7 @@ import 'package:sample/posts/postDetails.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:typed_data';
 
 class CartPage extends StatefulWidget {
   @override
@@ -304,21 +305,47 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
-  Widget _buildImage(String? imageUrl) {
-    if (imageUrl == null || imageUrl.isEmpty) {
+  Widget _buildImage(Map<String, dynamic> post) {
+    try {
+      if (post['images'] != null &&
+          post['images'] is List &&
+          post['images'].isNotEmpty &&
+          post['images'][0] != null &&
+          post['images'][0]['data'] != null) {
+        String base64String = post['images'][0]['data'];
+        // Clean up base64 string
+        base64String = base64String.trim();
+        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+
+        // Add padding if needed
+        while (base64String.length % 4 != 0) {
+          base64String += '=';
+        }
+
+        try {
+          final Uint8List imageBytes = base64Decode(base64String);
+          return Container(
+            width: 80,
+            height: 80,
+            child: Image.memory(
+              imageBytes,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                print('Error displaying image: $error');
+                return _buildPlaceholderImage();
+              },
+            ),
+          );
+        } catch (e) {
+          print('Error decoding base64 for post: $e');
+          return _buildPlaceholderImage();
+        }
+      }
+      return _buildPlaceholderImage();
+    } catch (e) {
+      print('Error in _buildImage: $e');
       return _buildPlaceholderImage();
     }
-
-    return Image.network(
-      imageUrl,
-      width: 80,
-      height: 80,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        print('Error loading image: $error');
-        return _buildPlaceholderImage();
-      },
-    );
   }
 
   Widget _buildPlaceholderImage() {
@@ -386,7 +413,6 @@ class _CartPageState extends State<CartPage> {
   }
 
   Widget _buildCartItem(Map<String, dynamic> item) {
-    // Add debug print for item data
     print('Building cart item: ${json.encode(item)}');
 
     var price = item['price'];
@@ -418,10 +444,7 @@ class _CartPageState extends State<CartPage> {
         padding: EdgeInsets.symmetric(vertical: 8.0),
         child: Row(
           children: [
-            if (item['photos'] != null && (item['photos'] as List).isNotEmpty)
-              _buildImage(item['photos'][0])
-            else
-              _buildPlaceholderImage(),
+            _buildImage(item), // Updated to use the new image builder
             SizedBox(width: 16),
             Expanded(
               child: Column(

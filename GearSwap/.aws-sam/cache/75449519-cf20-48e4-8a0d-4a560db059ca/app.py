@@ -191,11 +191,28 @@ def get_cart(user_id):
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute("""
-                            SELECT *
-                            FROM cart
-                            WHERE userId = %s
-                            """, (user_id))
+                    SELECT c.*,
+                        p.*,
+                        ARRAY_AGG(
+                            json_build_object(
+                                'id', pi.id,
+                                'content_type', pi.content_type,
+                                'data', encode(pi.image_data, 'base64')
+                            )
+                        ) as images
+                    FROM cart c
+                    JOIN posts p ON c.postId = p.id
+                    LEFT JOIN post_images pi ON p.id = pi.post_id
+                    WHERE c.userId = %s
+                    GROUP BY c.id, p.id
+                    ORDER BY c.id DESC
+                    """, (user_id,))
                 cart_items = cursor.fetchall()
+
+                # Clean up null image arrays
+                for item in cart_items:
+                    if item['images'] and item['images'][0] is None:
+                        item['images'] = []
 
         return cors_response(200, {
             "message": "Cart retrieved successfully",

@@ -209,10 +209,19 @@ def getLikedPosts(event, context):
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 get_query = """
-                    SELECT p.*, lp.dateLiked
+                    SELECT p.*, lp.dateLiked, 
+                           ARRAY_AGG(
+                               json_build_object(
+                                   'id', pi.id,
+                                   'content_type', pi.content_type,
+                                   'data', encode(pi.image_data, 'base64')
+                               )
+                           ) as images
                     FROM likedPost lp
                     JOIN posts p ON lp.postId = p.id
+                    LEFT JOIN post_images pi ON p.id = pi.post_id
                     WHERE lp.userId = %s 
+                    GROUP BY p.id, lp.dateLiked
                     ORDER BY lp.dateLiked DESC 
                 """
                 cursor.execute(get_query, (userId,))
@@ -222,6 +231,9 @@ def getLikedPosts(event, context):
                 for post in likedPosts:
                     if 'price' in post and isinstance(post['price'], Decimal):
                         post['price'] = float(post['price'])
+                    # Clean up empty image arrays
+                    if post['images'] and post['images'][0] is None:
+                        post['images'] = []
 
         return cors_response(200, {
             "message": "Liked posts retrieved",
