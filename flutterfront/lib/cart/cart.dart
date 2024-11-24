@@ -7,6 +7,7 @@ import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:typed_data';
+import 'dart:math';
 
 class CartPage extends StatefulWidget {
   @override
@@ -301,63 +302,68 @@ class _CartPageState extends State<CartPage> {
   Widget _buildImage(Map<String, dynamic> item) {
     try {
       print('Building image for item: ${item['id']}');
-      print('Images data: ${item['images']}');
+      print('Images data: ${json.encode(item['images'])}');
 
-      // Check if the image data exists in the response
       if (item['images'] != null &&
           item['images'] is List &&
-          (item['images'] as List).isNotEmpty &&
-          item['images'][0] != null &&
-          item['images'][0]['data'] != null) {
-        // Get the base64 string
-        String base64String = item['images'][0]['data'].toString();
+          (item['images'] as List).isNotEmpty) {
+        var imageData = item['images'][0];
+        if (imageData != null && imageData['data'] != null) {
+          // Get the base64 string and clean it up
+          String base64String = imageData['data'].toString();
 
-        // Clean up the base64 string
-        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-        base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+          try {
+            // First, try to decode directly
+            List<int> imageBytes;
+            try {
+              imageBytes = base64.decode(base64String);
+            } catch (e) {
+              // If direct decode fails, try cleaning the string
+              base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+              base64String =
+                  base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
 
-        // If the string contains a comma (data URI format), take the part after the comma
-        if (base64String.contains(',')) {
-          base64String = base64String.split(',').last;
+              // Check if it's a data URI and extract just the base64 part if it is
+              if (base64String.contains(',')) {
+                base64String = base64String.split(',').last;
+              }
+
+              // Add padding if needed
+              while (base64String.length % 4 != 0) {
+                base64String += '=';
+              }
+
+              imageBytes = base64.decode(base64String);
+            }
+
+            return Container(
+              width: 80,
+              height: 80,
+              clipBehavior: Clip.hardEdge,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Image.memory(
+                Uint8List.fromList(imageBytes),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error displaying image: $error');
+                  return _buildPlaceholderImage();
+                },
+              ),
+            );
+          } catch (e) {
+            print('Error processing base64 for post ${item['id']}: $e');
+            print(
+                'Problematic base64 string: ${base64String.substring(0, min(100, base64String.length))}...');
+            return _buildPlaceholderImage();
+          }
         }
-
-        // Add padding if necessary
-        int padLength = base64String.length % 4;
-        if (padLength > 0) {
-          base64String = base64String.padRight(
-            base64String.length + (4 - padLength),
-            '=',
-          );
-        }
-
-        try {
-          final Uint8List imageBytes = base64.decode(base64String);
-          return Container(
-            width: 80,
-            height: 80,
-            clipBehavior: Clip.hardEdge,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Image.memory(
-              imageBytes,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                print('Error displaying image: $error');
-                return _buildPlaceholderImage();
-              },
-            ),
-          );
-        } catch (e) {
-          print('Error decoding base64: $e');
-          return _buildPlaceholderImage();
-        }
-      } else {
-        print('No valid image data found');
-        return _buildPlaceholderImage();
       }
+      print('No valid image data found for post ${item['id']}');
+      return _buildPlaceholderImage();
     } catch (e) {
-      print('Error in _buildImage: $e');
+      print('Error in _buildImage for post ${item['id']}: $e');
       return _buildPlaceholderImage();
     }
   }
