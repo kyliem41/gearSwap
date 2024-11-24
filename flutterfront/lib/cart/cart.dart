@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/cartNavBar.dart';
 import 'package:sample/posts/postDetails.dart';
+import 'package:sample/profile/profile.dart';
+import 'package:sample/profile/sellerProfile.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -540,9 +542,6 @@ class _CartPageState extends State<CartPage> {
                                     double groupTotal =
                                         _calculateGroupTotal(items);
                                     final seller = sellerInfo[sellerId];
-                                    final sellerName = seller != null
-                                        ? '@${seller['username']}'
-                                        : 'Seller $sellerId';
 
                                     return Card(
                                       margin: EdgeInsets.only(bottom: 16.0),
@@ -552,11 +551,104 @@ class _CartPageState extends State<CartPage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              'Seller: ${sellerInfo[sellerId]?['username'] ?? 'Loading...'}',
-                                              style: TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
+                                            GestureDetector(
+                                              onTap: () async {
+                                                if (baseUrl == null) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content: Text(
+                                                            'Configuration error. Please try again later.')),
+                                                  );
+                                                  return;
+                                                }
+
+                                                try {
+                                                  final prefs =
+                                                      await SharedPreferences
+                                                          .getInstance();
+                                                  final userStr =
+                                                      prefs.getString('user');
+                                                  final idToken = prefs
+                                                      .getString('idToken');
+
+                                                  if (userStr != null &&
+                                                      idToken != null) {
+                                                    final userData =
+                                                        jsonDecode(userStr);
+                                                    final currentUserId =
+                                                        userData['id']
+                                                            .toString();
+
+                                                    if (currentUserId ==
+                                                        sellerId) {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                            builder: (context) =>
+                                                                ProfilePage()),
+                                                      );
+                                                    } else {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (context) =>
+                                                              SellerProfilePage(
+                                                            sellerId: sellerId,
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  }
+                                                } catch (e) {
+                                                  print(
+                                                      'Error navigating to profile: $e');
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content: Text(
+                                                            'Failed to load profile')),
+                                                  );
+                                                }
+                                              },
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 8),
+                                                child: Row(
+                                                  children: [
+                                                    CircleAvatar(
+                                                      radius: 15,
+                                                      child: Text(
+                                                        sellerInfo[sellerId]?[
+                                                                    'firstName']
+                                                                ?.toString()
+                                                                .substring(0, 1)
+                                                                .toUpperCase() ??
+                                                            '?',
+                                                        style: TextStyle(
+                                                            color:
+                                                                Colors.white),
+                                                      ),
+                                                      backgroundColor:
+                                                          Colors.deepOrange,
+                                                    ),
+                                                    SizedBox(width: 8),
+                                                    Text(
+                                                      '@${sellerInfo[sellerId]?['username'] ?? 'Loading...'}',
+                                                      style: TextStyle(
+                                                        color:
+                                                            Colors.deepOrange,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 16,
+                                                        decoration:
+                                                            TextDecoration
+                                                                .underline,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                             SizedBox(height: 16),
