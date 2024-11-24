@@ -121,24 +121,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
-        print('Full response data: $data'); // Debug full response
-
         List<dynamic> postsData = data['posts'];
-        print(
-            'First post full data: ${postsData.isNotEmpty ? postsData[0] : 'No posts'}'); // Debug first post
 
         if (postsData.isNotEmpty) {
-          var firstPost = postsData[0];
-          print(
-              'First post images field type: ${firstPost['images'].runtimeType}'); // Debug images field type
-          print(
-              'First post images content: ${firstPost['images']}'); // Debug images content
-
-          if (firstPost['images'] != null &&
-              firstPost['images'] is List &&
-              firstPost['images'].isNotEmpty) {
+          print('First post data structure: ${json.encode(postsData[0])}');
+          if (postsData[0]['images'] != null &&
+              postsData[0]['images'].isNotEmpty) {
             print(
-                'First image data: ${firstPost['images'][0]}'); // Debug first image data
+                'First post first image data type: ${postsData[0]['images'][0]['data'].runtimeType}');
+            print(
+                'First post first image content type: ${postsData[0]['images'][0]['content_type']}');
           }
         }
 
@@ -169,99 +161,77 @@ class _MyHomePageState extends State<MyHomePage> {
       print('Building image for post ${post['id']}');
       final images = post['images'];
 
-      if (images != null &&
-          images is List &&
-          images.isNotEmpty &&
-          images[0] != null &&
-          images[0]['data'] != null) {
-        String base64String = images[0]['data'];
+      if (images != null && images is List && images.isNotEmpty) {
+        final image = images[0];
+        if (image != null && image['data'] != null) {
+          try {
+            String base64String = image['data'].toString();
+            // Clean up base64 string
+            base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+            base64String =
+                base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
 
-        // Clean up the base64 string
-        base64String = base64String.trim();
-        // Remove any data URL prefix if present
-        if (base64String.contains(',')) {
-          base64String = base64String.split(',').last;
-        }
-        // Remove any whitespace or newlines
-        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+            if (base64String.contains(',')) {
+              base64String = base64String.split(',').last;
+            }
 
-        try {
-          final Uint8List imageBytes = base64Decode(base64String);
+            // Add padding if needed
+            int padLength = base64String.length % 4;
+            if (padLength > 0) {
+              base64String = base64String.padRight(
+                base64String.length + (4 - padLength),
+                '=',
+              );
+            }
 
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            clipBehavior: Clip.hardEdge, // Add this to ensure proper clipping
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-            ),
-            child: Image.memory(
-              imageBytes,
-              fit: BoxFit.cover,
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                if (frame == null) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                return child;
-              },
-              errorBuilder: (context, error, stackTrace) {
-                print('Error displaying image: $error');
-                print('Stack trace: $stackTrace');
+            try {
+              final imageBytes = base64Decode(base64String);
+              return Container(
+                width: double.infinity,
+                height: double.infinity,
+                child: Image.memory(
+                  imageBytes,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Error displaying image: $error');
+                    print('Stack trace: $stackTrace');
+                    return _buildPlaceholder();
+                  },
+                ),
+              );
+            } catch (e) {
+              print('Primary decode failed, trying alternative method: $e');
+              try {
+                final codec = const Base64Codec();
+                final imageBytes = codec.decode(base64String);
+                return Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: Image.memory(
+                    imageBytes,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Error displaying image: $error');
+                      return _buildPlaceholder();
+                    },
+                  ),
+                );
+              } catch (e2) {
+                print('Alternative decode failed: $e2');
                 return _buildPlaceholder();
-              },
-            ),
-          );
-
-          if (posts.isNotEmpty) {
-            children.add(_buildTestImage(posts[0]));
+              }
+            }
+          } catch (e) {
+            print('Error processing base64 for post ${post['id']}: $e');
+            return _buildPlaceholder();
           }
-        } catch (e) {
-          print('Error decoding base64 for post ${post['id']}: $e');
-          return _buildPlaceholder();
         }
-      } else {
-        return _buildPlaceholder();
       }
+      return _buildPlaceholder();
     } catch (e) {
       print('Error in _buildPostImage for post ${post['id']}: $e');
       return _buildPlaceholder();
     }
-  }
-
-  Widget _buildTestImage(Map<String, dynamic> post) {
-    try {
-      final images = post['images'];
-      if (images != null && images is List && images.isNotEmpty) {
-        String base64String = images[0]['data'];
-        base64String = base64String.trim().replaceAll(RegExp(r'\s+'), '');
-
-        print(
-            'Testing image decode with string length: ${base64String.length}');
-        print('First 50 chars: ${base64String.substring(0, 50)}');
-
-        return Container(
-          width: 200,
-          height: 200,
-          color: Colors.grey[200],
-          child: Image.memory(
-            base64Decode(base64String),
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              print('Test image error: $error');
-              return Icon(Icons.error);
-            },
-          ),
-        );
-      }
-    } catch (e) {
-      print('Test image error: $e');
-    }
-    return Container(
-      width: 200,
-      height: 200,
-      color: Colors.red,
-      child: Center(child: Text('Failed to load test image')),
-    );
   }
 
   Widget _buildPlaceholder() {
