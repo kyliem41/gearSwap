@@ -551,100 +551,112 @@ class _CartPageState extends State<CartPage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            GestureDetector(
-                                              onTap: () async {
-                                                if (baseUrl == null) {
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(
-                                                    SnackBar(
-                                                        content: Text(
-                                                            'Configuration error. Please try again later.')),
-                                                  );
-                                                  return;
-                                                }
-
-                                                try {
-                                                  final prefs =
-                                                      await SharedPreferences
-                                                          .getInstance();
-                                                  final userStr =
-                                                      prefs.getString('user');
-                                                  final idToken = prefs
-                                                      .getString('idToken');
-
-                                                  if (userStr != null &&
-                                                      idToken != null) {
-                                                    final userData =
-                                                        jsonDecode(userStr);
-                                                    final currentUserId =
-                                                        userData['id']
-                                                            .toString();
-
-                                                    if (currentUserId ==
-                                                        sellerId) {
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                            builder: (context) =>
-                                                                ProfilePage()),
-                                                      );
-                                                    } else {
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                          builder: (context) =>
-                                                              SellerProfilePage(
-                                                            sellerId: sellerId,
-                                                          ),
-                                                        ),
-                                                      );
-                                                    }
+                                            Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  vertical: 8, horizontal: 4),
+                                              child: GestureDetector(
+                                                onTap: () async {
+                                                  if (baseUrl == null) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                          content: Text(
+                                                              'Configuration error. Please try again later.')),
+                                                    );
+                                                    return;
                                                   }
-                                                } catch (e) {
-                                                  print(
-                                                      'Error navigating to profile: $e');
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(
-                                                    SnackBar(
-                                                        content: Text(
-                                                            'Failed to load profile')),
-                                                  );
-                                                }
-                                              },
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        vertical: 8),
+
+                                                  try {
+                                                    final prefs =
+                                                        await SharedPreferences
+                                                            .getInstance();
+                                                    final userStr =
+                                                        prefs.getString('user');
+                                                    final idToken = prefs
+                                                        .getString('idToken');
+
+                                                    if (userStr != null &&
+                                                        idToken != null) {
+                                                      final userData =
+                                                          jsonDecode(userStr);
+                                                      final currentUserId =
+                                                          userData['id']
+                                                              .toString();
+
+                                                      if (currentUserId ==
+                                                          sellerId) {
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                              builder: (context) =>
+                                                                  ProfilePage()),
+                                                        );
+                                                      } else {
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder: (context) =>
+                                                                SellerProfilePage(
+                                                              sellerId:
+                                                                  sellerId,
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+                                                    }
+                                                  } catch (e) {
+                                                    print(
+                                                        'Error navigating to profile: $e');
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                          content: Text(
+                                                              'Failed to load profile')),
+                                                    );
+                                                  }
+                                                },
                                                 child: Row(
                                                   children: [
                                                     CircleAvatar(
-                                                      radius: 15,
-                                                      child: Text(
-                                                        sellerInfo[sellerId]?[
-                                                                    'firstName']
-                                                                ?.toString()
-                                                                .substring(0, 1)
-                                                                .toUpperCase() ??
-                                                            '?',
-                                                        style: TextStyle(
-                                                            color:
-                                                                Colors.white),
-                                                      ),
+                                                      radius: 20,
                                                       backgroundColor:
                                                           Colors.deepOrange,
+                                                      child: Text(
+                                                        (sellerInfo[sellerId]?[
+                                                                        'firstName']
+                                                                    ?[0] ??
+                                                                '?')
+                                                            .toUpperCase(),
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
                                                     ),
                                                     SizedBox(width: 8),
-                                                    Text(
-                                                      '@${sellerInfo[sellerId]?['username'] ?? 'Loading...'}',
-                                                      style: TextStyle(
-                                                        color:
-                                                            Colors.deepOrange,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 16,
-                                                        decoration:
-                                                            TextDecoration
-                                                                .underline,
+                                                    RichText(
+                                                      text: TextSpan(
+                                                        children: [
+                                                          TextSpan(
+                                                            text:
+                                                                "@${sellerInfo[sellerId]?['username'] ?? 'Loading...'}",
+                                                            style: TextStyle(
+                                                              color: Colors
+                                                                  .deepOrange,
+                                                              fontSize: 16,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              decoration:
+                                                                  TextDecoration
+                                                                      .none,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
                                                   ],
