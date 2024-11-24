@@ -120,6 +120,11 @@ class _NewPostPageState extends State<NewPostPage> {
   Future<void> _addPost() async {
     if (!_validateInputs()) return;
 
+    if (baseUrl == null) {
+      _showErrorDialog('Configuration error. Please try again later.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -128,35 +133,33 @@ class _NewPostPageState extends State<NewPostPage> {
       final idToken = prefs.getString('idToken');
 
       if (userStr == null || idToken == null) {
-        throw Exception('Please log in to create a post');
+        _showErrorDialog('Please log in to create a post');
+        return;
       }
 
       final userData = json.decode(userStr);
       final userId = userData['id'];
 
-      // Upload images first
+      // First, upload all images and get their IDs
       List<String> uploadedImageIds = [];
       for (var photo in photos) {
         try {
-          print('Attempting to upload image...'); // Debug print
           final imageId = await _uploadSingleImage(userId, photo, idToken);
           if (imageId != null) {
             uploadedImageIds.add(imageId);
-            print('Added image ID: $imageId'); // Debug print
           }
         } catch (e) {
-          print('Error uploading single image: $e'); // Debug print
+          print('Error uploading image: $e');
+          // Continue with other images if one fails
         }
       }
 
       if (uploadedImageIds.isEmpty) {
-        throw Exception('Failed to upload any images');
+        _showErrorDialog('Failed to upload images. Please try again.');
+        return;
       }
 
-      print(
-          'Successfully uploaded ${uploadedImageIds.length} images'); // Debug print
-
-      // Create the post
+      // Now create the post with image references
       final requestBody = {
         'price': double.parse(priceController.text),
         'description': descriptionController.text.trim(),
@@ -164,11 +167,8 @@ class _NewPostPageState extends State<NewPostPage> {
         'category': selectedCategory,
         'clothingType': selectedClothingType,
         'tags': selectedTags,
-        'photoIds': uploadedImageIds,
+        'photoIds': uploadedImageIds, // Only send the image IDs now
       };
-
-      print(
-          'Creating post with body: ${json.encode(requestBody)}'); // Debug print
 
       final url = '$baseUrl/posts/create/$userId';
       final response = await http.post(
@@ -179,9 +179,6 @@ class _NewPostPageState extends State<NewPostPage> {
         },
         body: json.encode(requestBody),
       );
-
-      print(
-          'Post creation response: ${response.statusCode} - ${response.body}'); // Debug print
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         showDialog(
@@ -208,12 +205,12 @@ class _NewPostPageState extends State<NewPostPage> {
           },
         );
       } else {
-        throw Exception(
-            'Failed to create post: ${response.statusCode} - ${response.body}');
+        _handleErrorResponse(response);
       }
-    } catch (e) {
-      print('Exception in _addPost: $e'); // Debug print
-      _showErrorDialog(e.toString());
+    } catch (e, stackTrace) {
+      print('Exception details: $e');
+      print('Stack trace: $stackTrace');
+      _showErrorDialog('Error creating post: ${e.toString()}');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -253,46 +250,29 @@ class _NewPostPageState extends State<NewPostPage> {
   Future<String?> _uploadSingleImage(
       String userId, Map<String, dynamic> photo, String idToken) async {
     try {
-      print('Starting image upload...'); // Debug print
       final uploadUrl = '$baseUrl/images/upload/$userId';
-      print('Upload URL: $uploadUrl'); // Debug print
-
-      // Remove data:image prefix if present
-      String imageData = photo['data'];
-      if (imageData.contains(';base64,')) {
-        imageData = imageData.split(';base64,')[1];
-      }
-
-      final requestBody = json.encode({
-        'data': imageData,
-        'content_type': photo['content_type'],
-      });
-
-      print('Making upload request...'); // Debug print
       final response = await http.post(
         Uri.parse(uploadUrl),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-        body: requestBody,
+        body: json.encode({
+          'data': photo['data'],
+          'content_type': photo['content_type'],
+        }),
       );
-
-      print('Upload response status: ${response.statusCode}'); // Debug print
-      print('Upload response body: ${response.body}'); // Debug print
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        final imageId = responseData['imageId']?.toString();
-        print('Successfully uploaded image with ID: $imageId'); // Debug print
-        return imageId;
+        return responseData['imageId'];
       } else {
-        throw Exception(
-            'Failed to upload image: ${response.statusCode} - ${response.body}');
+        print('Failed to upload image: ${response.body}');
+        return null;
       }
     } catch (e) {
-      print('Error in _uploadSingleImage: $e'); // Debug print
-      rethrow; // Rethrow to be handled by caller
+      print('Error uploading image: $e');
+      return null;
     }
   }
 
