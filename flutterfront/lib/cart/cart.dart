@@ -113,7 +113,6 @@ class _CartPageState extends State<CartPage> {
         throw Exception('Base URL not initialized');
       }
 
-      // First try to get the user info directly
       final userUrl = Uri.parse('$baseUrl/users/$sellerId');
       print('Fetching seller info from: $userUrl');
 
@@ -125,32 +124,29 @@ class _CartPageState extends State<CartPage> {
       );
 
       print('Seller info response status: ${response.statusCode}');
+      print('Seller info response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['user'] != null) {
+          final user = data['user'];
           if (mounted) {
             setState(() {
               sellerInfo[sellerId] = {
-                'username': data['user']['username'],
-                'firstName': data['user']['firstname'],
-                'lastName': data['user']['lastname']
+                'username': user['username'],
+                'firstName': user['firstname'],
+                'lastName': user['lastname']
               };
             });
           }
-        } else {
-          print('No user data found for seller: $sellerId');
         }
-      } else {
-        throw Exception('Failed to fetch seller info: ${response.statusCode}');
       }
     } catch (e) {
       print('Error fetching seller info: $e');
-      // Set a default value for the seller info
       if (mounted) {
         setState(() {
           sellerInfo[sellerId] = {
-            'username': 'Unknown User',
+            'username': 'User $sellerId',
             'firstName': '',
             'lastName': ''
           };
@@ -192,6 +188,7 @@ class _CartPageState extends State<CartPage> {
 
       if (cartResponse.statusCode == 200) {
         final cartData = json.decode(cartResponse.body);
+        print('Cart data: ${json.encode(cartData)}');
 
         if (cartData['cart'] == null) {
           if (mounted) {
@@ -207,32 +204,13 @@ class _CartPageState extends State<CartPage> {
         final groupedItems = <String, List<Map<String, dynamic>>>{};
         final fetchedSellerIds = <String>{};
 
-        for (var cartItem in cartList) {
-          final postId = cartItem['postid'];
-          final postUrl = Uri.parse('$baseUrl/posts/$postId');
-
-          final postResponse = await http.get(
-            postUrl,
-            headers: {
-              'Authorization': 'Bearer $idToken',
-            },
-          );
-
-          if (postResponse.statusCode == 200) {
-            final postData = json.decode(postResponse.body);
-            if (postData['post'] != null) {
-              final post = postData['post'] as Map<String, dynamic>;
-              final sellerId = post['userid'].toString();
-
-              if (!groupedItems.containsKey(sellerId)) {
-                groupedItems[sellerId] = [];
-                fetchedSellerIds.add(sellerId);
-              }
-              groupedItems[sellerId]!.add(post);
-            }
-          } else {
-            print('Failed to fetch post $postId: ${postResponse.statusCode}');
+        for (var item in cartList) {
+          final sellerId = item['userid'].toString();
+          if (!groupedItems.containsKey(sellerId)) {
+            groupedItems[sellerId] = [];
+            fetchedSellerIds.add(sellerId);
           }
+          groupedItems[sellerId]!.add(item);
         }
 
         if (mounted) {
@@ -242,6 +220,7 @@ class _CartPageState extends State<CartPage> {
           });
         }
 
+        // Fetch seller info for each unique seller
         for (String sellerId in fetchedSellerIds) {
           await _fetchSellerInfo(sellerId);
         }
@@ -331,12 +310,28 @@ class _CartPageState extends State<CartPage> {
           item['images'][0] != null &&
           item['images'][0]['data'] != null) {
         // Get the base64 string
-        String base64String = item['images'][0]['data'];
+        String base64String = item['images'][0]['data'].toString();
+
+        // Clean up the base64 string
+        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+        base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+        // If the string contains a comma (data URI format), take the part after the comma
+        if (base64String.contains(',')) {
+          base64String = base64String.split(',').last;
+        }
+
+        // Add padding if necessary
+        int padLength = base64String.length % 4;
+        if (padLength > 0) {
+          base64String = base64String.padRight(
+            base64String.length + (4 - padLength),
+            '=',
+          );
+        }
 
         try {
-          // Decode base64 string to bytes
           final Uint8List imageBytes = base64.decode(base64String);
-
           return Container(
             width: 80,
             height: 80,
