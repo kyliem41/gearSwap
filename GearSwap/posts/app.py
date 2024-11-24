@@ -19,7 +19,6 @@ ALLOWED_CONTENT_TYPES = {
 }
 
 def cors_response(status_code, body, content_type='application/json'):
-    """Helper function to create responses with proper CORS headers"""
     headers = {
         'Content-Type': content_type,
         'Access-Control-Allow-Origin': '*',
@@ -39,6 +38,24 @@ def cors_response(status_code, body, content_type='application/json'):
         'body': body,
         'isBase64Encoded': is_base64
     }
+    
+def parse_body(event):
+    """Helper function to parse request body handling both base64 and regular JSON"""
+    try:
+        if event.get('isBase64Encoded', False):
+            decoded_body = base64.b64decode(event['body']).decode('utf-8')
+            try:
+                return json.loads(decoded_body)
+            except json.JSONDecodeError:
+                return decoded_body
+        elif isinstance(event.get('body'), dict):
+            return event['body']
+        elif isinstance(event.get('body'), str):
+            return json.loads(event['body'])
+        return {}
+    except Exception as e:
+        print(f"Error parsing body: {str(e)}")
+        raise ValueError(f"Invalid request body: {str(e)}")
 
 def lambda_handler(event, context):
     if event['httpMethod'] == 'OPTIONS':
@@ -196,18 +213,10 @@ def get_image(cursor, image_id: int) -> Dict[str, Any]:
 #############
 def createPost(event, context):
     try:
-        # Handle base64 encoded body
         try:
-            if isinstance(event.get('body'), str):
-                # Decode base64 body
-                decoded_body = base64.b64decode(event['body']).decode('utf-8')
-                body = json.loads(decoded_body)
-            else:
-                body = event.get('body', {})
-        except Exception as e:
-            print(f"Error decoding/parsing body: {str(e)}")
-            print(f"Raw body: {event.get('body')}")
-            return cors_response(400, {'error': f"Invalid request body: {str(e)}"})
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
 
         user_id = event['pathParameters']['userId']
         
@@ -485,7 +494,11 @@ def getPostsByFilter(event, context):
 ############
 def putPost(event, context):
     try:
-        body = json.loads(event['body']) if isinstance(event.get('body'), str) else event.get('body', {})
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
+        
         user_id = event['pathParameters']['userId']
         post_id = event['pathParameters']['postId']
 
@@ -615,10 +628,10 @@ def addImage(event, context):
         user_id = event['pathParameters']['userId']
         post_id = event['pathParameters']['postId']
         
-        if isinstance(event.get('body'), str):
-            body = json.loads(event['body'])
-        else:
-            body = json.loads(event.get('body', '{}'))
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:

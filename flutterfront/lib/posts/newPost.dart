@@ -144,19 +144,25 @@ class _NewPostPageState extends State<NewPostPage> {
       List<String> uploadedImageIds = [];
       for (var photo in photos) {
         try {
+          print('Attempting to upload image...'); // Debug print
           final imageId = await _uploadSingleImage(userId, photo, idToken);
+          print('Image upload response: $imageId'); // Debug print
+
           if (imageId != null) {
             uploadedImageIds.add(imageId);
           }
         } catch (e) {
-          print('Error uploading image: $e');
-          // Continue with other images if one fails
+          print('Error uploading single image: $e');
+          // Show error but continue with other images
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Failed to upload one image: ${e.toString()}')),
+          );
         }
       }
 
       if (uploadedImageIds.isEmpty) {
-        _showErrorDialog('Failed to upload images. Please try again.');
-        return;
+        throw Exception('Failed to upload any images');
       }
 
       // Now create the post with image references
@@ -167,8 +173,11 @@ class _NewPostPageState extends State<NewPostPage> {
         'category': selectedCategory,
         'clothingType': selectedClothingType,
         'tags': selectedTags,
-        'photoIds': uploadedImageIds, // Only send the image IDs now
+        'photoIds': uploadedImageIds,
       };
+
+      print(
+          'Sending post request with body: ${json.encode(requestBody)}'); // Debug print
 
       final url = '$baseUrl/posts/create/$userId';
       final response = await http.post(
@@ -176,9 +185,15 @@ class _NewPostPageState extends State<NewPostPage> {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
+          'Accept': '*/*',
+          'Access-Control-Allow-Origin': '*',
         },
         body: json.encode(requestBody),
       );
+
+      print(
+          'Post creation response status: ${response.statusCode}'); // Debug print
+      print('Post creation response body: ${response.body}'); // Debug print
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         showDialog(
@@ -256,6 +271,8 @@ class _NewPostPageState extends State<NewPostPage> {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
+          'Accept': '*/*', // Add this
+          'Access-Control-Allow-Origin': '*', // Add this
         },
         body: json.encode({
           'data': photo['data'],
@@ -263,16 +280,20 @@ class _NewPostPageState extends State<NewPostPage> {
         }),
       );
 
+      // Add debug prints
+      print('Upload response status: ${response.statusCode}');
+      print('Upload response body: ${response.body}');
+
       if (response.statusCode == 201 || response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        return responseData['imageId'];
+        return responseData['imageId']?.toString(); // Ensure we return a string
       } else {
         print('Failed to upload image: ${response.body}');
-        return null;
+        throw Exception('Failed to upload image: ${response.statusCode}');
       }
     } catch (e) {
       print('Error uploading image: $e');
-      return null;
+      throw Exception('Error uploading image: $e');
     }
   }
 

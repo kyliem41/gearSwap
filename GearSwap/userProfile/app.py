@@ -16,7 +16,6 @@ ALLOWED_CONTENT_TYPES = {
 }
 
 def cors_response(status_code, body, content_type='application/json'):
-    """Helper function to create responses with proper CORS headers"""
     headers = {
         'Content-Type': content_type,
         'Access-Control-Allow-Origin': '*',
@@ -26,13 +25,34 @@ def cors_response(status_code, body, content_type='application/json'):
     
     if content_type == 'application/json':
         body = json.dumps(body, default=str)
+        is_base64 = False
+    else:
+        is_base64 = True
     
     return {
         'statusCode': status_code,
         'headers': headers,
         'body': body,
-        'isBase64Encoded': content_type != 'application/json'
+        'isBase64Encoded': is_base64
     }
+    
+def parse_body(event):
+    """Helper function to parse request body handling both base64 and regular JSON"""
+    try:
+        if event.get('isBase64Encoded', False):
+            decoded_body = base64.b64decode(event['body']).decode('utf-8')
+            try:
+                return json.loads(decoded_body)
+            except json.JSONDecodeError:
+                return decoded_body
+        elif isinstance(event.get('body'), dict):
+            return event['body']
+        elif isinstance(event.get('body'), str):
+            return json.loads(event['body'])
+        return {}
+    except Exception as e:
+        print(f"Error parsing body: {str(e)}")
+        raise ValueError(f"Invalid request body: {str(e)}")
     
 def lambda_handler(event, context):
     if event['httpMethod'] == 'OPTIONS':
@@ -129,11 +149,10 @@ def get_db_connection():
 #############
 def createProfile(event, context):
     try:
-        # Parse the request body
-        if isinstance(event.get('body'), str):
-            body = json.loads(event['body'])
-        else:
-            body = json.loads(event.get('body', '{}'))
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
 
         user_id = event['pathParameters']['Id']
         bio = body.get('bio')
@@ -227,10 +246,10 @@ def getUserProfile(event, context):
 ############
 def putUserProfile(event, context):
     try:
-        if isinstance(event.get('body'), str):
-            body = json.loads(event['body'])
-        else:
-            body = json.loads(event.get('body', '{}'))
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
 
         user_id = event['pathParameters']['Id']
         bio = body.get('bio')
@@ -309,10 +328,6 @@ def updateProfilePicture(event, context):
     try:
         user_id = event['pathParameters']['Id']
         
-        # Debug logging
-        print("Event received:", json.dumps(event))
-        
-        # Get the raw body and handle possible encoding
         raw_body = event.get('body', '')
         if event.get('isBase64Encoded', False):
             try:
@@ -321,7 +336,6 @@ def updateProfilePicture(event, context):
                 print(f"Base64 decode error for request body: {e}")
                 return cors_response(400, {'error': 'Invalid base64 encoded request body'})
 
-        # Parse JSON body with explicit error handling
         try:
             if isinstance(raw_body, str):
                 body = json.loads(raw_body)
@@ -336,7 +350,6 @@ def updateProfilePicture(event, context):
                 'body_preview': raw_body[:200]
             })
 
-        # Validate required fields
         if 'profilePicture' not in body:
             return cors_response(400, {'error': 'Missing profilePicture field'})
         if 'content_type' not in body:
