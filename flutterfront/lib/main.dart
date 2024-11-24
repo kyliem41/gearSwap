@@ -168,47 +168,100 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       print('Building image for post ${post['id']}');
       final images = post['images'];
-      print('Post images data type: ${images.runtimeType}');
-      print('Post images content: $images');
 
-      if (images != null && images is List && images.isNotEmpty) {
-        var firstImage = images[0];
-        print('First image structure: $firstImage');
+      if (images != null &&
+          images is List &&
+          images.isNotEmpty &&
+          images[0] != null &&
+          images[0]['data'] != null) {
+        String base64String = images[0]['data'];
 
-        if (firstImage != null && firstImage['data'] != null) {
-          String base64String = firstImage['data'];
-          print('Base64 string length: ${base64String.length}');
-          print(
-              'First 100 chars of base64: ${base64String.substring(0, base64String.length > 100 ? 100 : base64String.length)}');
-
-          try {
-            final Uint8List imageBytes = base64Decode(base64String);
-            return Container(
-              width: double.infinity,
-              height: double.infinity,
-              child: Image.memory(
-                imageBytes,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  print('Error displaying image: $error');
-                  print('Stack trace: $stackTrace');
-                  return _buildPlaceholder();
-                },
-              ),
-            );
-          } catch (e) {
-            print('Base64 decode error for post ${post['id']}: $e');
-            return _buildPlaceholder();
-          }
+        // Clean up the base64 string
+        base64String = base64String.trim();
+        // Remove any data URL prefix if present
+        if (base64String.contains(',')) {
+          base64String = base64String.split(',').last;
         }
-      }
+        // Remove any whitespace or newlines
+        base64String = base64String.replaceAll(RegExp(r'\s+'), '');
 
-      print('No valid image data found for post ${post['id']}');
-      return _buildPlaceholder();
+        try {
+          final Uint8List imageBytes = base64Decode(base64String);
+
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            clipBehavior: Clip.hardEdge, // Add this to ensure proper clipping
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+            ),
+            child: Image.memory(
+              imageBytes,
+              fit: BoxFit.cover,
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                if (frame == null) {
+                  return Center(child: CircularProgressIndicator());
+                }
+                return child;
+              },
+              errorBuilder: (context, error, stackTrace) {
+                print('Error displaying image: $error');
+                print('Stack trace: $stackTrace');
+                return _buildPlaceholder();
+              },
+            ),
+          );
+
+          if (posts.isNotEmpty) {
+            children.add(_buildTestImage(posts[0]));
+          }
+        } catch (e) {
+          print('Error decoding base64 for post ${post['id']}: $e');
+          return _buildPlaceholder();
+        }
+      } else {
+        return _buildPlaceholder();
+      }
     } catch (e) {
       print('Error in _buildPostImage for post ${post['id']}: $e');
       return _buildPlaceholder();
     }
+  }
+
+  Widget _buildTestImage(Map<String, dynamic> post) {
+    try {
+      final images = post['images'];
+      if (images != null && images is List && images.isNotEmpty) {
+        String base64String = images[0]['data'];
+        base64String = base64String.trim().replaceAll(RegExp(r'\s+'), '');
+
+        print(
+            'Testing image decode with string length: ${base64String.length}');
+        print('First 50 chars: ${base64String.substring(0, 50)}');
+
+        return Container(
+          width: 200,
+          height: 200,
+          color: Colors.grey[200],
+          child: Image.memory(
+            base64Decode(base64String),
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              print('Test image error: $error');
+              return Icon(Icons.error);
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      print('Test image error: $e');
+    }
+    return Container(
+      width: 200,
+      height: 200,
+      color: Colors.red,
+      child: Center(child: Text('Failed to load test image')),
+    );
   }
 
   Widget _buildPlaceholder() {
@@ -216,10 +269,12 @@ class _MyHomePageState extends State<MyHomePage> {
       width: double.infinity,
       height: double.infinity,
       color: Colors.grey[200],
-      child: Icon(
-        Icons.image,
-        size: 40,
-        color: Colors.grey[400],
+      child: Center(
+        child: Icon(
+          Icons.image,
+          size: 40,
+          color: Colors.grey[400],
+        ),
       ),
     );
   }
