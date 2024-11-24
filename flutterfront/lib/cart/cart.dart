@@ -113,11 +113,12 @@ class _CartPageState extends State<CartPage> {
         throw Exception('Base URL not initialized');
       }
 
-      final url = Uri.parse('$baseUrl/userProfile/$sellerId');
-      print('Fetching seller info from: $url');
+      // First try to get the user info directly
+      final userUrl = Uri.parse('$baseUrl/users/$sellerId');
+      print('Fetching seller info from: $userUrl');
 
       final response = await http.get(
-        url,
+        userUrl,
         headers: {
           'Authorization': 'Bearer $idToken',
         },
@@ -127,21 +128,34 @@ class _CartPageState extends State<CartPage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['userProfile'] != null) {
+        if (data['user'] != null) {
           if (mounted) {
             setState(() {
-              sellerInfo[sellerId] = data['userProfile'];
+              sellerInfo[sellerId] = {
+                'username': data['user']['username'],
+                'firstName': data['user']['firstname'],
+                'lastName': data['user']['lastname']
+              };
             });
           }
         } else {
-          print('No user profile data found for seller: $sellerId');
+          print('No user data found for seller: $sellerId');
         }
       } else {
         throw Exception('Failed to fetch seller info: ${response.statusCode}');
       }
     } catch (e) {
       print('Error fetching seller info: $e');
-      // Don't set error state here as this is not critical for the cart functionality
+      // Set a default value for the seller info
+      if (mounted) {
+        setState(() {
+          sellerInfo[sellerId] = {
+            'username': 'Unknown User',
+            'firstName': '',
+            'lastName': ''
+          };
+        });
+      }
     }
   }
 
@@ -538,7 +552,7 @@ class _CartPageState extends State<CartPage> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              'Seller: $sellerName',
+                                              'Seller: ${sellerInfo[sellerId]?['username'] ?? 'Loading...'}',
                                               style: TextStyle(
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.bold,
