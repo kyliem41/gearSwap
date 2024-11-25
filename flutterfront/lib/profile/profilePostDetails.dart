@@ -517,7 +517,12 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
   String cleanBase64String(String input) {
     try {
-      // First, check if it's a data URL and extract the base64 part
+      // Remove any logging or debugging information before the /9j prefix
+      if (input.contains('/9j/')) {
+        input = input.substring(input.indexOf('/9j/'));
+      }
+
+      // Remove any data URL prefix if present
       if (input.contains('data:image/')) {
         input = input.split('base64,').last;
       }
@@ -525,21 +530,34 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       // Remove all whitespace and newlines
       input = input.replaceAll(RegExp(r'\s+'), '');
 
-      // Remove any invalid characters
-      input = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+      // Only keep valid base64 characters and the /9j/ prefix
+      input = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
 
-      // Ensure proper padding
+      // Handle padding
       while (input.length % 4 != 0) {
         input += '=';
       }
 
-      // Validate the cleaned string is valid base64
       try {
+        // Test decode just to validate
         base64Decode(input);
         return input;
       } catch (e) {
         print('Invalid base64 after cleaning: $e');
-        throw FormatException('Invalid base64 data');
+
+        // If the first attempt fails, try removing the /9j/ prefix
+        if (input.startsWith('/9j/')) {
+          final stripped = input.substring(4); // Remove /9j/
+          try {
+            base64Decode(stripped);
+            return stripped;
+          } catch (e2) {
+            print('Failed to decode even without prefix: $e2');
+            throw FormatException('Invalid base64 data');
+          }
+        } else {
+          throw FormatException('Invalid base64 data');
+        }
       }
     } catch (e) {
       print('Error cleaning base64 string: $e');
@@ -547,6 +565,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     }
   }
 
+// Also let's add a debug print in _buildPostImage
   Widget _buildPostImage(Map<String, dynamic> image) {
     try {
       if (image == null || image['data'] == null) {
@@ -555,10 +574,18 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       }
 
       try {
-        String base64String = cleanBase64String(image['data'].toString());
+        String base64String = image['data'].toString();
+        print(
+            'Original base64 prefix: ${base64String.substring(0, min(50, base64String.length))}...');
+
+        base64String = cleanBase64String(base64String);
+        print(
+            'Cleaned base64 prefix: ${base64String.substring(0, min(50, base64String.length))}...');
 
         try {
           final imageBytes = base64Decode(base64String);
+          print('Successfully decoded ${imageBytes.length} bytes');
+
           return Container(
             width: MediaQuery.of(context).size.width,
             height: 300,
