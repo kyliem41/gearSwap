@@ -331,31 +331,32 @@ def getPosts(event, context):
                 cursor.execute("SELECT COUNT(*) FROM posts")
                 total_posts = cursor.fetchone()['count']
 
+                # Modified query to properly handle image data
                 cursor.execute("""
-            SELECT 
-                p.*,
-                u.username,
-                CASE 
-                    WHEN pi.image_data IS NOT NULL THEN
-                        json_build_object(
-                            'id', pi.id,
-                            'content_type', pi.content_type,
-                            'data', encode(pi.image_data, 'base64')  # Properly encode binary to base64
-                        )
-                    ELSE NULL
-                END as first_image
-            FROM posts p
-            JOIN users u ON p.userId = u.id
-            LEFT JOIN LATERAL (
-                SELECT id, content_type, image_data
-                FROM post_images
-                WHERE post_id = p.id
-                ORDER BY id
-                LIMIT 1
-            ) pi ON true
-            ORDER BY p.datePosted DESC
-            LIMIT %s OFFSET %s
-        """, (page_size, offset))
+                    SELECT 
+                        p.*,
+                        u.username,
+                        CASE 
+                            WHEN pi.image_data IS NOT NULL THEN
+                                json_build_object(
+                                    'id', pi.id,
+                                    'content_type', pi.content_type,
+                                    'data', concat('data:', pi.content_type, ';base64,', encode(pi.image_data, 'base64'))
+                                )
+                            ELSE NULL
+                        END as first_image
+                    FROM posts p
+                    JOIN users u ON p.userId = u.id
+                    LEFT JOIN LATERAL (
+                        SELECT id, content_type, image_data
+                        FROM post_images
+                        WHERE post_id = p.id
+                        ORDER BY id
+                        LIMIT 1
+                    ) pi ON true
+                    ORDER BY p.datePosted DESC
+                    LIMIT %s OFFSET %s
+                """, (page_size, offset))
                 
                 posts = cursor.fetchall()
 
