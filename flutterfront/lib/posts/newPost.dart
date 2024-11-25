@@ -100,24 +100,33 @@ class _NewPostPageState extends State<NewPostPage> {
       for (var file in input.files!) {
         if (photos.length >= 5) break;
 
+        if (!file.type!.startsWith('image/')) {
+          _showErrorDialog('Only image files are allowed');
+          continue;
+        }
+
         final reader = html.FileReader();
         reader.readAsDataUrl(file);
         await reader.onLoad.first;
 
         String base64String = reader.result as String;
-        // Remove the data URL prefix
+        String contentType = file.type ?? 'image/jpeg';
+
+        //removes data prefix
         base64String = base64String.split(',')[1];
 
         setState(() {
           photos.add({
             'data': base64String,
-            'content_type': file.type ?? 'image/jpeg',
+            'content_type': contentType,
           });
         });
+
+        print('Added image with content type: $contentType');
       }
     } catch (e) {
       print('Error picking images: $e');
-      _showErrorDialog('Failed to load images');
+      _showErrorDialog('Failed to load images: ${e.toString()}');
     } finally {
       setState(() => _isProcessingImage = false);
     }

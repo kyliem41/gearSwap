@@ -641,12 +641,15 @@ def deletePost(event, context):
 # IMAGE FUNCTIONS
 def addImage(event, context):
     try:
+        print("Received event:", json.dumps(event))
         user_id = event['pathParameters']['userId']
         post_id = event['pathParameters']['postId']
         
         try:
             body = parse_body(event)
+            print("Parsed body:", json.dumps(body))
         except ValueError as e:
+            print("Error parsing body:", str(e))
             return cors_response(400, {'error': str(e)})
 
         with get_db_connection() as conn:
@@ -672,12 +675,17 @@ def addImage(event, context):
                         'error': f"Maximum number of images ({MAX_IMAGES_PER_POST}) already reached"
                     })
 
-                # Validate and store new image
                 try:
                     validate_image(body['data'], body['content_type'])
                     image_id = store_image(cursor, post_id, body['data'], body['content_type'])
                     
-                    # Update post's photos array
+                    try:
+                        decoded_data = base64.b64decode(body['data'])
+                        print("Successfully decoded base64 data, length:", len(decoded_data))  # Debug print
+                    except Exception as e:
+                        print("Error decoding base64:", str(e))  # Debug print
+                        return cors_response(400, {'error': f'Invalid base64 data: {str(e)}'})
+                    
                     cursor.execute(
                         "UPDATE posts SET photos = photos || %s WHERE id = %s",
                         (json.dumps([image_id]), post_id)
