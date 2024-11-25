@@ -152,7 +152,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       print('Raw response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        // First verify we have valid JSON
         try {
           final Map<String, dynamic> jsonResponse = json.decode(response.body);
           print('JSON decoded successfully');
@@ -161,24 +160,51 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
             final postData = jsonResponse['post'];
             print('Post data extracted: ${json.encode(postData)}');
 
-            // Check for images specifically
+            // Ensure images is properly structured
             if (postData['images'] != null) {
-              print('Images data: ${json.encode(postData['images'])}');
+              print(
+                  'Images data before processing: ${json.encode(postData['images'])}');
 
-              // If images is a String (base64), convert it to a list with one item
+              // If images is a string, try to parse it as JSON
               if (postData['images'] is String) {
-                postData['images'] = [
-                  {
-                    'data': postData['images'],
-                    'content_type': 'image/jpeg' // default content type
-                  }
-                ];
+                try {
+                  postData['images'] = json.decode(postData['images']);
+                } catch (e) {
+                  print('Error parsing images string: $e');
+                  // If parsing fails, wrap it in a list
+                  postData['images'] = [
+                    {'data': postData['images'], 'content_type': 'image/jpeg'}
+                  ];
+                }
               }
 
               // Ensure images is a List
               if (postData['images'] is! List) {
                 postData['images'] = [];
               }
+
+              // Clean up each image's data
+              for (var image in postData['images']) {
+                if (image != null && image['data'] != null) {
+                  String base64String = image['data'].toString();
+                  if (base64String.contains(',')) {
+                    base64String = base64String.split(',').last;
+                  }
+                  base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+                  base64String =
+                      base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+                  // Add padding if needed
+                  while (base64String.length % 4 != 0) {
+                    base64String += '=';
+                  }
+
+                  image['data'] = base64String;
+                }
+              }
+
+              print(
+                  'Images data after processing: ${json.encode(postData['images'])}');
             } else {
               postData['images'] = [];
             }
@@ -187,13 +213,15 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
               post = postData;
               isLoading = false;
             });
+
+            print('Post state updated successfully');
           } else {
             print('Response missing post key: ${jsonResponse.keys.toList()}');
             throw Exception('Invalid response format: missing post data');
           }
         } catch (e) {
-          print('JSON decoding error: $e');
-          throw Exception('Failed to parse response: $e');
+          print('JSON processing error: $e');
+          throw Exception('Failed to process response: $e');
         }
       } else {
         print('Error response body: ${response.body}');
@@ -522,6 +550,78 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     );
   }
 
+  Widget _buildPostImage(Map<String, dynamic> image) {
+    try {
+      if (image != null && image['data'] != null) {
+        try {
+          String base64String = image['data'].toString();
+          // Clean up base64 string
+          base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+          base64String =
+              base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+          if (base64String.contains(',')) {
+            base64String = base64String.split(',').last;
+          }
+
+          // Add padding if needed
+          int padLength = base64String.length % 4;
+          if (padLength > 0) {
+            base64String = base64String.padRight(
+              base64String.length + (4 - padLength),
+              '=',
+            );
+          }
+
+          try {
+            final imageBytes = base64Decode(base64String);
+            return Container(
+              width: MediaQuery.of(context).size.width,
+              height: 300,
+              child: Image.memory(
+                imageBytes,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error displaying image: $error');
+                  print('Stack trace: $stackTrace');
+                  return _buildPlaceholder();
+                },
+              ),
+            );
+          } catch (e) {
+            print('Primary decode failed, trying alternative method: $e');
+            try {
+              final codec = const Base64Codec();
+              final imageBytes = codec.decode(base64String);
+              return Container(
+                width: MediaQuery.of(context).size.width,
+                height: 300,
+                child: Image.memory(
+                  imageBytes,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Error displaying image: $error');
+                    return _buildPlaceholder();
+                  },
+                ),
+              );
+            } catch (e2) {
+              print('Alternative decode failed: $e2');
+              return _buildPlaceholder();
+            }
+          }
+        } catch (e) {
+          print('Error processing base64: $e');
+          return _buildPlaceholder();
+        }
+      }
+      return _buildPlaceholder();
+    } catch (e) {
+      print('Error in _buildPostImage: $e');
+      return _buildPlaceholder();
+    }
+  }
+
   Widget _buildPhotoSection() {
     if (post == null || post!['images'] == null || post!['images'].isEmpty) {
       print('No images available');
@@ -551,71 +651,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                         setState(() => _currentImageIndex = index);
                       },
                       itemCount: images.length,
-                      itemBuilder: (context, index) {
-                        final image = images[index];
-                        if (image == null) {
-                          print('Null image at index $index');
-                          return _buildPlaceholder();
-                        }
-
-                        try {
-                          print(
-                              'Processing image at index $index: ${image.toString()}');
-                          if (image['data'] == null) {
-                            print('No image data at index $index');
-                            return _buildPlaceholder();
-                          }
-
-                          String base64String = image['data'].toString();
-
-                          // Handle data URL prefix if present
-                          if (base64String.contains('data:image/')) {
-                            base64String = base64String.split(';base64,').last;
-                          }
-
-                          // Clean the base64 string
-                          base64String = base64String.trim();
-                          base64String =
-                              base64String.replaceAll(RegExp(r'\s+'), '');
-                          base64String = base64String.replaceAll(
-                              RegExp(r'[^A-Za-z0-9+/=]'), '');
-
-                          // Add padding if needed
-                          while (base64String.length % 4 != 0) {
-                            base64String += '=';
-                          }
-
-                          print(
-                              'Base64 string prefix: ${base64String.substring(0, min(50, base64String.length))}...');
-
-                          try {
-                            final Uint8List imageBytes =
-                                base64Decode(base64String);
-
-                            return Container(
-                              width: MediaQuery.of(context).size.width,
-                              child: Image.memory(
-                                imageBytes,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  print(
-                                      'Error displaying image at index $index: $error');
-                                  print('Error stacktrace: $stackTrace');
-                                  return _buildErrorDisplay(
-                                      'Error displaying image');
-                                },
-                              ),
-                            );
-                          } catch (e) {
-                            print('Error decoding base64 at index $index: $e');
-                            return _buildErrorDisplay('Error loading image');
-                          }
-                        } catch (e, stackTrace) {
-                          print('Error processing image at index $index: $e');
-                          print('Stack trace: $stackTrace');
-                          return _buildErrorDisplay('Error processing image');
-                        }
-                      },
+                      itemBuilder: (context, index) =>
+                          _buildPostImage(images[index]),
                     ),
                   ),
                   if (images.length > 1) ...[
@@ -640,8 +677,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                   ],
                 ],
               ),
-              // Navigation arrows (rest of the code remains the same)
               if (showArrows && images.length > 1) ...[
+                // Navigation arrows remain the same
                 Positioned(
                   left: 16,
                   child: AnimatedOpacity(
@@ -654,11 +691,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                           color: Colors.black54,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          Icons.arrow_back_ios,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                        child: Icon(Icons.arrow_back_ios, color: Colors.white),
                       ),
                       onPressed: _currentImageIndex > 0
                           ? () {
@@ -683,11 +716,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                           color: Colors.black54,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                        child:
+                            Icon(Icons.arrow_forward_ios, color: Colors.white),
                       ),
                       onPressed: _currentImageIndex < images.length - 1
                           ? () {
