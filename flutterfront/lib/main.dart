@@ -122,13 +122,17 @@ class _MyHomePageState extends State<MyHomePage> {
         var data = jsonDecode(response.body);
         List<dynamic> postsData = data['posts'];
 
-        // Debug first post data
         if (postsData.isNotEmpty) {
           final firstPost = postsData[0];
-          print('First post data: ${json.encode(firstPost)}');
+          print('First post data structure: ${json.encode(firstPost)}');
           if (firstPost['first_image'] != null) {
             print(
-                'First post image data available: ${firstPost['first_image']['content_type']}');
+                'First post image data type: ${firstPost['first_image']['content_type']}');
+            final imageData = firstPost['first_image']['data'];
+            if (imageData != null) {
+              print(
+                  'Image data prefix: ${imageData.substring(0, min(100, imageData.length))}...');
+            }
           }
         }
 
@@ -154,41 +158,98 @@ class _MyHomePageState extends State<MyHomePage> {
     await _getPosts();
   }
 
+  bool isValidBase64Data(String? base64String) {
+    if (base64String == null) return false;
+
+    try {
+      // Check if it's a data URI
+      if (base64String.contains('base64,')) {
+        base64String = base64String.split('base64,')[1].trim();
+      }
+
+      // Remove whitespace and newlines
+      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+
+      // Check if the string contains only valid base64 characters
+      if (!RegExp(r'^[A-Za-z0-9+/]*={0,2}$').hasMatch(base64String)) {
+        print('Invalid base64 characters found');
+        return false;
+      }
+
+      // Check if the length is valid (multiple of 4)
+      if (base64String.length % 4 != 0) {
+        print('Invalid base64 length');
+        return false;
+      }
+
+      // Try decoding a small portion to validate format
+      final testBytes = base64Decode(
+          base64String.substring(0, min(100, base64String.length)));
+      return true;
+    } catch (e) {
+      print('Base64 validation error: $e');
+      return false;
+    }
+  }
+
   Widget _buildPostImage(Map<String, dynamic> post) {
     try {
       print('Building image for post ${post['id']}');
       final firstImage = post['first_image'];
 
       if (firstImage != null) {
-        String? base64Data = firstImage['data'];
-        if (base64Data != null) {
-          // Extract the base64 part from the data URI
+        String? base64Data = firstImage['data'] as String?;
+        if (base64Data == null) {
+          print('No image data found for post ${post['id']}');
+          return _buildPlaceholder();
+        }
+
+        if (!isValidBase64Data(base64Data)) {
+          print('Invalid base64 data for post ${post['id']}');
+          return _buildPlaceholder();
+        }
+
+        print(
+            'Raw image data for post ${post['id']}: ${base64Data.substring(0, min(100, base64Data.length))}...');
+
+        try {
+          // Clean up the base64 string
           if (base64Data.contains('base64,')) {
-            base64Data = base64Data.split('base64,')[1];
+            base64Data = base64Data.split('base64,')[1].trim();
           }
 
-          try {
-            final Uint8List imageBytes = base64Decode(base64Data);
-            return Container(
-              width: double.infinity,
-              height: double.infinity,
-              child: Image.memory(
-                imageBytes,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  print(
-                      'Error displaying image for post ${post['id']}: $error');
-                  print('Stack trace: $stackTrace');
-                  return _buildPlaceholder();
-                },
-              ),
-            );
-          } catch (e) {
-            print('Error decoding base64 for post ${post['id']}: $e');
-            print(
-                'Base64 data: ${base64Data.substring(0, min(100, base64Data.length))}...');
-            return _buildPlaceholder();
+          // Remove any whitespace or newlines
+          base64Data = base64Data.replaceAll(RegExp(r'\s+'), '');
+
+          // Add padding if needed
+          while (base64Data.length % 4 != 0) {
+            base64Data += '=';
           }
+
+          // Create image bytes
+          final Uint8List imageBytes = base64Decode(base64Data);
+
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: Image.memory(
+              imageBytes,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (context, error, stackTrace) {
+                print('Error displaying image for post ${post['id']}: $error');
+                print('Stack trace: $stackTrace');
+                return _buildPlaceholder();
+              },
+            ),
+          );
+        } catch (e) {
+          print('Error decoding base64 for post ${post['id']}: $e');
+          if (base64Data.isNotEmpty) {
+            print(
+                'Base64 data snippet: ${base64Data.substring(0, min(100, base64Data.length))}');
+          }
+          return _buildPlaceholder();
         }
       }
 
