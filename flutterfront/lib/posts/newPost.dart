@@ -113,7 +113,7 @@ class _NewPostPageState extends State<NewPostPage> {
         String contentType = file.type ?? 'image/jpeg';
 
         //removes data prefix
-        base64String = base64String.split(',')[1];
+        // base64String = base64String.split(',')[1];
 
         setState(() {
           photos.add({
@@ -129,6 +129,35 @@ class _NewPostPageState extends State<NewPostPage> {
       _showErrorDialog('Failed to load images: ${e.toString()}');
     } finally {
       setState(() => _isProcessingImage = false);
+    }
+  }
+
+  Future<void> _uploadImages(String postId, String idToken) async {
+    for (var photo in photos) {
+      try {
+        print('Uploading image for post: $postId');
+
+        final imageResponse = await http.post(
+          Uri.parse('$baseUrl/posts/$postId/images'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: json.encode(
+              {'data': photo['data'], 'content_type': photo['content_type']}),
+        );
+
+        print(
+            'Image upload response: ${imageResponse.statusCode} - ${imageResponse.body}');
+
+        if (imageResponse.statusCode != 201 &&
+            imageResponse.statusCode != 200) {
+          throw Exception('Failed to upload image: ${imageResponse.body}');
+        }
+      } catch (e) {
+        print('Error uploading image: $e');
+        throw e;
+      }
     }
   }
 
@@ -149,16 +178,12 @@ class _NewPostPageState extends State<NewPostPage> {
       final userData = json.decode(userStr);
       final userId = userData['id'];
 
-      // First create the post without images
-      final createPostUrl = Uri.parse('$baseUrl/posts/create/$userId');
-      print('Creating post at URL: $createPostUrl'); // Debug print
-
-      final response = await http.post(
-        createPostUrl,
+      // Create post first
+      final createPostResponse = await http.post(
+        Uri.parse('$baseUrl/posts/create/$userId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
-          'Accept': 'application/json',
         },
         body: json.encode({
           'price': double.parse(priceController.text),
@@ -167,69 +192,38 @@ class _NewPostPageState extends State<NewPostPage> {
           'category': selectedCategory,
           'clothingType': selectedClothingType,
           'tags': selectedTags,
+          'photos': [] // Initialize with empty JSONB array
         }),
       );
 
       print(
-          'Post creation response: ${response.statusCode} - ${response.body}'); // Debug print
+          'Post creation response: ${createPostResponse.statusCode} - ${createPostResponse.body}');
 
-      if (response.statusCode != 201 && response.statusCode != 200) {
-        throw Exception('Failed to create post: ${response.body}');
+      if (createPostResponse.statusCode != 201 &&
+          createPostResponse.statusCode != 200) {
+        throw Exception('Failed to create post: ${createPostResponse.body}');
       }
 
-      final postData = json.decode(response.body);
+      final postData = json.decode(createPostResponse.body);
       final postId = postData['post']['id'];
 
-      // Then upload each image separately
-      for (var photo in photos) {
-        final imageUploadUrl = Uri.parse('$baseUrl/posts/$postId/images');
-        print('Uploading image to URL: $imageUploadUrl'); // Debug print
+      // Upload images
+      await _uploadImages(postId, idToken);
 
-        final imageResponse = await http.post(
-          imageUploadUrl,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $idToken',
-            'Accept': 'application/json',
-          },
-          body: json.encode({
-            'data': photo['data'],
-            'content_type': photo['content_type'],
-          }),
+      // Show success and navigate
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MyHomePage(title: "GearSwap"),
+          ),
         );
 
-        print(
-            'Image upload response: ${imageResponse.statusCode} - ${imageResponse.body}'); // Debug print
-
-        if (imageResponse.statusCode != 201 &&
-            imageResponse.statusCode != 200) {
-          print('Failed to upload image: ${imageResponse.body}');
-        }
-      }
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text("Success"),
-              content: Text("Post created successfully!"),
-              actions: [
-                TextButton(
-                  child: Text("OK"),
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MyHomePage(title: "GearSwap"),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            );
-          },
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Post created successfully!"),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {

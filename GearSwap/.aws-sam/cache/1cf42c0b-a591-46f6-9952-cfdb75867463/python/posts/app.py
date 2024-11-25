@@ -393,9 +393,9 @@ def getPostById(event, context):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # First get the post details
+                # Get post details with user info
                 cursor.execute("""
-                    SELECT p.*, u.username, u.firstname, u.lastname
+                    SELECT p.*, u.username
                     FROM posts p
                     JOIN users u ON p.userId = u.id
                     WHERE p.id = %s
@@ -405,12 +405,12 @@ def getPostById(event, context):
                 if not post:
                     return cors_response(404, {'error': "Post not found"})
 
-                # Then get all images for the post
+                # Get all images for the post
                 cursor.execute("""
                     SELECT id, content_type, encode(image_data, 'base64') as data
                     FROM post_images
                     WHERE post_id = %s
-                    ORDER BY id
+                    ORDER BY created_at
                 """, (post_id,))
                 images = cursor.fetchall()
                 
@@ -642,67 +642,63 @@ def deletePost(event, context):
 def addImage(event, context):
     try:
         print("Received event:", json.dumps(event))
-        user_id = event['pathParameters']['userId']
         post_id = event['pathParameters']['postId']
         
         try:
             body = parse_body(event)
-            print("Parsed body:", json.dumps(body))
         except ValueError as e:
             print("Error parsing body:", str(e))
             return cors_response(400, {'error': str(e)})
 
+        if 'data' not in body or 'content_type' not in body:
+            return cors_response(400, {'error': 'Missing required fields: data and content_type'})
+
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Verify post ownership
-                cursor.execute(
-                    "SELECT userId FROM posts WHERE id = %s",
-                    (post_id,)
-                )
-                post = cursor.fetchone()
-                if not post or str(post['userId']) != user_id:
-                    return cors_response(404, {'error': "Post not found or access denied"})
-
-                # Check current image count
-                cursor.execute(
-                    "SELECT COUNT(*) as count FROM post_images WHERE post_id = %s",
-                    (post_id,)
-                )
-                current_count = cursor.fetchone()['count']
-                
-                if current_count >= MAX_IMAGES_PER_POST:
-                    return cors_response(400, {
-                        'error': f"Maximum number of images ({MAX_IMAGES_PER_POST}) already reached"
-                    })
-
                 try:
-                    validate_image(body['data'], body['content_type'])
-                    image_id = store_image(cursor, post_id, body['data'], body['content_type'])
-                    
-                    try:
-                        decoded_data = base64.b64decode(body['data'])
-                        print("Successfully decoded base64 data, length:", len(decoded_data))  # Debug print
-                    except Exception as e:
-                        print("Error decoding base64:", str(e))  # Debug print
-                        return cors_response(400, {'error': f'Invalid base64 data: {str(e)}'})
-                    
+                    # First verify the post exists
+                    cursor.execute("SELECT id FROM posts WHERE id = %s", (post_id,))
+                    if not cursor.fetchone():
+                        return cors_response(404, {'error': 'Post not found'})
+
+                    # Store the image
                     cursor.execute(
-                        "UPDATE posts SET photos = photos || %s WHERE id = %s",
-                        (json.dumps([image_id]), post_id)
+                        """
+                        INSERT INTO post_images (post_id, image_data, content_type) 
+                        VALUES (%s, %s, %s) 
+                        RETURNING id, content_type
+                        """,
+                        (post_id, base64.b64decode(body['data']), body['content_type'])
+                    )
+                    image_result = cursor.fetchone()
+                    
+                    # Update the post's photos JSONB array
+                    cursor.execute(
+                        """
+                        UPDATE posts 
+                        SET photos = photos || jsonb_build_array(jsonb_build_object(
+                            'id', %s,
+                            'content_type', %s
+                        ))
+                        WHERE id = %s
+                        """,
+                        (image_result['id'], image_result['content_type'], post_id)
                     )
                     
                     conn.commit()
                     
                     return cors_response(201, {
-                        "message": "Image added successfully",
-                        "imageId": image_id
+                        'message': 'Image added successfully',
+                        'imageId': image_result['id']
                     })
-                except ValueError as e:
-                    return cors_response(400, {'error': str(e)})
+                except Exception as e:
+                    print(f"Error processing image: {str(e)}")
+                    conn.rollback()
+                    return cors_response(500, {'error': f'Error processing image: {str(e)}'})
 
     except Exception as e:
-        print(f"Failed to add image: {str(e)}")
-        return cors_response(500, {'error': f"Error adding image: {str(e)}"})
+        print(f"Error in addImage: {str(e)}")
+        return cors_response(500, {'error': f'Server error: {str(e)}'})
     
 ################
 def deleteImage(event, context):
@@ -774,7 +770,6 @@ def getImage(event, context):
                 if not image:
                     return cors_response(404, {'error': "Image not found"})
 
-                # Use the existing cors_response helper with the image's content type
                 return cors_response(
                     200, 
                     base64.b64encode(image['image_data']).decode('utf-8'),
