@@ -551,213 +551,118 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
   String cleanBase64String(String input) {
     try {
-      // Remove any logging or debugging information before the /9j prefix
+      // Handle JPEG data starting with /9j/
       if (input.contains('/9j/')) {
         input = input.substring(input.indexOf('/9j/'));
       }
 
-      // Remove any data URL prefix if present
-      if (input.contains('data:image/')) {
+      // Remove data URL prefix if present
+      if (input.contains('base64,')) {
         input = input.split('base64,').last;
       }
 
       // Remove all whitespace and newlines
       input = input.replaceAll(RegExp(r'\s+'), '');
 
-      // Only keep valid base64 characters and the /9j/ prefix
+      // Keep only valid base64 characters
       input = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
 
-      // Handle padding
+      // Add padding if needed
       while (input.length % 4 != 0) {
         input += '=';
       }
 
-      try {
-        // Test decode just to validate
-        base64Decode(input);
-        return input;
-      } catch (e) {
-        print('Invalid base64 after cleaning: $e');
-
-        // If the first attempt fails, try removing the /9j/ prefix
-        if (input.startsWith('/9j/')) {
-          final stripped = input.substring(4); // Remove /9j/
-          try {
-            base64Decode(stripped);
-            return stripped;
-          } catch (e2) {
-            print('Failed to decode even without prefix: $e2');
-            throw FormatException('Invalid base64 data');
-          }
-        } else {
-          throw FormatException('Invalid base64 data');
-        }
-      }
+      return input;
     } catch (e) {
       print('Error cleaning base64 string: $e');
       throw FormatException('Failed to clean base64 data');
     }
   }
 
-// Also let's add a debug print in _buildPostImage
   Widget _buildPostImage(Map<String, dynamic> image) {
+    if (image == null || image['data'] == null) {
+      return _buildPlaceholder();
+    }
+
     try {
-      if (image == null || image['data'] == null) {
-        print('No image data provided');
-        return _buildPlaceholder();
-      }
+      String base64String = image['data'].toString();
+      print('Processing image with type: ${image['content_type']}');
+
+      // Clean and validate the base64 string
+      base64String = cleanBase64String(base64String);
 
       try {
-        String base64String = image['data'].toString();
-        print(
-            'Original base64 prefix: ${base64String.substring(0, min(50, base64String.length))}...');
-
-        base64String = cleanBase64String(base64String);
-        print(
-            'Cleaned base64 prefix: ${base64String.substring(0, min(50, base64String.length))}...');
-
-        try {
-          final imageBytes = base64Decode(base64String);
-          print('Successfully decoded ${imageBytes.length} bytes');
-
-          return Container(
-            width: MediaQuery.of(context).size.width,
-            height: 300,
-            child: Image.memory(
-              imageBytes,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                print('Error displaying image: $error');
-                print('Stack trace: $stackTrace');
-                return _buildPlaceholder();
-              },
-            ),
-          );
-        } catch (e) {
-          print('Error decoding base64: $e');
-          return _buildPlaceholder();
-        }
+        final imageBytes = base64Decode(base64String);
+        return Container(
+          width: MediaQuery.of(context).size.width,
+          height: 300,
+          child: Image.memory(
+            imageBytes,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              print('Error displaying image: $error');
+              return _buildPlaceholder();
+            },
+          ),
+        );
       } catch (e) {
-        print('Error cleaning base64 string: $e');
+        print('Error decoding base64: $e');
         return _buildPlaceholder();
       }
     } catch (e) {
-      print('Error in _buildPostImage: $e');
+      print('Error processing image: $e');
       return _buildPlaceholder();
     }
   }
 
   Widget _buildPhotoSection() {
     if (post == null || post!['images'] == null || post!['images'].isEmpty) {
-      print('No images available');
       return _buildPlaceholder();
     }
 
     List<dynamic> images = post!['images'];
-    print('Number of images: ${images.length}');
+    print('Building photo section with ${images.length} images');
 
     return StatefulBuilder(
       builder: (context, setState) {
-        bool showArrows = false;
-
-        return MouseRegion(
-          onEnter: (_) => setState(() => showArrows = true),
-          onExit: (_) => setState(() => showArrows = false),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Column(
-                children: [
-                  Container(
-                    height: 300,
-                    child: PageView.builder(
-                      controller: _pageController,
-                      onPageChanged: (index) {
-                        setState(() => _currentImageIndex = index);
-                      },
-                      itemCount: images.length,
-                      itemBuilder: (context, index) =>
-                          _buildPostImage(images[index]),
-                    ),
-                  ),
-                  if (images.length > 1) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        images.length,
-                        (index) => Container(
-                          width: 8.0,
-                          height: 8.0,
-                          margin: EdgeInsets.symmetric(horizontal: 4.0),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _currentImageIndex == index
-                                ? Colors.deepOrange
-                                : Colors.grey,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+        return Column(
+          children: [
+            Container(
+              height: 300,
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() => _currentImageIndex = index);
+                },
+                itemCount: images.length,
+                itemBuilder: (context, index) {
+                  final image = images[index];
+                  print('Building image $index');
+                  return _buildPostImage(image);
+                },
               ),
-              if (showArrows && images.length > 1) ...[
-                // Navigation arrows remain the same
-                Positioned(
-                  left: 16,
-                  child: AnimatedOpacity(
-                    opacity: showArrows ? 1.0 : 0.0,
-                    duration: Duration(milliseconds: 200),
-                    child: IconButton(
-                      icon: Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.arrow_back_ios, color: Colors.white),
-                      ),
-                      onPressed: _currentImageIndex > 0
-                          ? () {
-                              _pageController.previousPage(
-                                duration: Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                            }
-                          : null,
+            ),
+            if (images.length > 1) ...[
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  images.length,
+                  (index) => Container(
+                    width: 8.0,
+                    height: 8.0,
+                    margin: EdgeInsets.symmetric(horizontal: 4.0),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _currentImageIndex == index
+                          ? Colors.deepOrange
+                          : Colors.grey,
                     ),
                   ),
                 ),
-                Positioned(
-                  right: 16,
-                  child: AnimatedOpacity(
-                    opacity: showArrows ? 1.0 : 0.0,
-                    duration: Duration(milliseconds: 200),
-                    child: IconButton(
-                      icon: Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child:
-                            Icon(Icons.arrow_forward_ios, color: Colors.white),
-                      ),
-                      onPressed: _currentImageIndex < images.length - 1
-                          ? () {
-                              _pageController.nextPage(
-                                duration: Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                            }
-                          : null,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ],
-          ),
+          ],
         );
       },
     );
@@ -771,10 +676,10 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.broken_image, size: 100, color: Colors.grey[400]),
-            SizedBox(height: 16),
+            Icon(Icons.image_not_supported, size: 50, color: Colors.grey[400]),
+            SizedBox(height: 8),
             Text(
-              'No image available',
+              'Image not available',
               style: TextStyle(color: Colors.grey[600]),
             ),
           ],
@@ -800,26 +705,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     } else {
       print('No images data available');
     }
-  }
-
-  Widget _buildErrorDisplay(String message) {
-    return Container(
-      height: 300,
-      color: Colors.grey[200],
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 50, color: Colors.red),
-            SizedBox(height: 8),
-            Text(
-              message,
-              style: TextStyle(color: Colors.red[700]),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   bool canModifyPost() {
