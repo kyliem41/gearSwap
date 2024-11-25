@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
@@ -35,23 +34,48 @@ class _PostDetailPageState extends State<PostDetailPage> {
   String? baseUrl;
   int _currentImageIndex = 0;
   PageController _pageController = PageController();
+  bool _mounted = true;
+  List<Map<String, dynamic>> processedImages = [];
 
   @override
   void initState() {
     super.initState();
+    _mounted = true;
     _initializeBaseUrl().then((_) {
-      _loadPostDetails().then((_) {
-        if (mounted) {
-          _debugPrintImageData();
-        }
-      });
+      if (_mounted) {
+        _loadPostDetails().then((_) {
+          if (_mounted) {
+            _debugPrintImageData();
+          }
+        });
+      }
     });
   }
 
   @override
   void dispose() {
+    _mounted = false;
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _debugPrintImageData() {
+    if (post != null && post!['images'] != null) {
+      print('Number of images: ${post!['images'].length}');
+      post!['images'].asMap().forEach((index, image) {
+        print('Image $index:');
+        print('  Content type: ${image['content_type']}');
+        if (image['data'] != null) {
+          String data = image['data'].toString();
+          print('  Data prefix: ${data.substring(0, min(50, data.length))}...');
+          print('  Data length: ${data.length}');
+        } else {
+          print('  Data: null');
+        }
+      });
+    } else {
+      print('No images data available');
+    }
   }
 
   Future<void> _initializeBaseUrl() async {
@@ -59,7 +83,31 @@ class _PostDetailPageState extends State<PostDetailPage> {
     _loadUserData();
   }
 
+  Future<void> _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userString = prefs.getString('user');
+      final idToken = prefs.getString('idToken');
+
+      if (userString != null && idToken != null) {
+        final userJson = jsonDecode(userString);
+        setState(() {
+          userId = userJson['id'].toString();
+        });
+        print('Loaded userId from user data: $userId');
+        await Future.wait([
+          _loadPostDetails(),
+          _checkIfLiked(),
+        ]);
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    }
+  }
+
   Future<void> _loadPostDetails() async {
+    if (!_mounted) return;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
@@ -79,113 +127,39 @@ class _PostDetailPageState extends State<PostDetailPage> {
         },
       );
 
-      print('Response status code: ${response.statusCode}');
-
       if (response.statusCode == 200) {
-        try {
-          // Decode the response
-          final Map<String, dynamic> jsonResponse = json.decode(response.body);
-          if (!jsonResponse.containsKey('post')) {
-            throw Exception('Response missing post data');
-          }
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
 
-          final Map<String, dynamic> postData =
-              Map<String, dynamic>.from(jsonResponse['post']);
-          print('Post data decoded successfully');
+        if (!jsonResponse.containsKey('post')) {
+          throw Exception('Response missing post data');
+        }
 
-          // Handle images
-          if (postData.containsKey('images') && postData['images'] is List) {
-            List<Map<String, dynamic>> processedImages = [];
-            List originalImages = postData['images'];
+        final Map<String, dynamic> postData =
+            Map<String, dynamic>.from(jsonResponse['post']);
 
-            for (var imageData in originalImages) {
-              if (imageData is Map<String, dynamic> &&
-                  imageData.containsKey('data') &&
-                  imageData.containsKey('content_type')) {
-                String base64Data = imageData['data'].toString();
-                String contentType = imageData['content_type'].toString();
+        // Process images
+        if (postData['images'] != null && postData['images'] is List) {
+          processedImages = List<Map<String, dynamic>>.from(postData['images']
+              .map((image) => Map<String, dynamic>.from(image)));
+        }
 
-                // Clean up base64 data
-                if (base64Data.startsWith('/9j/')) {
-                  // For JPEG data that starts with /9j/
-                  base64Data = base64Data.trim();
-                  base64Data = base64Data.replaceAll(RegExp(r'\s+'), '');
-                  // Keep valid base64 characters and the /9j/ prefix
-                  base64Data =
-                      base64Data.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
-                } else if (base64Data.contains('base64,')) {
-                  base64Data = base64Data.split('base64,').last.trim();
-                  base64Data = base64Data.replaceAll(RegExp(r'\s+'), '');
-                  base64Data =
-                      base64Data.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-                }
-
-                // Add padding if needed
-                while (base64Data.length % 4 != 0) {
-                  base64Data += '=';
-                }
-
-                // Verify the base64 data is valid
-                try {
-                  base64Decode(base64Data);
-                  processedImages.add({
-                    'data': base64Data,
-                    'content_type': contentType,
-                  });
-                  print(
-                      'Successfully processed image with content type: $contentType');
-                } catch (e) {
-                  print('Invalid base64 data for image: $e');
-                }
-              }
-            }
-
-            postData['images'] = processedImages;
-            print('Processed ${processedImages.length} images');
-          } else {
-            postData['images'] = [];
-            print('No images found in post data');
-          }
-
+        if (_mounted) {
           setState(() {
             post = postData;
             isLoading = false;
           });
-        } catch (e) {
-          print('Error processing response: $e');
-          throw Exception('Failed to process response data: $e');
         }
       } else {
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
     } catch (e) {
       print('Error loading post details: $e');
-      setState(() {
-        hasError = true;
-        isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userString = prefs.getString('user');
-      final idToken = prefs.getString('idToken');
-
-      if (userString != null && idToken != null) {
-        final userJson = jsonDecode(userString);
+      if (_mounted) {
         setState(() {
-          userId = userJson['id'].toString();
+          hasError = true;
+          isLoading = false;
         });
-        print('Loaded userId from user data: $userId');
-        await Future.wait([
-          _loadPostDetails(),
-          _checkIfLiked(), // Add this to check liked status
-        ]);
       }
-    } catch (e) {
-      print('Error loading user data: $e');
     }
   }
 
@@ -546,20 +520,32 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  Widget _buildPostImage(Map<String, dynamic> image) {
-    if (image == null || image['data'] == null) {
-      return _buildPlaceholder();
-    }
-
+  Widget _buildPostImage(Map<String, dynamic> imageData) {
     try {
-      String base64String = image['data'].toString();
-      print('Processing image with type: ${image['content_type']}');
+      if (imageData['data'] == null) {
+        return _buildPlaceholder();
+      }
 
-      // Clean and validate the base64 string
-      base64String = cleanBase64String(base64String);
+      // Clean and process the base64 string
+      String base64String = imageData['data'].toString();
+
+      // Remove data URL prefix if present
+      if (base64String.contains('base64,')) {
+        base64String = base64String.split('base64,').last;
+      }
+
+      // Clean up the string
+      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+      // Add padding if needed
+      while (base64String.length % 4 != 0) {
+        base64String += '=';
+      }
 
       try {
         final imageBytes = base64Decode(base64String);
+
         return Container(
           width: MediaQuery.of(context).size.width,
           height: 300,
@@ -569,6 +555,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
             errorBuilder: (context, error, stackTrace) {
               print('Error displaying image: $error');
               return _buildPlaceholder();
+            },
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              if (frame == null) {
+                return Center(child: CircularProgressIndicator());
+              }
+              return child;
             },
           ),
         );
@@ -583,12 +575,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _buildPhotoSection() {
-    if (post == null || post!['images'] == null || post!['images'].isEmpty) {
+    if (!_mounted || processedImages.isEmpty) {
       return _buildPlaceholder();
     }
-
-    List<dynamic> images = post!['images'];
-    print('Building photo section with ${images.length} images');
 
     return StatefulBuilder(
       builder: (context, setState) {
@@ -599,22 +588,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
               child: PageView.builder(
                 controller: _pageController,
                 onPageChanged: (index) {
-                  setState(() => _currentImageIndex = index);
+                  if (_mounted) {
+                    setState(() => _currentImageIndex = index);
+                  }
                 },
-                itemCount: images.length,
+                itemCount: processedImages.length,
                 itemBuilder: (context, index) {
-                  final image = images[index];
-                  print('Building image $index');
-                  return _buildPostImage(image);
+                  return _buildPostImage(processedImages[index]);
                 },
               ),
             ),
-            if (images.length > 1) ...[
+            if (processedImages.length > 1) ...[
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
-                  images.length,
+                  processedImages.length,
                   (index) => Container(
                     width: 8.0,
                     height: 8.0,
@@ -653,25 +642,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
         ),
       ),
     );
-  }
-
-  void _debugPrintImageData() {
-    if (post != null && post!['images'] != null) {
-      print('Number of images: ${post!['images'].length}');
-      post!['images'].asMap().forEach((index, image) {
-        print('Image $index:');
-        print('  Content type: ${image['content_type']}');
-        if (image['data'] != null) {
-          String data = image['data'].toString();
-          print('  Data prefix: ${data.substring(0, min(50, data.length))}...');
-          print('  Data length: ${data.length}');
-        } else {
-          print('  Data: null');
-        }
-      });
-    } else {
-      print('No images data available');
-    }
   }
 
   Widget _buildCartButton() {
@@ -790,7 +760,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                               ),
                               SizedBox(width: 8),
                               Text(
-                                '@${post!['username']}',
+                                '@${post!['username'] ?? 'unknown'}',
                                 style: TextStyle(
                                   color: Colors.deepOrange,
                                   fontWeight: FontWeight.bold,
@@ -859,7 +829,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                             ),
                             onPressed: () => _toggleLike().then((_) {
                               _checkIfLiked();
-                            }),
+                            }), //change?
                           ),
                           ElevatedButton.icon(
                             onPressed: _messageUser,
