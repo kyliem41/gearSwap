@@ -141,21 +141,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
             Map<String, dynamic>.from(jsonResponse['post']);
 
         // Process images
+        processedImages = [];
         if (postData['images'] != null && postData['images'] is List) {
-          processedImages = [];
           for (var image in postData['images']) {
             if (image is Map<String, dynamic> &&
                 image.containsKey('data') &&
                 image.containsKey('content_type')) {
-              print(
-                  'Processing image with content type: ${image['content_type']}');
-              processedImages.add(Map<String, dynamic>.from(image));
+              // The image data should already be properly formatted from the backend
+              processedImages.add({
+                'id': image['id'],
+                'content_type': image['content_type'],
+                'data': image[
+                    'data'], // Backend now provides properly formatted base64 data
+              });
             }
           }
           print('Processed ${processedImages.length} images');
-        } else {
-          print('No images found in post data');
-          processedImages = [];
         }
 
         if (_mounted) {
@@ -537,57 +538,26 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Widget _buildPostImage(Map<String, dynamic> imageData) {
     try {
-      print('Building image with data: ${imageData['content_type']}');
-
       if (imageData['data'] == null) {
         print('Image data is null');
         return _buildPlaceholder();
       }
 
-      String base64String = imageData['data'].toString();
-
-      // Handle JPEG data that starts with /9j/
-      if (base64String.startsWith('/9j/')) {
-        // Keep the /9j/ prefix for JPEG images
-        base64String = base64String.trim();
-      } else if (base64String.contains('base64,')) {
-        base64String = base64String.split('base64,').last.trim();
-      }
-
-      // Clean up the string
-      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
-
-      // Add padding if needed
-      while (base64String.length % 4 != 0) {
-        base64String += '=';
-      }
-
-      Uint8List? imageBytes;
-      try {
-        if (base64String.startsWith('/9j/')) {
-          // For JPEG images, remove the /9j/ prefix before decoding
-          imageBytes = base64Decode(base64String.substring(4));
-        } else {
-          imageBytes = base64Decode(base64String);
-        }
-
-        return Container(
-          width: MediaQuery.of(context).size.width,
-          height: 300,
-          child: Image.memory(
-            imageBytes,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              print('Error displaying image: $error');
-              return _buildPlaceholder();
-            },
-          ),
-        );
-      } catch (e) {
-        print('Error decoding base64: $e');
-        return _buildPlaceholder();
-      }
+      // The data should already be in the correct format from the backend
+      // It includes the content type prefix and is properly base64 encoded
+      return Container(
+        width: MediaQuery.of(context).size.width,
+        height: 300,
+        child: Image.memory(
+          base64Decode(
+              imageData['data'].split(',').last), // Remove the data URI prefix
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error displaying image: $error');
+            return _buildPlaceholder();
+          },
+        ),
+      );
     } catch (e) {
       print('Error processing image: $e');
       return _buildPlaceholder();
@@ -604,49 +574,45 @@ class _PostDetailPageState extends State<PostDetailPage> {
       return _buildPlaceholder();
     }
 
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return Column(
-          children: [
-            Container(
-              height: 300,
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  if (_mounted) {
-                    setState(() => _currentImageIndex = index);
-                  }
-                },
-                itemCount: processedImages.length,
-                itemBuilder: (context, index) {
-                  print('Building image at index $index');
-                  return _buildPostImage(processedImages[index]);
-                },
-              ),
-            ),
-            if (processedImages.length > 1) ...[
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  processedImages.length,
-                  (index) => Container(
-                    width: 8.0,
-                    height: 8.0,
-                    margin: EdgeInsets.symmetric(horizontal: 4.0),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _currentImageIndex == index
-                          ? Colors.deepOrange
-                          : Colors.grey,
-                    ),
-                  ),
+    return Column(
+      children: [
+        Container(
+          height: 300,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              if (_mounted) {
+                setState(() => _currentImageIndex = index);
+              }
+            },
+            itemCount: processedImages.length,
+            itemBuilder: (context, index) {
+              print('Building image at index $index');
+              return _buildPostImage(processedImages[index]);
+            },
+          ),
+        ),
+        if (processedImages.length > 1) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              processedImages.length,
+              (index) => Container(
+                width: 8.0,
+                height: 8.0,
+                margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentImageIndex == index
+                      ? Colors.deepOrange
+                      : Colors.grey,
                 ),
               ),
-            ],
-          ],
-        );
-      },
+            ),
+          ),
+        ],
+      ],
     );
   }
 

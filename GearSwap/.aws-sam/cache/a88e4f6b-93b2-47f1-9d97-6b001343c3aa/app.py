@@ -195,10 +195,10 @@ def validate_file_upload(content_type: str, file_data: bytes) -> bool:
     return True
 
 def store_image(cursor, post_id: int, file_data: bytes, content_type: str) -> int:
-    """Store image in the database and return image ID"""
+    """Store image in the database"""
     cursor.execute(
         "INSERT INTO post_images (post_id, image_data, content_type) VALUES (%s, %s, %s) RETURNING id",
-        (post_id, file_data, content_type)
+        (post_id, file_data, content_type)  # file_data is already binary
     )
     return cursor.fetchone()['id']
 
@@ -211,7 +211,7 @@ def get_image(cursor, image_id: int) -> Dict[str, Any]:
     result = cursor.fetchone()
     if result:
         return {
-            'data': base64.b64encode(result['image_data']).decode('utf-8'),
+            'data': base64.b64encode(result['image_data']).decode('utf-8'),  # Properly encode binary to base64
             'content_type': result['content_type']
         }
     return None
@@ -331,35 +331,31 @@ def getPosts(event, context):
                 cursor.execute("SELECT COUNT(*) FROM posts")
                 total_posts = cursor.fetchone()['count']
 
-                # Then get paginated posts with limited image data
                 cursor.execute("""
-                    SELECT 
-                        p.*,
-                        u.username,
-                        CASE 
-                            WHEN pi.image_data IS NOT NULL THEN
-                                json_build_object(
-                                    'id', pi.id,
-                                    'content_type', pi.content_type,
-                                    'data', encode(
-                                        substring(pi.image_data, 1, 500000), -- Limit image data size
-                                        'base64'
-                                    )
-                                )
-                            ELSE NULL
-                        END as first_image
-                    FROM posts p
-                    JOIN users u ON p.userId = u.id
-                    LEFT JOIN LATERAL (
-                        SELECT id, content_type, image_data
-                        FROM post_images
-                        WHERE post_id = p.id
-                        ORDER BY id
-                        LIMIT 1
-                    ) pi ON true
-                    ORDER BY p.datePosted DESC
-                    LIMIT %s OFFSET %s
-                """, (page_size, offset))
+            SELECT 
+                p.*,
+                u.username,
+                CASE 
+                    WHEN pi.image_data IS NOT NULL THEN
+                        json_build_object(
+                            'id', pi.id,
+                            'content_type', pi.content_type,
+                            'data', encode(pi.image_data, 'base64')  # Properly encode binary to base64
+                        )
+                    ELSE NULL
+                END as first_image
+            FROM posts p
+            JOIN users u ON p.userId = u.id
+            LEFT JOIN LATERAL (
+                SELECT id, content_type, image_data
+                FROM post_images
+                WHERE post_id = p.id
+                ORDER BY id
+                LIMIT 1
+            ) pi ON true
+            ORDER BY p.datePosted DESC
+            LIMIT %s OFFSET %s
+        """, (page_size, offset))
                 
                 posts = cursor.fetchall()
 
@@ -407,15 +403,25 @@ def getPostById(event, context):
 
                 # Get all images for the post
                 cursor.execute("""
-                    SELECT id, content_type, encode(image_data, 'base64') as data
+                    SELECT id, content_type, image_data
                     FROM post_images
                     WHERE post_id = %s
                     ORDER BY created_at
                 """, (post_id,))
-                images = cursor.fetchall()
+                raw_images = cursor.fetchall()
                 
-                # Add images to post data
-                post['images'] = images
+                # Process images to include proper base64 formatting
+                processed_images = []
+                for image in raw_images:
+                    base64_data = base64.b64encode(image['image_data']).decode('utf-8')
+                    processed_images.append({
+                        'id': image['id'],
+                        'content_type': image['content_type'],
+                        'data': f"data:{image['content_type']};base64,{base64_data}"
+                    })
+                
+                # Add processed images to post data
+                post['images'] = processed_images
 
                 return cors_response(200, {
                     "message": "Post retrieved successfully",
@@ -789,19 +795,30 @@ def getPostImages(event, context):
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 # Get all images for the post
                 cursor.execute("""
-                    SELECT id, content_type, encode(image_data, 'base64') as data
+                    SELECT id, content_type, image_data
                     FROM post_images
                     WHERE post_id = %s
                     ORDER BY id
                 """, (post_id,))
-                images = cursor.fetchall()
+                raw_images = cursor.fetchall()
                 
-                if not images:
+                if not raw_images:
                     return cors_response(404, {'error': 'No images found for this post'})
+
+                # Process each image to ensure proper base64 format
+                processed_images = []
+                for image in raw_images:
+                    # Convert binary data to base64 and format properly
+                    base64_data = base64.b64encode(image['image_data']).decode('utf-8')
+                    processed_images.append({
+                        'id': image['id'],
+                        'content_type': image['content_type'],
+                        'data': f"data:{image['content_type']};base64,{base64_data}"
+                    })
 
                 return cors_response(200, {
                     'message': 'Images retrieved successfully',
-                    'images': images
+                    'images': processed_images
                 })
 
     except Exception as e:
