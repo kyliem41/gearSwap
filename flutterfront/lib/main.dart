@@ -10,6 +10,7 @@ import 'package:sample/shared/config_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:typed_data';
+import 'dart:math';
 
 void main() {
   GoRouter.optionURLReflectsImperativeAPIs = true;
@@ -158,39 +159,40 @@ class _MyHomePageState extends State<MyHomePage> {
       print('Building image for post ${post['id']}');
       final firstImage = post['first_image'];
 
-      if (firstImage == null) {
-        print('No first_image found for post ${post['id']}');
-        return _buildPlaceholder();
+      if (firstImage != null) {
+        String? base64Data = firstImage['data'];
+        if (base64Data != null) {
+          // Extract the base64 part from the data URI
+          if (base64Data.contains('base64,')) {
+            base64Data = base64Data.split('base64,')[1];
+          }
+
+          try {
+            final Uint8List imageBytes = base64Decode(base64Data);
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              child: Image.memory(
+                imageBytes,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print(
+                      'Error displaying image for post ${post['id']}: $error');
+                  print('Stack trace: $stackTrace');
+                  return _buildPlaceholder();
+                },
+              ),
+            );
+          } catch (e) {
+            print('Error decoding base64 for post ${post['id']}: $e');
+            print(
+                'Base64 data: ${base64Data.substring(0, min(100, base64Data.length))}...');
+            return _buildPlaceholder();
+          }
+        }
       }
 
-      // Check if the data already includes the data URI prefix
-      if (firstImage['data'] != null) {
-        String imageData = firstImage['data'];
-
-        // If the data already contains the full data URI, extract just the base64 part
-        if (imageData.contains('base64,')) {
-          imageData = imageData.split('base64,')[1];
-        }
-
-        try {
-          final Uint8List bytes = base64Decode(imageData);
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                print('Error displaying image for post ${post['id']}: $error');
-                return _buildPlaceholder();
-              },
-            ),
-          );
-        } catch (e) {
-          print('Error decoding base64 for post ${post['id']}: $e');
-          return _buildPlaceholder();
-        }
-      }
+      print('No valid image data found for post ${post['id']}');
       return _buildPlaceholder();
     } catch (e) {
       print('Error in _buildPostImage for post ${post['id']}: $e');
@@ -252,111 +254,100 @@ class _MyHomePageState extends State<MyHomePage> {
       body: RefreshIndicator(
         onRefresh: _refreshPosts,
         child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: isLoading
-                ? Center(child: CircularProgressIndicator())
-                : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text("Failed to load posts"),
-                            ElevatedButton(
-                              onPressed: _refreshPosts,
-                              child: Text("Try Again"),
-                            ),
-                          ],
-                        ),
-                      )
-                    : posts.isEmpty
-                        ? Center(child: Text("No posts available"))
-                        : GridView.builder(
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              crossAxisSpacing: 10.0,
-                              mainAxisSpacing: 10.0,
-                              childAspectRatio: 0.7,
-                            ),
-                            itemCount: posts.length,
-                            itemBuilder: (context, index) {
-                              final post = posts[index];
-                              return GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => PostDetailPage(
-                                        postId: post['id'].toString(),
+          padding: const EdgeInsets.all(20.0),
+          child: isLoading
+              ? Center(child: CircularProgressIndicator())
+              : hasError
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text("Failed to load posts"),
+                          ElevatedButton(
+                            onPressed: _refreshPosts,
+                            child: Text("Try Again"),
+                          ),
+                        ],
+                      ),
+                    )
+                  : posts.isEmpty
+                      ? Center(child: Text("No posts available"))
+                      : GridView.builder(
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            crossAxisSpacing: 10.0,
+                            mainAxisSpacing: 10.0,
+                            childAspectRatio: 0.7,
+                          ),
+                          itemCount: posts.length,
+                          itemBuilder: (context, index) {
+                            final post = posts[index];
+                            if (index == 0) {
+                              print(
+                                  'First post data: ${json.encode(post['first_image'])}');
+                            }
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PostDetailPage(
+                                      postId: post['id'].toString(),
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Card(
+                                elevation: 4.0,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Container(
+                                        width: double.infinity,
+                                        color: Colors.grey[200],
+                                        child: _buildPostImage(post),
                                       ),
                                     ),
-                                  );
-                                },
-                                child: Card(
-                                  elevation: 4.0,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Expanded(
-                                        child: Container(
-                                          width: double.infinity,
-                                          color: Colors.grey[200],
-                                          child: Center(
-                                            child: Column(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Expanded(
-                                                  child: _buildPostImage(post),
-                                                ),
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.all(8.0),
-                                                  child: Text(
-                                                    '\$${post['price']}',
-                                                    style: TextStyle(
-                                                      fontSize: 18,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '\$${post['price']}',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
+                                          Text(
+                                            post['description'] ??
+                                                'No description',
+                                            style: TextStyle(fontSize: 14),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if (post['size'] != null)
                                             Text(
-                                              post['description'] ??
-                                                  'No description',
-                                              style: TextStyle(fontSize: 14),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            if (post['size'] != null)
-                                              Text(
-                                                'Size: ${post['size']}',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[600],
-                                                ),
+                                              'Size: ${post['size']}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
                                               ),
-                                          ],
-                                        ),
+                                            ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                              );
-                            },
-                          )),
+                              ),
+                            );
+                          },
+                        ),
+        ),
       ),
       bottomNavigationBar: BottomNavBar(),
     );
