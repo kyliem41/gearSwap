@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sample/appBars/bottomNavBar.dart';
@@ -449,10 +451,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _buildPhotoSection() {
-    if (post == null ||
-        post!['images'] == null ||
-        !(post!['images'] is List) ||
-        post!['images'].isEmpty) {
+    if (post == null || post!['images'] == null || post!['images'].isEmpty) {
       print('No images available');
       return _buildPlaceholder();
     }
@@ -460,186 +459,168 @@ class _PostDetailPageState extends State<PostDetailPage> {
     List<dynamic> images = post!['images'];
     print('Number of images: ${images.length}');
 
-    return MouseRegion(
-      child: StatefulBuilder(
-        builder: (context, setState) {
-          bool showArrows = false;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        bool showArrows = false;
 
-          return MouseRegion(
-            onEnter: (_) => setState(() => showArrows = true),
-            onExit: (_) => setState(() => showArrows = false),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Column(
-                  children: [
-                    Container(
-                      height: 300,
-                      child: PageView.builder(
-                        controller: _pageController,
-                        onPageChanged: (index) {
-                          setState(() {
-                            _currentImageIndex = index;
-                          });
-                        },
-                        itemCount: images.length,
-                        itemBuilder: (context, index) {
-                          // ... existing image building code ...
-                          final image = images[index];
-                          if (image == null) {
+        return MouseRegion(
+          onEnter: (_) => setState(() => showArrows = true),
+          onExit: (_) => setState(() => showArrows = false),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Column(
+                children: [
+                  Container(
+                    height: 300,
+                    child: PageView.builder(
+                      controller: _pageController,
+                      onPageChanged: (index) {
+                        setState(() => _currentImageIndex = index);
+                      },
+                      itemCount: images.length,
+                      itemBuilder: (context, index) {
+                        final image = images[index];
+                        if (image == null) {
+                          print('Null image at index $index');
+                          return _buildPlaceholder();
+                        }
+
+                        try {
+                          if (image['data'] == null) {
+                            print('No image data at index $index');
                             return _buildPlaceholder();
+                          }
+
+                          String base64String = image['data'].toString();
+                          // Clean the base64 string
+                          base64String = base64String.trim();
+                          if (base64String.contains(',')) {
+                            base64String = base64String.split(',').last;
+                          }
+                          base64String = base64String.replaceAll('\n', '');
+                          base64String = base64String.replaceAll('\r', '');
+                          base64String = base64String.replaceAll(' ', '');
+
+                          // Add padding if needed
+                          while (base64String.length % 4 != 0) {
+                            base64String += '=';
                           }
 
                           try {
-                            String base64String = '';
-                            if (image['data'] != null) {
-                              base64String = image['data'].toString();
-                              base64String =
-                                  base64String.replaceAll(RegExp(r'\s+'), '');
-                              base64String = base64String.replaceAll(
-                                  RegExp(r'[^A-Za-z0-9+/=]'), '');
-                              if (base64String.contains(',')) {
-                                base64String = base64String.split(',').last;
-                              }
-                              int padLength = base64String.length % 4;
-                              if (padLength > 0) {
-                                base64String = base64String.padRight(
-                                  base64String.length + (4 - padLength),
-                                  '=',
-                                );
-                              }
+                            final Uint8List imageBytes =
+                                base64Decode(base64String);
 
-                              try {
-                                final imageBytes = base64Decode(base64String);
-                                return Container(
-                                  width: MediaQuery.of(context).size.width,
-                                  child: Image.memory(
-                                    imageBytes,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return _buildErrorDisplay(
-                                          'Error displaying image');
-                                    },
-                                  ),
-                                );
-                              } catch (e) {
-                                try {
-                                  final codec = const Base64Codec();
-                                  final imageBytes = codec.decode(base64String);
-                                  return Container(
-                                    width: MediaQuery.of(context).size.width,
-                                    child: Image.memory(
-                                      imageBytes,
-                                      fit: BoxFit.contain,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                        return _buildErrorDisplay(
-                                            'Error displaying image');
-                                      },
-                                    ),
-                                  );
-                                } catch (e2) {
+                            return Container(
+                              width: MediaQuery.of(context).size.width,
+                              child: Image.memory(
+                                imageBytes,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  print(
+                                      'Error displaying image at index $index: $error');
                                   return _buildErrorDisplay(
-                                      'Error decoding image data');
-                                }
-                              }
-                            }
-                            return _buildPlaceholder();
+                                      'Error displaying image');
+                                },
+                              ),
+                            );
                           } catch (e) {
-                            return _buildErrorDisplay('Error processing image');
+                            print('Error decoding base64 at index $index: $e');
+                            return _buildErrorDisplay('Error loading image');
                           }
-                        },
-                      ),
+                        } catch (e) {
+                          print('Error processing image at index $index: $e');
+                          return _buildErrorDisplay('Error processing image');
+                        }
+                      },
                     ),
-                    if (images.length > 1) ...[
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(
-                          images.length,
-                          (index) => Container(
-                            width: 8.0,
-                            height: 8.0,
-                            margin: EdgeInsets.symmetric(horizontal: 4.0),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _currentImageIndex == index
-                                  ? Colors.deepOrange
-                                  : Colors.grey,
-                            ),
+                  ),
+                  if (images.length > 1) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        images.length,
+                        (index) => Container(
+                          width: 8.0,
+                          height: 8.0,
+                          margin: EdgeInsets.symmetric(horizontal: 4.0),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _currentImageIndex == index
+                                ? Colors.deepOrange
+                                : Colors.grey,
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ],
-                ),
-                if (showArrows && images.length > 1) ...[
-                  // Left Arrow
-                  Positioned(
-                    left: 16,
-                    child: AnimatedOpacity(
-                      opacity: showArrows ? 1.0 : 0.0,
-                      duration: Duration(milliseconds: 200),
-                      child: IconButton(
-                        icon: Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                        onPressed: _currentImageIndex > 0
-                            ? () {
-                                _pageController.previousPage(
-                                  duration: Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                );
-                              }
-                            : null,
-                      ),
-                    ),
-                  ),
-                  // Right Arrow
-                  Positioned(
-                    right: 16,
-                    child: AnimatedOpacity(
-                      opacity: showArrows ? 1.0 : 0.0,
-                      duration: Duration(milliseconds: 200),
-                      child: IconButton(
-                        icon: Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.arrow_forward_ios,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                        onPressed: _currentImageIndex < images.length - 1
-                            ? () {
-                                _pageController.nextPage(
-                                  duration: Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                );
-                              }
-                            : null,
-                      ),
-                    ),
-                  ),
                 ],
+              ),
+              if (showArrows && images.length > 1) ...[
+                Positioned(
+                  left: 16,
+                  child: AnimatedOpacity(
+                    opacity: showArrows ? 1.0 : 0.0,
+                    duration: Duration(milliseconds: 200),
+                    child: IconButton(
+                      icon: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_back_ios,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      onPressed: _currentImageIndex > 0
+                          ? () {
+                              _pageController.previousPage(
+                                duration: Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            }
+                          : null,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 16,
+                  child: AnimatedOpacity(
+                    opacity: showArrows ? 1.0 : 0.0,
+                    duration: Duration(milliseconds: 200),
+                    child: IconButton(
+                      icon: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      onPressed: _currentImageIndex < images.length - 1
+                          ? () {
+                              _pageController.nextPage(
+                                duration: Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            }
+                          : null,
+                    ),
+                  ),
+                ),
               ],
-            ),
-          );
-        },
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -647,8 +628,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
     return Container(
       height: 300,
       color: Colors.grey[200],
-      child: const Center(
-        child: Icon(Icons.image, size: 100, color: Colors.grey),
+      child: Center(
+        child: Icon(Icons.broken_image, size: 100, color: Colors.grey),
       ),
     );
   }
