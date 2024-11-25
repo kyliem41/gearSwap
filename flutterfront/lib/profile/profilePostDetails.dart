@@ -39,7 +39,13 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   @override
   void initState() {
     super.initState();
-    _initialize();
+    _initialize().then((_) {
+      _loadPostDetails().then((_) {
+        if (mounted) {
+          _debugPrintImageData();
+        }
+      });
+    });
   }
 
   @override
@@ -123,17 +129,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Future<void> _loadPostDetails() async {
-    if (baseUrl == null || widget.postId == null) {
-      print(
-          'Missing required data - baseUrl: $baseUrl, postId: ${widget.postId}');
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
-      hasError = false;
-    });
-
     try {
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
@@ -143,7 +138,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       }
 
       final url = Uri.parse('$baseUrl/posts/${widget.postId}');
-      print('Loading post details from URL: $url');
+      print('Loading post details from: $url');
 
       final response = await http.get(
         url,
@@ -153,22 +148,60 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         },
       );
 
-      print('Post details response status: ${response.statusCode}');
-      print('Post details response body: ${response.body}');
+      print('Response status code: ${response.statusCode}');
+      print('Raw response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          post = data['post'];
-          isLoading = false;
-        });
-        print(
-            'Post loaded successfully. Post ID: ${post!['id']}, User ID: ${post!['userid']}');
+        // First verify we have valid JSON
+        try {
+          final Map<String, dynamic> jsonResponse = json.decode(response.body);
+          print('JSON decoded successfully');
+
+          if (jsonResponse.containsKey('post')) {
+            final postData = jsonResponse['post'];
+            print('Post data extracted: ${json.encode(postData)}');
+
+            // Check for images specifically
+            if (postData['images'] != null) {
+              print('Images data: ${json.encode(postData['images'])}');
+
+              // If images is a String (base64), convert it to a list with one item
+              if (postData['images'] is String) {
+                postData['images'] = [
+                  {
+                    'data': postData['images'],
+                    'content_type': 'image/jpeg' // default content type
+                  }
+                ];
+              }
+
+              // Ensure images is a List
+              if (postData['images'] is! List) {
+                postData['images'] = [];
+              }
+            } else {
+              postData['images'] = [];
+            }
+
+            setState(() {
+              post = postData;
+              isLoading = false;
+            });
+          } else {
+            print('Response missing post key: ${jsonResponse.keys.toList()}');
+            throw Exception('Invalid response format: missing post data');
+          }
+        } catch (e) {
+          print('JSON decoding error: $e');
+          throw Exception('Failed to parse response: $e');
+        }
       } else {
+        print('Error response body: ${response.body}');
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error loading post details: $e');
+      print('Stack trace: $stackTrace');
       setState(() {
         hasError = true;
         isLoading = false;
@@ -181,35 +214,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       const SnackBar(content: Text('Unable to add to cart')),
     );
   }
-
-  // Future<void> _loadUserId() async {
-  //   try {
-  //     final prefs = await SharedPreferences.getInstance();
-  //     final userStr = prefs.getString('user');
-  //     final idToken = prefs.getString('idToken');
-
-  //     print('User string: $userStr');
-  //     print('ID token available: ${idToken != null}');
-
-  //     if (userStr == null || idToken == null) {
-  //       throw Exception('No authentication data found');
-  //     }
-
-  //     final userData = json.decode(userStr);
-  //     final loadedUserId = userData['id']?.toString();
-
-  //     print('Loaded user ID from preferences: $loadedUserId');
-
-  //     setState(() {
-  //       userId = loadedUserId;
-  //     });
-  //   } catch (e) {
-  //     print('Error loading user ID: $e');
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text('Error loading user data')),
-  //     );
-  //   }
-  // }
 
   Future<void> _checkIfPostLiked() async {
     if (baseUrl == null) return;
@@ -709,9 +713,38 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       height: 300,
       color: Colors.grey[200],
       child: Center(
-        child: Icon(Icons.broken_image, size: 100, color: Colors.grey),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.broken_image, size: 100, color: Colors.grey[400]),
+            SizedBox(height: 16),
+            Text(
+              'No image available',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _debugPrintImageData() {
+    if (post != null && post!['images'] != null) {
+      print('Number of images: ${post!['images'].length}');
+      post!['images'].asMap().forEach((index, image) {
+        print('Image $index:');
+        print('  Content type: ${image['content_type']}');
+        if (image['data'] != null) {
+          String data = image['data'].toString();
+          print('  Data prefix: ${data.substring(0, min(50, data.length))}...');
+          print('  Data length: ${data.length}');
+        } else {
+          print('  Data: null');
+        }
+      });
+    } else {
+      print('No images data available');
+    }
   }
 
   Widget _buildErrorDisplay(String message) {
