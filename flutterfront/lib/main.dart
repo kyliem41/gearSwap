@@ -168,33 +168,41 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _buildPostImage(Map<String, dynamic> post) {
     // First try to get the first_image (used in grid view/list)
-    if (post['first_image'] != null && post['first_image']['data'] != null) {
-      return _buildImageFromData(post['first_image']['data']);
-    }
-
-    // If no first_image, check the images array (used in post details)
-    if (post['images'] != null &&
-        post['images'] is List &&
-        post['images'].isNotEmpty) {
+    if (post['images'] != null && post['images'] is List && post['images'].isNotEmpty) {
       final firstImage = post['images'][0];
       if (firstImage != null && firstImage['data'] != null) {
-        return _buildImageFromData(firstImage['data']);
+        try {
+          return _buildImageFromData(firstImage['data']);
+        } catch (e) {
+          print('Error building image from images array: $e');
+          return _buildPlaceholder();
+        }
       }
     }
-
-    // If no images found, show placeholder
+    
+    // Fallback to first_image if images array is empty
+    if (post['first_image'] != null && post['first_image']['data'] != null) {
+      try {
+        return _buildImageFromData(post['first_image']['data']);
+      } catch (e) {
+        print('Error building image from first_image: $e');
+        return _buildPlaceholder();
+      }
+    }
+    
     return _buildPlaceholder();
   }
 
   Widget _buildImageFromData(String imageData) {
     try {
+      final Uint8List bytes = _base64ToImage(imageData);
       return Container(
         width: double.infinity,
         height: double.infinity,
         child: ClipRRect(
           borderRadius: BorderRadius.vertical(top: Radius.circular(4.0)),
           child: Image.memory(
-            _base64ToImage(imageData),
+            bytes,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               print('Error loading image: $error');
@@ -211,14 +219,34 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Uint8List _base64ToImage(String base64String) {
     try {
-      // If the string contains data URI scheme, remove it
-      String pureBase64 = base64String;
+      // Handle both formats: with and without data URI scheme
+      String pureBase64;
       if (base64String.contains(';base64,')) {
-        pureBase64 = base64String.split(';base64,')[1];
+        pureBase64 = base64String.split(';base64,')[1].trim();
+      } else if (base64String.contains(',')) {
+        pureBase64 = base64String.split(',')[1].trim();
+      } else {
+        pureBase64 = base64String.trim();
       }
-      return base64Decode(pureBase64);
+      
+      // Remove any whitespace
+      pureBase64 = pureBase64.replaceAll(RegExp(r'\s+'), '');
+      
+      // Add padding if needed
+      while (pureBase64.length % 4 != 0) {
+        pureBase64 += '=';
+      }
+      
+      final bytes = base64Decode(pureBase64);
+      if (bytes.isEmpty) {
+        throw Exception('Decoded base64 is empty');
+      }
+      
+      print('Successfully decoded image, byte length: ${bytes.length}');
+      return bytes;
     } catch (e) {
       print('Error decoding base64: $e');
+      print('Base64 string preview: ${base64String.substring(0, min<int>(100, base64String.length))}');
       rethrow;
     }
   }
