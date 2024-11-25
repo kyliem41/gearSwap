@@ -112,8 +112,13 @@ class _NewPostPageState extends State<NewPostPage> {
         String base64String = reader.result as String;
         String contentType = file.type ?? 'image/jpeg';
 
-        //removes data prefix
-        // base64String = base64String.split(',')[1];
+        if (base64String.contains(';base64,')) {
+          base64String = base64String.split(';base64,')[1];
+        }
+
+        while (base64String.length % 4 != 0) {
+          base64String += '=';
+        }
 
         setState(() {
           photos.add({
