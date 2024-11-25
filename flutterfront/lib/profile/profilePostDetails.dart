@@ -555,25 +555,34 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                         }
 
                         try {
+                          print(
+                              'Processing image at index $index: ${image.toString()}');
                           if (image['data'] == null) {
                             print('No image data at index $index');
                             return _buildPlaceholder();
                           }
 
                           String base64String = image['data'].toString();
+
+                          // Handle data URL prefix if present
+                          if (base64String.contains('data:image/')) {
+                            base64String = base64String.split(';base64,').last;
+                          }
+
                           // Clean the base64 string
                           base64String = base64String.trim();
-                          if (base64String.contains(',')) {
-                            base64String = base64String.split(',').last;
-                          }
-                          base64String = base64String.replaceAll('\n', '');
-                          base64String = base64String.replaceAll('\r', '');
-                          base64String = base64String.replaceAll(' ', '');
+                          base64String =
+                              base64String.replaceAll(RegExp(r'\s+'), '');
+                          base64String = base64String.replaceAll(
+                              RegExp(r'[^A-Za-z0-9+/=]'), '');
 
                           // Add padding if needed
                           while (base64String.length % 4 != 0) {
                             base64String += '=';
                           }
+
+                          print(
+                              'Base64 string prefix: ${base64String.substring(0, min(50, base64String.length))}...');
 
                           try {
                             final Uint8List imageBytes =
@@ -587,6 +596,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                                 errorBuilder: (context, error, stackTrace) {
                                   print(
                                       'Error displaying image at index $index: $error');
+                                  print('Error stacktrace: $stackTrace');
                                   return _buildErrorDisplay(
                                       'Error displaying image');
                                 },
@@ -596,8 +606,9 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                             print('Error decoding base64 at index $index: $e');
                             return _buildErrorDisplay('Error loading image');
                           }
-                        } catch (e) {
+                        } catch (e, stackTrace) {
                           print('Error processing image at index $index: $e');
+                          print('Stack trace: $stackTrace');
                           return _buildErrorDisplay('Error processing image');
                         }
                       },
@@ -625,6 +636,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                   ],
                 ],
               ),
+              // Navigation arrows (rest of the code remains the same)
               if (showArrows && images.length > 1) ...[
                 Positioned(
                   left: 16,
