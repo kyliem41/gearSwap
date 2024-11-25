@@ -111,7 +111,9 @@ class _MyHomePageState extends State<MyHomePage> {
       final response = await http.get(
         url,
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
+          'Accept': 'application/json',
         },
       );
 
@@ -121,13 +123,14 @@ class _MyHomePageState extends State<MyHomePage> {
         var data = jsonDecode(response.body);
         List<dynamic> postsData = data['posts'];
 
-        // Debug first post data
         if (postsData.isNotEmpty) {
-          final firstPost = postsData[0];
-          print('First post data: ${json.encode(firstPost)}');
-          if (firstPost['first_image'] != null) {
+          print('First post data structure: ${json.encode(postsData[0])}');
+          if (postsData[0]['images'] != null &&
+              postsData[0]['images'].isNotEmpty) {
             print(
-                'First post image data available: ${firstPost['first_image']['content_type']}');
+                'First post first image data type: ${postsData[0]['images'][0]['data'].runtimeType}');
+            print(
+                'First post first image content type: ${postsData[0]['images'][0]['content_type']}');
           }
         }
 
@@ -158,38 +161,70 @@ class _MyHomePageState extends State<MyHomePage> {
       print('Building image for post ${post['id']}');
       final firstImage = post['first_image'];
 
-      if (firstImage == null) {
-        print('No first_image found for post ${post['id']}');
-        return _buildPlaceholder();
-      }
-
-      // Check if the data already includes the data URI prefix
-      if (firstImage['data'] != null) {
-        String imageData = firstImage['data'];
-
-        // If the data already contains the full data URI, extract just the base64 part
-        if (imageData.contains('base64,')) {
-          imageData = imageData.split('base64,')[1];
-        }
-
+      if (firstImage != null && firstImage['data'] != null) {
         try {
-          final Uint8List bytes = base64Decode(imageData);
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                print('Error displaying image for post ${post['id']}: $error');
-                return _buildPlaceholder();
-              },
-            ),
-          );
+          String base64String = firstImage['data'].toString();
+          // Clean up base64 string
+          base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+          base64String =
+              base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+          if (base64String.contains(',')) {
+            base64String = base64String.split(',').last;
+          }
+
+          // Add padding if needed
+          int padLength = base64String.length % 4;
+          if (padLength > 0) {
+            base64String = base64String.padRight(
+              base64String.length + (4 - padLength),
+              '=',
+            );
+          }
+
+          try {
+            final imageBytes = base64Decode(base64String);
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              child: Image.memory(
+                imageBytes,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error displaying image: $error');
+                  print('Stack trace: $stackTrace');
+                  return _buildPlaceholder();
+                },
+              ),
+            );
+          } catch (e) {
+            print('Primary decode failed, trying alternative method: $e');
+            try {
+              final codec = const Base64Codec();
+              final imageBytes = codec.decode(base64String);
+              return Container(
+                width: double.infinity,
+                height: double.infinity,
+                child: Image.memory(
+                  imageBytes,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Error displaying image: $error');
+                    return _buildPlaceholder();
+                  },
+                ),
+              );
+            } catch (e2) {
+              print('Alternative decode failed: $e2');
+              return _buildPlaceholder();
+            }
+          }
         } catch (e) {
-          print('Error decoding base64 for post ${post['id']}: $e');
+          print('Error processing base64 for post ${post['id']}: $e');
           return _buildPlaceholder();
         }
+      } else {
+        print('No image data found for post ${post['id']}');
       }
       return _buildPlaceholder();
     } catch (e) {
