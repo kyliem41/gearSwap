@@ -149,87 +149,52 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       );
 
       print('Response status code: ${response.statusCode}');
-      print('Raw response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        try {
-          final Map<String, dynamic> jsonResponse = json.decode(response.body);
-          print('JSON decoded successfully');
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        print('Response decoded successfully');
 
-          if (jsonResponse.containsKey('post')) {
-            final postData = jsonResponse['post'];
-            print('Post data extracted: ${json.encode(postData)}');
+        if (jsonResponse['post'] != null) {
+          final postData = jsonResponse['post'];
 
-            // Ensure images is properly structured
-            if (postData['images'] != null) {
-              print(
-                  'Images data before processing: ${json.encode(postData['images'])}');
+          // Process images if they exist
+          if (postData['images'] != null && postData['images'] is List) {
+            List<Map<String, dynamic>> cleanedImages = [];
 
-              // If images is a string, try to parse it as JSON
-              if (postData['images'] is String) {
-                try {
-                  postData['images'] = json.decode(postData['images']);
-                } catch (e) {
-                  print('Error parsing images string: $e');
-                  // If parsing fails, wrap it in a list
-                  postData['images'] = [
-                    {'data': postData['images'], 'content_type': 'image/jpeg'}
-                  ];
-                }
-              }
-
-              // Ensure images is a List
-              if (postData['images'] is! List) {
-                postData['images'] = [];
-              }
-
-              // Clean up each image's data
-              for (var image in postData['images']) {
+            for (var image in postData['images']) {
+              try {
                 if (image != null && image['data'] != null) {
-                  String base64String = image['data'].toString();
-                  if (base64String.contains(',')) {
-                    base64String = base64String.split(',').last;
-                  }
-                  base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-                  base64String =
-                      base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-
-                  // Add padding if needed
-                  while (base64String.length % 4 != 0) {
-                    base64String += '=';
-                  }
-
-                  image['data'] = base64String;
+                  String cleanedData =
+                      cleanBase64String(image['data'].toString());
+                  cleanedImages.add({
+                    'data': cleanedData,
+                    'content_type': image['content_type'] ?? 'image/jpeg'
+                  });
                 }
+              } catch (e) {
+                print('Error processing image: $e');
+                // Skip invalid images
+                continue;
               }
-
-              print(
-                  'Images data after processing: ${json.encode(postData['images'])}');
-            } else {
-              postData['images'] = [];
             }
 
-            setState(() {
-              post = postData;
-              isLoading = false;
-            });
-
-            print('Post state updated successfully');
+            postData['images'] = cleanedImages;
           } else {
-            print('Response missing post key: ${jsonResponse.keys.toList()}');
-            throw Exception('Invalid response format: missing post data');
+            postData['images'] = [];
           }
-        } catch (e) {
-          print('JSON processing error: $e');
-          throw Exception('Failed to process response: $e');
+
+          setState(() {
+            post = postData;
+            isLoading = false;
+          });
+        } else {
+          throw Exception('Post data not found in response');
         }
       } else {
-        print('Error response body: ${response.body}');
-        throw Exception('Failed to load post details: ${response.statusCode}');
+        throw Exception('Failed to load post details');
       }
-    } catch (e, stackTrace) {
-      print('Error loading post details: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
+      print('Error in _loadPostDetails: $e');
       setState(() {
         hasError = true;
         isLoading = false;
@@ -550,72 +515,71 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     );
   }
 
+  String cleanBase64String(String input) {
+    try {
+      // First, check if it's a data URL and extract the base64 part
+      if (input.contains('data:image/')) {
+        input = input.split('base64,').last;
+      }
+
+      // Remove all whitespace and newlines
+      input = input.replaceAll(RegExp(r'\s+'), '');
+
+      // Remove any invalid characters
+      input = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+      // Ensure proper padding
+      while (input.length % 4 != 0) {
+        input += '=';
+      }
+
+      // Validate the cleaned string is valid base64
+      try {
+        base64Decode(input);
+        return input;
+      } catch (e) {
+        print('Invalid base64 after cleaning: $e');
+        throw FormatException('Invalid base64 data');
+      }
+    } catch (e) {
+      print('Error cleaning base64 string: $e');
+      throw FormatException('Failed to clean base64 data');
+    }
+  }
+
   Widget _buildPostImage(Map<String, dynamic> image) {
     try {
-      if (image != null && image['data'] != null) {
+      if (image == null || image['data'] == null) {
+        print('No image data provided');
+        return _buildPlaceholder();
+      }
+
+      try {
+        String base64String = cleanBase64String(image['data'].toString());
+
         try {
-          String base64String = image['data'].toString();
-          // Clean up base64 string
-          base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-          base64String =
-              base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-
-          if (base64String.contains(',')) {
-            base64String = base64String.split(',').last;
-          }
-
-          // Add padding if needed
-          int padLength = base64String.length % 4;
-          if (padLength > 0) {
-            base64String = base64String.padRight(
-              base64String.length + (4 - padLength),
-              '=',
-            );
-          }
-
-          try {
-            final imageBytes = base64Decode(base64String);
-            return Container(
-              width: MediaQuery.of(context).size.width,
-              height: 300,
-              child: Image.memory(
-                imageBytes,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  print('Error displaying image: $error');
-                  print('Stack trace: $stackTrace');
-                  return _buildPlaceholder();
-                },
-              ),
-            );
-          } catch (e) {
-            print('Primary decode failed, trying alternative method: $e');
-            try {
-              final codec = const Base64Codec();
-              final imageBytes = codec.decode(base64String);
-              return Container(
-                width: MediaQuery.of(context).size.width,
-                height: 300,
-                child: Image.memory(
-                  imageBytes,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    print('Error displaying image: $error');
-                    return _buildPlaceholder();
-                  },
-                ),
-              );
-            } catch (e2) {
-              print('Alternative decode failed: $e2');
-              return _buildPlaceholder();
-            }
-          }
+          final imageBytes = base64Decode(base64String);
+          return Container(
+            width: MediaQuery.of(context).size.width,
+            height: 300,
+            child: Image.memory(
+              imageBytes,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                print('Error displaying image: $error');
+                print('Stack trace: $stackTrace');
+                return _buildPlaceholder();
+              },
+            ),
+          );
         } catch (e) {
-          print('Error processing base64: $e');
+          print('Error decoding base64: $e');
           return _buildPlaceholder();
         }
+      } catch (e) {
+        print('Error cleaning base64 string: $e');
+        return _buildPlaceholder();
       }
-      return _buildPlaceholder();
     } catch (e) {
       print('Error in _buildPostImage: $e');
       return _buildPlaceholder();
