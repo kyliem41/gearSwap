@@ -127,6 +127,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
         },
       );
 
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
 
@@ -139,8 +142,20 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
         // Process images
         if (postData['images'] != null && postData['images'] is List) {
-          processedImages = List<Map<String, dynamic>>.from(postData['images']
-              .map((image) => Map<String, dynamic>.from(image)));
+          processedImages = [];
+          for (var image in postData['images']) {
+            if (image is Map<String, dynamic> &&
+                image.containsKey('data') &&
+                image.containsKey('content_type')) {
+              print(
+                  'Processing image with content type: ${image['content_type']}');
+              processedImages.add(Map<String, dynamic>.from(image));
+            }
+          }
+          print('Processed ${processedImages.length} images');
+        } else {
+          print('No images found in post data');
+          processedImages = [];
         }
 
         if (_mounted) {
@@ -522,29 +537,40 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Widget _buildPostImage(Map<String, dynamic> imageData) {
     try {
+      print('Building image with data: ${imageData['content_type']}');
+
       if (imageData['data'] == null) {
+        print('Image data is null');
         return _buildPlaceholder();
       }
 
-      // Clean and process the base64 string
       String base64String = imageData['data'].toString();
 
-      // Remove data URL prefix if present
-      if (base64String.contains('base64,')) {
-        base64String = base64String.split('base64,').last;
+      // Handle JPEG data that starts with /9j/
+      if (base64String.startsWith('/9j/')) {
+        // Keep the /9j/ prefix for JPEG images
+        base64String = base64String.trim();
+      } else if (base64String.contains('base64,')) {
+        base64String = base64String.split('base64,').last.trim();
       }
 
       // Clean up the string
       base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
 
       // Add padding if needed
       while (base64String.length % 4 != 0) {
         base64String += '=';
       }
 
+      Uint8List? imageBytes;
       try {
-        final imageBytes = base64Decode(base64String);
+        if (base64String.startsWith('/9j/')) {
+          // For JPEG images, remove the /9j/ prefix before decoding
+          imageBytes = base64Decode(base64String.substring(4));
+        } else {
+          imageBytes = base64Decode(base64String);
+        }
 
         return Container(
           width: MediaQuery.of(context).size.width,
@@ -555,12 +581,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
             errorBuilder: (context, error, stackTrace) {
               print('Error displaying image: $error');
               return _buildPlaceholder();
-            },
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-              if (frame == null) {
-                return Center(child: CircularProgressIndicator());
-              }
-              return child;
             },
           ),
         );
@@ -575,7 +595,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _buildPhotoSection() {
-    if (!_mounted || processedImages.isEmpty) {
+    if (!_mounted) return _buildPlaceholder();
+
+    print('Building photo section with ${processedImages.length} images');
+
+    if (processedImages.isEmpty) {
+      print('No processed images available');
       return _buildPlaceholder();
     }
 
@@ -594,6 +619,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 },
                 itemCount: processedImages.length,
                 itemBuilder: (context, index) {
+                  print('Building image at index $index');
                   return _buildPostImage(processedImages[index]);
                 },
               ),
