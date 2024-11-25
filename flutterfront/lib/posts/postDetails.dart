@@ -82,50 +82,84 @@ class _PostDetailPageState extends State<PostDetailPage> {
       print('Response status code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonResponse = json.decode(response.body);
-        print('Response decoded successfully');
+        try {
+          // Decode the response
+          final Map<String, dynamic> jsonResponse = json.decode(response.body);
+          if (!jsonResponse.containsKey('post')) {
+            throw Exception('Response missing post data');
+          }
 
-        if (jsonResponse['post'] != null) {
-          final postData = jsonResponse['post'];
+          final Map<String, dynamic> postData =
+              Map<String, dynamic>.from(jsonResponse['post']);
+          print('Post data decoded successfully');
 
-          // Process images if they exist
-          if (postData['images'] != null && postData['images'] is List) {
-            List<Map<String, dynamic>> cleanedImages = [];
+          // Handle images
+          if (postData.containsKey('images') && postData['images'] is List) {
+            List<Map<String, dynamic>> processedImages = [];
+            List originalImages = postData['images'];
 
-            for (var image in postData['images']) {
-              try {
-                if (image != null && image['data'] != null) {
-                  String cleanedData =
-                      cleanBase64String(image['data'].toString());
-                  cleanedImages.add({
-                    'data': cleanedData,
-                    'content_type': image['content_type'] ?? 'image/jpeg'
-                  });
+            for (var imageData in originalImages) {
+              if (imageData is Map<String, dynamic> &&
+                  imageData.containsKey('data') &&
+                  imageData.containsKey('content_type')) {
+                String base64Data = imageData['data'].toString();
+                String contentType = imageData['content_type'].toString();
+
+                // Clean up base64 data
+                if (base64Data.startsWith('/9j/')) {
+                  // For JPEG data that starts with /9j/
+                  base64Data = base64Data.trim();
+                  base64Data = base64Data.replaceAll(RegExp(r'\s+'), '');
+                  // Keep valid base64 characters and the /9j/ prefix
+                  base64Data =
+                      base64Data.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
+                } else if (base64Data.contains('base64,')) {
+                  base64Data = base64Data.split('base64,').last.trim();
+                  base64Data = base64Data.replaceAll(RegExp(r'\s+'), '');
+                  base64Data =
+                      base64Data.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
                 }
-              } catch (e) {
-                print('Error processing image: $e');
-                // Skip invalid images
-                continue;
+
+                // Add padding if needed
+                while (base64Data.length % 4 != 0) {
+                  base64Data += '=';
+                }
+
+                // Verify the base64 data is valid
+                try {
+                  base64Decode(base64Data);
+                  processedImages.add({
+                    'data': base64Data,
+                    'content_type': contentType,
+                  });
+                  print(
+                      'Successfully processed image with content type: $contentType');
+                } catch (e) {
+                  print('Invalid base64 data for image: $e');
+                }
               }
             }
 
-            postData['images'] = cleanedImages;
+            postData['images'] = processedImages;
+            print('Processed ${processedImages.length} images');
           } else {
             postData['images'] = [];
+            print('No images found in post data');
           }
 
           setState(() {
             post = postData;
             isLoading = false;
           });
-        } else {
-          throw Exception('Post data not found in response');
+        } catch (e) {
+          print('Error processing response: $e');
+          throw Exception('Failed to process response data: $e');
         }
       } else {
-        throw Exception('Failed to load post details');
+        throw Exception('Failed to load post details: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in _loadPostDetails: $e');
+      print('Error loading post details: $e');
       setState(() {
         hasError = true;
         isLoading = false;
