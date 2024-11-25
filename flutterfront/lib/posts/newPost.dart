@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'dart:async';
+import 'dart:math';
 
 class NewPostPage extends StatefulWidget {
   @override
@@ -112,13 +113,25 @@ class _NewPostPageState extends State<NewPostPage> {
         String base64String = reader.result as String;
         String contentType = file.type ?? 'image/jpeg';
 
-        if (base64String.contains(';base64,')) {
-          base64String = base64String.split(';base64,')[1];
-        }
+        // More robust prefix removal
+        final regExp = RegExp(r'data:image/[^;]+;base64,');
+        base64String = base64String.replaceFirst(regExp, '');
 
+        // Clean the base64 string
+        base64String = base64String.trim();
+        base64String = base64String.replaceAll(
+            RegExp(r'\s+'), ''); // Remove any whitespace
+        base64String = base64String.replaceAll(
+            RegExp(r'[^A-Za-z0-9+/=]'), ''); // Remove invalid characters
+
+        // Ensure proper padding
         while (base64String.length % 4 != 0) {
           base64String += '=';
         }
+
+        // Debug print to verify the string
+        print(
+            'Base64 string prefix: ${base64String.substring(0, min(50, base64String.length))}...');
 
         setState(() {
           photos.add({
