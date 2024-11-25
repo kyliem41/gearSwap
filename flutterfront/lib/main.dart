@@ -159,33 +159,49 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget _buildPostImage(Map<String, dynamic> post) {
     try {
       print('Building image for post ${post['id']}');
-      final images = post['images'];
+      final firstImage = post['first_image'];
 
-      if (images != null && images is List && images.isNotEmpty) {
-        final image = images[0];
-        if (image != null && image['data'] != null) {
+      if (firstImage != null && firstImage['data'] != null) {
+        try {
+          String base64String = firstImage['data'].toString();
+          // Clean up base64 string
+          base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+          base64String =
+              base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+          if (base64String.contains(',')) {
+            base64String = base64String.split(',').last;
+          }
+
+          // Add padding if needed
+          int padLength = base64String.length % 4;
+          if (padLength > 0) {
+            base64String = base64String.padRight(
+              base64String.length + (4 - padLength),
+              '=',
+            );
+          }
+
           try {
-            String base64String = image['data'].toString();
-            // Clean up base64 string
-            base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-            base64String =
-                base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-
-            if (base64String.contains(',')) {
-              base64String = base64String.split(',').last;
-            }
-
-            // Add padding if needed
-            int padLength = base64String.length % 4;
-            if (padLength > 0) {
-              base64String = base64String.padRight(
-                base64String.length + (4 - padLength),
-                '=',
-              );
-            }
-
+            final imageBytes = base64Decode(base64String);
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              child: Image.memory(
+                imageBytes,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error displaying image: $error');
+                  print('Stack trace: $stackTrace');
+                  return _buildPlaceholder();
+                },
+              ),
+            );
+          } catch (e) {
+            print('Primary decode failed, trying alternative method: $e');
             try {
-              final imageBytes = base64Decode(base64String);
+              final codec = const Base64Codec();
+              final imageBytes = codec.decode(base64String);
               return Container(
                 width: double.infinity,
                 height: double.infinity,
@@ -194,38 +210,21 @@ class _MyHomePageState extends State<MyHomePage> {
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     print('Error displaying image: $error');
-                    print('Stack trace: $stackTrace');
                     return _buildPlaceholder();
                   },
                 ),
               );
-            } catch (e) {
-              print('Primary decode failed, trying alternative method: $e');
-              try {
-                final codec = const Base64Codec();
-                final imageBytes = codec.decode(base64String);
-                return Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  child: Image.memory(
-                    imageBytes,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      print('Error displaying image: $error');
-                      return _buildPlaceholder();
-                    },
-                  ),
-                );
-              } catch (e2) {
-                print('Alternative decode failed: $e2');
-                return _buildPlaceholder();
-              }
+            } catch (e2) {
+              print('Alternative decode failed: $e2');
+              return _buildPlaceholder();
             }
-          } catch (e) {
-            print('Error processing base64 for post ${post['id']}: $e');
-            return _buildPlaceholder();
           }
+        } catch (e) {
+          print('Error processing base64 for post ${post['id']}: $e');
+          return _buildPlaceholder();
         }
+      } else {
+        print('No image data found for post ${post['id']}');
       }
       return _buildPlaceholder();
     } catch (e) {
