@@ -141,11 +141,15 @@ class _NewPostPageState extends State<NewPostPage> {
       final userId = userData['id'];
 
       // First create the post without images
-      final createPostResponse = await http.post(
-        Uri.parse('$baseUrl/posts/create/$userId'),
+      final createPostUrl = Uri.parse('$baseUrl/posts/create/$userId');
+      print('Creating post at URL: $createPostUrl'); // Debug print
+
+      final response = await http.post(
+        createPostUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
+          'Accept': 'application/json',
         },
         body: json.encode({
           'price': double.parse(priceController.text),
@@ -157,20 +161,27 @@ class _NewPostPageState extends State<NewPostPage> {
         }),
       );
 
-      if (createPostResponse.statusCode != 201) {
-        throw Exception('Failed to create post: ${createPostResponse.body}');
+      print(
+          'Post creation response: ${response.statusCode} - ${response.body}'); // Debug print
+
+      if (response.statusCode != 201 && response.statusCode != 200) {
+        throw Exception('Failed to create post: ${response.body}');
       }
 
-      final postData = json.decode(createPostResponse.body);
+      final postData = json.decode(response.body);
       final postId = postData['post']['id'];
 
       // Then upload each image separately
       for (var photo in photos) {
+        final imageUploadUrl = Uri.parse('$baseUrl/posts/$postId/images');
+        print('Uploading image to URL: $imageUploadUrl'); // Debug print
+
         final imageResponse = await http.post(
-          Uri.parse('$baseUrl/posts/$postId/images'),
+          imageUploadUrl,
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
+            'Accept': 'application/json',
           },
           body: json.encode({
             'data': photo['data'],
@@ -178,40 +189,47 @@ class _NewPostPageState extends State<NewPostPage> {
           }),
         );
 
-        if (imageResponse.statusCode != 201) {
+        print(
+            'Image upload response: ${imageResponse.statusCode} - ${imageResponse.body}'); // Debug print
+
+        if (imageResponse.statusCode != 201 &&
+            imageResponse.statusCode != 200) {
           print('Failed to upload image: ${imageResponse.body}');
         }
       }
 
-      // Show success dialog and navigate back
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text("Success"),
-            content: Text("Post created successfully!"),
-            actions: [
-              TextButton(
-                child: Text("OK"),
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => MyHomePage(title: "GearSwap"),
-                    ),
-                  );
-                },
-              ),
-            ],
-          );
-        },
-      );
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("Success"),
+              content: Text("Post created successfully!"),
+              actions: [
+                TextButton(
+                  child: Text("OK"),
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MyHomePage(title: "GearSwap"),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      }
     } catch (e) {
       print('Error creating post: $e');
       _showErrorDialog('Error creating post: ${e.toString()}');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

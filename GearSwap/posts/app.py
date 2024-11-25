@@ -20,10 +20,11 @@ ALLOWED_CONTENT_TYPES = {
 
 def cors_response(status_code, body, content_type='application/json'):
     headers = {
-        'Content-Type': content_type,
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-        'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Accept',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE',
+        'Access-Control-Max-Age': '7200',
+        'Content-Type': content_type
     }
     
     if content_type == 'application/json':
