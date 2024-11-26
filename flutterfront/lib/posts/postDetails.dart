@@ -498,19 +498,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Widget _buildImageFromData(String imageData) {
     try {
       final Uint8List bytes = _base64ToImage(imageData);
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        child: ClipRRect(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(4.0)),
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              print('Error loading image: $error');
-              return _buildPlaceholder();
-            },
-          ),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4.0),
+        child: Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error rendering image: $error');
+            return _buildPlaceholder();
+          },
         ),
       );
     } catch (e) {
@@ -521,42 +517,28 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Uint8List _base64ToImage(String base64String) {
     try {
-      // Handle both formats: with and without data URI scheme
-      String pureBase64;
+      String cleanBase64 = base64String;
+
       if (base64String.contains(';base64,')) {
-        pureBase64 = base64String.split(';base64,')[1].trim();
-      } else if (base64String.contains(',')) {
-        pureBase64 = base64String.split(',')[1].trim();
-      } else {
-        pureBase64 = base64String.trim();
+        cleanBase64 = base64String.split(';base64,')[1];
       }
 
-      // Remove any whitespace
-      pureBase64 = pureBase64.replaceAll(RegExp(r'\s+'), '');
-
-      // Add padding if needed
-      while (pureBase64.length % 4 != 0) {
-        pureBase64 += '=';
+      cleanBase64 = cleanBase64.replaceAll(RegExp(r'\s+'), '');
+      while (cleanBase64.length % 4 != 0) {
+        cleanBase64 += '=';
       }
 
-      final bytes = base64Decode(pureBase64);
-      if (bytes.isEmpty) {
-        throw Exception('Decoded base64 is empty');
-      }
-
-      print('Successfully decoded image, byte length: ${bytes.length}');
-      return bytes;
+      return base64Decode(cleanBase64);
     } catch (e) {
       print('Error decoding base64: $e');
-      print(
-          'Base64 string preview: ${base64String.substring(0, min<int>(100, base64String.length))}');
+      print('Base64 preview: ${base64String.substring(0, 50)}...');
       rethrow;
     }
   }
 
   Widget _buildPostImage(Map<String, dynamic> imageData) {
-    if (imageData['data'] == null) {
-      print('Image data is null');
+    if (imageData['data'] == null || imageData['data'].isEmpty) {
+      print('Image data is empty or null');
       return _buildPlaceholder();
     }
 
@@ -569,17 +551,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _buildPhotoSection() {
-    if (!_mounted) return _buildPlaceholder();
-
-    print('Building photo section with ${processedImages.length} images');
     if (processedImages.isEmpty) {
-      print('No processed images available');
+      print('No processed images to display');
       return _buildPlaceholder();
     }
 
     return Column(
       children: [
-        Container(
+        SizedBox(
           height: 300,
           child: PageView.builder(
             controller: _pageController,
@@ -590,27 +569,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
             },
             itemCount: processedImages.length,
             itemBuilder: (context, index) {
-              final image = processedImages[index];
-              print(
-                  'Building image at index $index with content type: ${image['content_type']}');
-              return Container(
-                width: MediaQuery.of(context).size.width,
-                height: 300,
-                child: _buildImageFromData(image['data']),
-              );
+              return _buildPostImage(processedImages[index]);
             },
           ),
         ),
-        if (processedImages.length > 1) ...[
-          const SizedBox(height: 10),
+        if (processedImages.length > 1)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
               processedImages.length,
               (index) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4.0),
                 width: 8.0,
                 height: 8.0,
-                margin: const EdgeInsets.symmetric(horizontal: 4.0),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _currentImageIndex == index
@@ -620,7 +591,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
               ),
             ),
           ),
-        ],
       ],
     );
   }
