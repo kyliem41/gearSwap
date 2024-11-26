@@ -14,8 +14,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:html' as html;
 import 'package:flutter/services.dart';
-import 'dart:ui' as ui;
-import 'package:image/image.dart' as img;
 import 'dart:math';
 
 class UserData {
@@ -189,17 +187,27 @@ class _ProfilePageState extends State<ProfilePage>
             allPosts.where((post) => post['userid'] == userData!.id).toList();
 
         print('Found ${userPosts.length} posts for user ${userData!.id}');
+
         // Debug first post's image data
         if (userPosts.isNotEmpty) {
-          print('First post images: ${userPosts[0]['images']}');
+          var firstPost = userPosts[0];
+          print('First post data structure: ${json.encode(firstPost)}');
+          if (firstPost['images'] != null && firstPost['images'].isNotEmpty) {
+            print(
+                'First post first image type: ${firstPost['images'][0].runtimeType}');
+          }
         }
 
         setState(() {
           userData!.posts = userPosts;
         });
+      } else {
+        print('Error response: ${response.body}');
+        throw Exception('Failed to load posts: ${response.statusCode}');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error fetching user posts: $e');
+      print('Stack trace: $stackTrace');
     }
   }
 
@@ -641,104 +649,41 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildPostImage(Map<String, dynamic> post) {
-    try {
-      print('Building image for post ${post['id']}');
-      print('Raw images data: ${post['images']}');
-
-      if (post['images'] != null &&
-          post['images'] is List &&
-          post['images'].isNotEmpty &&
-          post['images'][0] != null) {
-        String? base64String;
-
-        // Debug first image data
-        print('First image data type: ${post['images'][0].runtimeType}');
-        print('First image content: ${post['images'][0]}');
-
-        // Handle different image data formats
-        if (post['images'][0] is Map && post['images'][0]['data'] != null) {
-          base64String = post['images'][0]['data'].toString();
-          print('Using data field: $base64String');
-        } else if (post['images'][0] is String) {
-          base64String = post['images'][0].toString();
-          print('Using direct string: $base64String');
+    // First try to get images array
+    if (post['images'] != null &&
+        post['images'] is List &&
+        post['images'].isNotEmpty) {
+      final firstImage = post['images'][0];
+      if (firstImage != null) {
+        try {
+          // Handle both map and string formats
+          String imageData;
+          if (firstImage is Map && firstImage['data'] != null) {
+            imageData = firstImage['data'];
+          } else if (firstImage is String) {
+            imageData = firstImage;
+          } else {
+            throw Exception('Invalid image data format');
+          }
+          return _buildImageFromData(imageData);
+        } catch (e) {
+          print('Error building image from images array: $e');
+          return _buildPlaceholder();
         }
-
-        if (base64String?.isNotEmpty ?? false) {
-          // Debug base64 string before cleaning
-          print('Original base64 string length: ${base64String!.length}');
-          print(
-              'Base64 string starts with: ${base64String.substring(0, min(50, base64String.length))}');
-
-          // Clean up base64 string
-          base64String = base64String.trim();
-          base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-
-          // Remove data:image prefix if present
-          if (base64String.contains(',')) {
-            List<String> parts = base64String.split(',');
-            if (parts.length > 1) {
-              base64String = parts[1];
-              print('Found data URI, using part after comma');
-            }
-          }
-
-          // Add padding if needed
-          int padLength = base64String.length % 4;
-          if (padLength > 0) {
-            base64String = base64String.padRight(
-              base64String.length + (4 - padLength),
-              '=',
-            );
-          }
-
-          // Debug final base64 string
-          print('Final base64 string length: ${base64String.length}');
-          print(
-              'Final base64 string starts with: ${base64String.substring(0, min(50, base64String.length))}');
-
-          try {
-            final Uint8List imageBytes = base64Decode(base64String);
-            print(
-                'Successfully decoded base64 to bytes. Length: ${imageBytes.length}');
-
-            return Container(
-              width: double.infinity,
-              height: double.infinity,
-              child: Image.memory(
-                imageBytes,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  print(
-                      'Error displaying image for post ${post['id']}: $error');
-                  print('Stack trace: $stackTrace');
-                  return _buildPlaceholder();
-                },
-              ),
-            );
-          } catch (e) {
-            print('Error decoding base64 for post ${post['id']}: $e');
-            // Print a small portion of the problematic string
-            if (base64String.length > 100) {
-              print(
-                  'Problematic base64 string (first 100 chars): ${base64String.substring(0, 100)}');
-            } else {
-              print('Problematic base64 string: $base64String');
-            }
-            return _buildPlaceholder();
-          }
-        } else {
-          print('Base64 string is empty or null');
-        }
-      } else {
-        print('No valid images data found in post');
       }
-      return _buildPlaceholder();
-    } catch (e, stackTrace) {
-      print('Error in _buildPostImage for post ${post['id']}: $e');
-      print('Stack trace: $stackTrace');
-      return _buildPlaceholder();
     }
+
+    // Fallback to first_image if present
+    if (post['first_image'] != null && post['first_image']['data'] != null) {
+      try {
+        return _buildImageFromData(post['first_image']['data']);
+      } catch (e) {
+        print('Error building image from first_image: $e');
+        return _buildPlaceholder();
+      }
+    }
+
+    return _buildPlaceholder();
   }
 
   Widget _buildPlaceholder() {
@@ -756,23 +701,63 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Future<Uint8List> _loadImageData(String imageId) async {
-    if (baseUrl == null) {
-      throw Exception('Base URL not initialized');
+  Widget _buildImageFromData(String imageData) {
+    try {
+      final Uint8List bytes = _base64ToImage(imageData);
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        child: ClipRRect(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(4.0)),
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              print('Error loading image: $error');
+              return _buildPlaceholder();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error processing image data: $e');
+      return _buildPlaceholder();
     }
+  }
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/posts/images/$imageId'),
-      headers: {
-        'Authorization': 'Bearer $_idToken',
-        'Content-Type': 'application/json',
-      },
-    );
+  Uint8List _base64ToImage(String base64String) {
+    try {
+      // Handle both formats: with and without data URI scheme
+      String pureBase64;
+      if (base64String.contains(';base64,')) {
+        pureBase64 = base64String.split(';base64,')[1].trim();
+      } else if (base64String.contains(',')) {
+        pureBase64 = base64String.split(',')[1].trim();
+      } else {
+        pureBase64 = base64String.trim();
+      }
 
-    if (response.statusCode == 200) {
-      return base64Decode(response.body);
+      // Remove any whitespace
+      pureBase64 = pureBase64.replaceAll(RegExp(r'\s+'), '');
+
+      // Add padding if needed
+      while (pureBase64.length % 4 != 0) {
+        pureBase64 += '=';
+      }
+
+      final bytes = base64Decode(pureBase64);
+      if (bytes.isEmpty) {
+        throw Exception('Decoded base64 is empty');
+      }
+
+      print('Successfully decoded image, byte length: ${bytes.length}');
+      return bytes;
+    } catch (e) {
+      print('Error decoding base64: $e');
+      print(
+          'Base64 string preview: ${base64String.substring(0, min<int>(100, base64String.length))}');
+      rethrow;
     }
-    throw Exception('Failed to load image');
   }
 
   Widget _buildStatColumn(String label, int count) {

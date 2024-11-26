@@ -35,6 +35,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   TextEditingController messageController = TextEditingController();
   int _currentImageIndex = 0;
   PageController _pageController = PageController();
+  bool _mounted = true;
+  List<Map<String, dynamic>> processedImages = [];
 
   @override
   void initState() {
@@ -52,6 +54,25 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _debugPrintImageData() {
+    if (post != null && post!['images'] != null) {
+      print('Number of images: ${post!['images'].length}');
+      post!['images'].asMap().forEach((index, image) {
+        print('Image $index:');
+        print('  Content type: ${image['content_type']}');
+        if (image['data'] != null) {
+          String data = image['data'].toString();
+          print('  Data prefix: ${data.substring(0, min(50, data.length))}...');
+          print('  Data length: ${data.length}');
+        } else {
+          print('  Data: null');
+        }
+      });
+    } else {
+      print('No images data available');
+    }
   }
 
   Future<void> _initialize() async {
@@ -129,6 +150,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Future<void> _loadPostDetails() async {
+    if (!_mounted) return;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final idToken = prefs.getString('idToken');
@@ -151,88 +174,41 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       print('Response status code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        try {
-          // Decode the response
-          final Map<String, dynamic> jsonResponse = json.decode(response.body);
-          if (!jsonResponse.containsKey('post')) {
-            throw Exception('Response missing post data');
-          }
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        final Map<String, dynamic> postData = jsonResponse['post'];
 
-          final Map<String, dynamic> postData =
-              Map<String, dynamic>.from(jsonResponse['post']);
-          print('Post data decoded successfully');
-
-          // Handle images
-          if (postData.containsKey('images') && postData['images'] is List) {
-            List<Map<String, dynamic>> processedImages = [];
-            List originalImages = postData['images'];
-
-            for (var imageData in originalImages) {
-              if (imageData is Map<String, dynamic> &&
-                  imageData.containsKey('data') &&
-                  imageData.containsKey('content_type')) {
-                String base64Data = imageData['data'].toString();
-                String contentType = imageData['content_type'].toString();
-
-                // Clean up base64 data
-                if (base64Data.startsWith('/9j/')) {
-                  // For JPEG data that starts with /9j/
-                  base64Data = base64Data.trim();
-                  base64Data = base64Data.replaceAll(RegExp(r'\s+'), '');
-                  // Keep valid base64 characters and the /9j/ prefix
-                  base64Data =
-                      base64Data.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
-                } else if (base64Data.contains('base64,')) {
-                  base64Data = base64Data.split('base64,').last.trim();
-                  base64Data = base64Data.replaceAll(RegExp(r'\s+'), '');
-                  base64Data =
-                      base64Data.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-                }
-
-                // Add padding if needed
-                while (base64Data.length % 4 != 0) {
-                  base64Data += '=';
-                }
-
-                // Verify the base64 data is valid
-                try {
-                  base64Decode(base64Data);
-                  processedImages.add({
-                    'data': base64Data,
-                    'content_type': contentType,
-                  });
-                  print(
-                      'Successfully processed image with content type: $contentType');
-                } catch (e) {
-                  print('Invalid base64 data for image: $e');
-                }
-              }
+        // Process images
+        processedImages = [];
+        if (postData['images'] != null && postData['images'] is List) {
+          List<dynamic> images = postData['images'];
+          for (var img in images) {
+            if (img is Map<String, dynamic> &&
+                img.containsKey('data') &&
+                img.containsKey('content_type')) {
+              processedImages.add(img);
+              print('Added image with content type: ${img['content_type']}');
             }
-
-            postData['images'] = processedImages;
-            print('Processed ${processedImages.length} images');
-          } else {
-            postData['images'] = [];
-            print('No images found in post data');
           }
+          print('Processed ${processedImages.length} images');
+        }
 
+        if (_mounted) {
           setState(() {
             post = postData;
             isLoading = false;
           });
-        } catch (e) {
-          print('Error processing response: $e');
-          throw Exception('Failed to process response data: $e');
         }
       } else {
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
     } catch (e) {
       print('Error loading post details: $e');
-      setState(() {
-        hasError = true;
-        isLoading = false;
-      });
+      if (_mounted) {
+        setState(() {
+          hasError = true;
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -549,122 +525,103 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     );
   }
 
-  String cleanBase64String(String input) {
+  Widget _buildImageFromData(String imageData) {
     try {
-      // Handle JPEG data starting with /9j/
-      if (input.contains('/9j/')) {
-        input = input.substring(input.indexOf('/9j/'));
-      }
-
-      // Remove data URL prefix if present
-      if (input.contains('base64,')) {
-        input = input.split('base64,').last;
-      }
-
-      // Remove all whitespace and newlines
-      input = input.replaceAll(RegExp(r'\s+'), '');
-
-      // Keep only valid base64 characters
-      input = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
-
-      // Add padding if needed
-      while (input.length % 4 != 0) {
-        input += '=';
-      }
-
-      return input;
+      final Uint8List bytes = _base64ToImage(imageData);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4.0),
+        child: Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error rendering image: $error');
+            return _buildPlaceholder();
+          },
+        ),
+      );
     } catch (e) {
-      print('Error cleaning base64 string: $e');
-      throw FormatException('Failed to clean base64 data');
+      print('Error processing image data: $e');
+      return _buildPlaceholder();
     }
   }
 
-  Widget _buildPostImage(Map<String, dynamic> image) {
-    if (image == null || image['data'] == null) {
+  Uint8List _base64ToImage(String base64String) {
+    try {
+      String cleanBase64 = base64String;
+
+      if (base64String.contains(';base64,')) {
+        cleanBase64 = base64String.split(';base64,')[1];
+      }
+
+      cleanBase64 = cleanBase64.replaceAll(RegExp(r'\s+'), '');
+      while (cleanBase64.length % 4 != 0) {
+        cleanBase64 += '=';
+      }
+
+      return base64Decode(cleanBase64);
+    } catch (e) {
+      print('Error decoding base64: $e');
+      print('Base64 preview: ${base64String.substring(0, 50)}...');
+      rethrow;
+    }
+  }
+
+  Widget _buildPostImage(Map<String, dynamic> imageData) {
+    if (imageData['data'] == null || imageData['data'].isEmpty) {
+      print('Image data is empty or null');
       return _buildPlaceholder();
     }
 
     try {
-      String base64String = image['data'].toString();
-      print('Processing image with type: ${image['content_type']}');
-
-      // Clean and validate the base64 string
-      base64String = cleanBase64String(base64String);
-
-      try {
-        final imageBytes = base64Decode(base64String);
-        return Container(
-          width: MediaQuery.of(context).size.width,
-          height: 300,
-          child: Image.memory(
-            imageBytes,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              print('Error displaying image: $error');
-              return _buildPlaceholder();
-            },
-          ),
-        );
-      } catch (e) {
-        print('Error decoding base64: $e');
-        return _buildPlaceholder();
-      }
+      return _buildImageFromData(imageData['data']);
     } catch (e) {
-      print('Error processing image: $e');
+      print('Error building post image: $e');
       return _buildPlaceholder();
     }
   }
 
   Widget _buildPhotoSection() {
-    if (post == null || post!['images'] == null || post!['images'].isEmpty) {
+    if (processedImages.isEmpty) {
+      print('No processed images to display');
       return _buildPlaceholder();
     }
 
-    List<dynamic> images = post!['images'];
-    print('Building photo section with ${images.length} images');
-
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return Column(
-          children: [
-            Container(
-              height: 300,
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() => _currentImageIndex = index);
-                },
-                itemCount: images.length,
-                itemBuilder: (context, index) {
-                  final image = images[index];
-                  print('Building image $index');
-                  return _buildPostImage(image);
-                },
-              ),
-            ),
-            if (images.length > 1) ...[
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  images.length,
-                  (index) => Container(
-                    width: 8.0,
-                    height: 8.0,
-                    margin: EdgeInsets.symmetric(horizontal: 4.0),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _currentImageIndex == index
-                          ? Colors.deepOrange
-                          : Colors.grey,
-                    ),
-                  ),
+    return Column(
+      children: [
+        SizedBox(
+          height: 300,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              if (_mounted) {
+                setState(() => _currentImageIndex = index);
+              }
+            },
+            itemCount: processedImages.length,
+            itemBuilder: (context, index) {
+              return _buildPostImage(processedImages[index]);
+            },
+          ),
+        ),
+        if (processedImages.length > 1)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              processedImages.length,
+              (index) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                width: 8.0,
+                height: 8.0,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentImageIndex == index
+                      ? Colors.deepOrange
+                      : Colors.grey,
                 ),
               ),
-            ],
-          ],
-        );
-      },
+            ),
+          ),
+      ],
     );
   }
 
@@ -686,25 +643,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         ),
       ),
     );
-  }
-
-  void _debugPrintImageData() {
-    if (post != null && post!['images'] != null) {
-      print('Number of images: ${post!['images'].length}');
-      post!['images'].asMap().forEach((index, image) {
-        print('Image $index:');
-        print('  Content type: ${image['content_type']}');
-        if (image['data'] != null) {
-          String data = image['data'].toString();
-          print('  Data prefix: ${data.substring(0, min(50, data.length))}...');
-          print('  Data length: ${data.length}');
-        } else {
-          print('  Data: null');
-        }
-      });
-    } else {
-      print('No images data available');
-    }
   }
 
   bool canModifyPost() {
