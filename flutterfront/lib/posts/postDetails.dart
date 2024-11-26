@@ -147,16 +147,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
             if (image is Map<String, dynamic> &&
                 image.containsKey('data') &&
                 image.containsKey('content_type')) {
-              // Store processed image data
+              // The image data should already be properly formatted from the backend
               processedImages.add({
                 'id': image['id'],
                 'content_type': image['content_type'],
-                'data': image['data'] // Keep the full data URI
+                'data': image[
+                    'data'], // Backend now provides properly formatted base64 data
               });
-              print(
-                  'Processed image ${image['id']} with content type ${image['content_type']}');
             }
           }
+          print('Processed ${processedImages.length} images');
         }
 
         if (_mounted) {
@@ -543,25 +543,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
         return _buildPlaceholder();
       }
 
-      // Split data URI and get base64 content
-      String base64String = imageData['data'];
-      if (base64String.contains(',')) {
-        base64String = base64String.split(',')[1];
-      }
-
-      // Remove any whitespace and add padding if needed
-      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-      while (base64String.length % 4 != 0) {
-        base64String += '=';
-      }
-
-      final bytes = base64.decode(base64String);
-
+      // The data should already be in the correct format from the backend
+      // It includes the content type prefix and is properly base64 encoded
       return Container(
         width: MediaQuery.of(context).size.width,
         height: 300,
         child: Image.memory(
-          bytes,
+          base64Decode(
+              imageData['data'].split(',').last), // Remove the data URI prefix
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
             print('Error displaying image: $error');
