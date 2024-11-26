@@ -40,6 +40,8 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _isLoading = false;
   String _errorMessage = '';
   String? baseUrl;
+  bool _showPassword = false;
+  bool _showConfirmPassword = false;
 
   @override
   void initState() {
@@ -292,13 +294,26 @@ class _SignUpPageState extends State<SignUpPage> {
                       const SizedBox(height: 10),
                       TextFormField(
                         controller: _passwordController,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
                           labelText: 'Password',
                           filled: true,
                           fillColor: Colors.white,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _showPassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _showPassword = !_showPassword;
+                              });
+                            },
+                          ),
                         ),
-                        obscureText: true,
+                        obscureText: !_showPassword,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please enter a password';
@@ -317,13 +332,27 @@ class _SignUpPageState extends State<SignUpPage> {
                       const SizedBox(height: 10),
                       TextFormField(
                         controller: _confirmPasswordController,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
                           labelText: 'Confirm Password',
                           filled: true,
                           fillColor: Colors.white,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _showConfirmPassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _showConfirmPassword = !_showConfirmPassword;
+                              });
+                            },
+                          ),
                         ),
-                        obscureText: true,
+                        obscureText:
+                            !_showConfirmPassword,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please confirm your password';

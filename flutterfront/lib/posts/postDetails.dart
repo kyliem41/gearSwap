@@ -525,23 +525,29 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
     return Column(
       children: [
-        AspectRatio(
-          // Wrap PageView in AspectRatio
-          aspectRatio: 4 / 3, // Adjust this ratio as needed (e.g., 16/9, 1/1)
-          child: PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) {
-              if (_mounted) {
-                setState(() => _currentImageIndex = index);
-              }
-            },
-            itemCount: processedImages.length,
-            itemBuilder: (context, index) {
-              return Container(
-                width: double.infinity,
-                child: _buildPostImage(processedImages[index]),
-              );
-            },
+        ConstrainedBox(
+          // Add this constraint
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height *
+                0.4, // 40% of screen height
+          ),
+          child: AspectRatio(
+            aspectRatio: 16 / 9, // Wider ratio to make image more compact
+            child: PageView.builder(
+              controller: _pageController,
+              onPageChanged: (index) {
+                if (_mounted) {
+                  setState(() => _currentImageIndex = index);
+                }
+              },
+              itemCount: processedImages.length,
+              itemBuilder: (context, index) {
+                return Container(
+                  width: double.infinity,
+                  child: _buildPostImage(processedImages[index]),
+                );
+              },
+            ),
           ),
         ),
         if (processedImages.length > 1)

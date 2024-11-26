@@ -41,6 +41,7 @@ class _MyLoginPageState extends State<MyLoginPage> {
   bool _isLoading = false;
   String _errorMessage = '';
   String? baseUrl;
+  bool _showPassword = false;
 
   @override
   void initState() {
@@ -75,7 +76,7 @@ class _MyLoginPageState extends State<MyLoginPage> {
     }
 
     var url = Uri.parse('$baseUrl/login');
-    
+
     try {
       var response = await http.post(
         url,
@@ -90,9 +91,9 @@ class _MyLoginPageState extends State<MyLoginPage> {
 
       // Print the raw response body for debugging
       print("Raw response: ${response.body}");
-      
+
       var data = jsonDecode(response.body);
-      
+
       // Handle error response
       if (response.statusCode != 200) {
         setState(() {
@@ -109,12 +110,12 @@ class _MyLoginPageState extends State<MyLoginPage> {
         await prefs.setString('accessToken', data['accessToken']);
         await prefs.setString('idToken', data['idToken']);
         await prefs.setString('refreshToken', data['refreshToken']);
-        
+
         // Save user info if present
         if (data['user'] != null) {
           await prefs.setString('user', jsonEncode(data['user']));
         }
-        
+
         // Navigate to home page
         if (mounted) {
           Navigator.pushReplacement(
@@ -238,7 +239,9 @@ class _MyLoginPageState extends State<MyLoginPage> {
                         labelText: 'Enter your Email',
                         filled: true,
                         fillColor: Colors.white,
-                        errorText: _errorMessage.contains('email') ? _errorMessage : null,
+                        errorText: _errorMessage.contains('email')
+                            ? _errorMessage
+                            : null,
                       ),
                     ),
                     SizedBox(height: 10),
@@ -249,13 +252,28 @@ class _MyLoginPageState extends State<MyLoginPage> {
                     SizedBox(height: 10),
                     TextField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: !_showPassword,
                       decoration: InputDecoration(
                         border: OutlineInputBorder(),
                         labelText: 'Enter your password',
                         filled: true,
                         fillColor: Colors.white,
-                        errorText: _errorMessage.contains('password') ? _errorMessage : null,
+                        errorText: _errorMessage.contains('password')
+                            ? _errorMessage
+                            : null,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _showPassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Colors.grey,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _showPassword = !_showPassword;
+                            });
+                          },
+                        ),
                       ),
                     ),
                     SizedBox(height: 20),
@@ -263,11 +281,11 @@ class _MyLoginPageState extends State<MyLoginPage> {
                       child: TextButton(
                         onPressed: () {
                           Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ResetPasswordPage(),
-                              ),
-                            );
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ResetPasswordPage(),
+                            ),
+                          );
                         },
                         child: Text(
                           'Forgot Password?',
@@ -281,8 +299,8 @@ class _MyLoginPageState extends State<MyLoginPage> {
                     SizedBox(height: 30),
                     _isLoading
                         ? CircularProgressIndicator(
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.deepOrange),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.deepOrange),
                           )
                         : ElevatedButton(
                             onPressed: _logIn,
