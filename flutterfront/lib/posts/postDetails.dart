@@ -317,39 +317,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
     });
   }
 
-  // Future<void> _checkIfLiked() async {
-  //   try {
-  //     final prefs = await SharedPreferences.getInstance();
-  //     final idToken = prefs.getString('idToken');
-
-  //     if (idToken == null || userId == null) {
-  //       throw Exception('No authentication token or user ID found');
-  //     }
-
-  //     final url = Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}');
-  //     print('Checking like status at: $url');
-
-  //     final response = await http.get(
-  //       url,
-  //       headers: {
-  //         'Authorization': 'Bearer $idToken',
-  //       },
-  //     );
-
-  //     print('Like check response status: ${response.statusCode}');
-  //     print('Like check response body: ${response.body}');
-
-  //     setState(() {
-  //       isLiked = response.statusCode == 200;
-  //     });
-  //   } catch (e) {
-  //     print('Error checking like status: $e');
-  //     setState(() {
-  //       isLiked = false;
-  //     });
-  //   }
-  // }
-
   Future<void> _toggleLike() async {
     if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -637,191 +604,199 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        appBar: TopNavBar2(),
+        body: const Center(child: CircularProgressIndicator()),
+        bottomNavigationBar: BottomNavBar(),
+      );
+    }
+
+    if (hasError || post == null) {
+      return Scaffold(
+        appBar: TopNavBar2(),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Failed to load post details',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _loadPostDetails,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+        bottomNavigationBar: BottomNavBar(),
+      );
+    }
+
+    // Safely get the first letter of firstname or use a default
+    String firstLetter = (post!['firstname'] as String?)?.isNotEmpty == true
+        ? post!['firstname'][0].toUpperCase()
+        : '?';
+
     return Scaffold(
       appBar: TopNavBar2(),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : hasError || post == null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Failed to load post details',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 10),
-                      ElevatedButton(
-                        onPressed: _loadPostDetails,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      GestureDetector(
-                        onTap: () async {
-                          try {
-                            final prefs = await SharedPreferences.getInstance();
-                            final userStr = prefs.getString('user');
-                            final idToken = prefs.getString('idToken');
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: () async {
+                try {
+                  final prefs = await SharedPreferences.getInstance();
+                  final userStr = prefs.getString('user');
+                  final idToken = prefs.getString('idToken');
 
-                            if (userStr != null && idToken != null) {
-                              final userData = jsonDecode(userStr);
-                              final currentUserId = userData['id'].toString();
-                              final postUserId = post!['userid'].toString();
+                  if (userStr != null && idToken != null) {
+                    final userData = jsonDecode(userStr);
+                    final currentUserId = userData['id'].toString();
+                    final postUserId = post!['userid'].toString();
 
-                              if (currentUserId == postUserId) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => ProfilePage()),
-                                );
-                              } else {
-                                final url =
-                                    Uri.parse('$baseUrl/users/$postUserId');
+                    if (currentUserId == postUserId) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ProfilePage()),
+                      );
+                    } else {
+                      final url = Uri.parse('$baseUrl/users/$postUserId');
 
-                                final response = await http.get(
-                                  url,
-                                  headers: {
-                                    'Authorization': 'Bearer $idToken',
-                                  },
-                                );
-
-                                if (response.statusCode == 200) {
-                                  final data = jsonDecode(response.body);
-                                  final sellerUserData = data['user'];
-
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => SellerProfilePage(
-                                        sellerId: postUserId,
-                                      ),
-                                    ),
-                                  );
-                                } else {
-                                  throw Exception(
-                                      'Failed to fetch seller data');
-                                }
-                              }
-                            }
-                          } catch (e) {
-                            print('Error navigating to profile: $e');
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to load profile')),
-                            );
-                          }
+                      final response = await http.get(
+                        url,
+                        headers: {
+                          'Authorization': 'Bearer $idToken',
                         },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 15,
-                                child: Text(
-                                  post!['firstname'][0].toUpperCase(),
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                                backgroundColor: Colors.deepOrange,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                '@${post!['username'] ?? 'unknown'}',
-                                style: TextStyle(
-                                  color: Colors.deepOrange,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      _buildPhotoSection(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '\$${post!['price']}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineMedium
-                                  ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              post!['description'] ?? 'No description provided',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            if (post!['size'] != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Size: ${post!['size']}',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
-                            if (post!['category'] != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Category: ${post!['category']}',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
-                            if (post!['clothingtype'] != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Type: ${post!['clothingtype']}',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildCartButton(),
-                          IconButton(
-                              icon: Icon(
-                                isLiked
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                color: isLiked ? Colors.red : Colors.grey,
-                                size: 28,
-                              ),
-                              onPressed: () => _toggleLike() //.then((_) {
-                              //   _checkIfLiked();
-                              // }), //change?
-                              ),
-                          ElevatedButton.icon(
-                            onPressed: _messageUser,
-                            icon: Icon(Icons.message,
-                                color: Theme.of(context).colorScheme.onPrimary),
-                            label: Text('Message',
-                                style: Theme.of(context).textTheme.labelLarge),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.primary,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
+                      );
+
+                      if (response.statusCode == 200) {
+                        final data = jsonDecode(response.body);
+                        final sellerUserData = data['user'];
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SellerProfilePage(
+                              sellerId: postUserId,
                             ),
                           ),
-                        ],
+                        );
+                      } else {
+                        throw Exception('Failed to fetch seller data');
+                      }
+                    }
+                  }
+                } catch (e) {
+                  print('Error navigating to profile: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to load profile')),
+                  );
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 15,
+                      child: Text(
+                        firstLetter,
+                        style: TextStyle(color: Colors.white),
                       ),
-                    ],
+                      backgroundColor: Colors.deepOrange,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '@${post!['username'] ?? 'unknown'}',
+                      style: TextStyle(
+                        color: Colors.deepOrange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            _buildPhotoSection(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '\$${post!['price'] ?? '0.00'}',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    post!['description'] ?? 'No description provided',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  if (post!['size'] != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Size: ${post!['size']}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                  if (post!['category'] != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Category: ${post!['category']}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                  if (post!['clothingtype'] != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Type: ${post!['clothingtype']}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildCartButton(),
+                IconButton(
+                  icon: Icon(
+                    isLiked ? Icons.favorite : Icons.favorite_border,
+                    color: isLiked ? Colors.red : Colors.grey,
+                    size: 28,
+                  ),
+                  onPressed: _toggleLike,
+                ),
+                ElevatedButton.icon(
+                  onPressed: _messageUser,
+                  icon: Icon(Icons.message,
+                      color: Theme.of(context).colorScheme.onPrimary),
+                  label: Text('Message',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(
+                              color: Theme.of(context).colorScheme.onPrimary)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),
+              ],
+            ),
+          ],
+        ),
+      ),
       bottomNavigationBar: BottomNavBar(),
     );
   }
