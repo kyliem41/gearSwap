@@ -327,24 +327,29 @@ def getPosts(event, context):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # First, get total count
+                # Get total count
                 cursor.execute("SELECT COUNT(*) FROM posts")
                 total_posts = cursor.fetchone()['count']
 
-                # Modified query to properly handle image data
+                # Get posts with basic info
                 cursor.execute("""
                     SELECT 
                         p.*,
                         u.username,
-                        CASE 
-                            WHEN pi.image_data IS NOT NULL THEN
+                        pi.id as first_image_id,
+                        pi.content_type as first_image_content_type,
+                        pi.image_data as first_image_data,
+                        (
+                            SELECT array_agg(
                                 json_build_object(
-                                    'id', pi.id,
-                                    'content_type', pi.content_type,
-                                    'data', concat('data:', pi.content_type, ';base64,', encode(pi.image_data, 'base64'))
+                                    'id', pi2.id,
+                                    'content_type', pi2.content_type
                                 )
-                            ELSE NULL
-                        END as first_image
+                                ORDER BY pi2.id
+                            )
+                            FROM post_images pi2
+                            WHERE pi2.post_id = p.id
+                        ) as photos
                     FROM posts p
                     JOIN users u ON p.userId = u.id
                     LEFT JOIN LATERAL (
@@ -360,15 +365,34 @@ def getPosts(event, context):
                 
                 posts = cursor.fetchall()
 
-                # Process posts to ensure proper JSON serialization
+                # Process posts
                 for post in posts:
-                    # Convert any Decimal objects to float
+                    # Convert Decimal to float
                     if 'price' in post:
                         post['price'] = float(post['price'])
                     
-                    # Handle date serialization
+                    # Format date
                     if 'datePosted' in post:
                         post['datePosted'] = post['datePosted'].isoformat()
+
+                    # Format first_image
+                    if post.get('first_image_id'):
+                        post['first_image'] = {
+                            'id': post['first_image_id'],
+                            'content_type': post['first_image_content_type'],
+                            'data': f"data:{post['first_image_content_type']};base64,{base64.b64encode(post['first_image_data']).decode('utf-8')}"
+                        }
+                    else:
+                        post['first_image'] = None
+
+                    # Clean up temporary fields
+                    post.pop('first_image_id', None)
+                    post.pop('first_image_content_type', None)
+                    post.pop('first_image_data', None)
+
+                    # Ensure photos is never null
+                    if post['photos'] is None:
+                        post['photos'] = []
 
                 return cors_response(200, {
                     "message": "Posts retrieved successfully",
@@ -376,7 +400,7 @@ def getPosts(event, context):
                     "page": page,
                     "page_size": page_size,
                     "total_posts": total_posts,
-                    "total_pages": -(-total_posts // page_size)  # Ceiling division
+                    "total_pages": -(-total_posts // page_size)
                 })
 
     except Exception as e:
