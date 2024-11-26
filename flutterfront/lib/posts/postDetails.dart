@@ -117,8 +117,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
       }
 
       final url = Uri.parse('$baseUrl/posts/${widget.postId}');
-      print('Loading post details from: $url');
-
       final response = await http.get(
         url,
         headers: {
@@ -127,22 +125,28 @@ class _PostDetailPageState extends State<PostDetailPage> {
         },
       );
 
-      print('Response status code: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
         final Map<String, dynamic> postData = jsonResponse['post'];
 
-        // Clear and populate processed images
+        // Process images
         processedImages = [];
-
-        // Check if there's an 'images' array in the response
         if (postData.containsKey('images') && postData['images'] is List) {
-          List<dynamic> images = postData['images'];
+          final List<dynamic> images = postData['images'];
           for (var image in images) {
             if (image is Map<String, dynamic>) {
-              processedImages.add(image);
-              print('Added image with content type: ${image['content_type']}');
+              // Ensure we have all required fields
+              if (image.containsKey('id') &&
+                  image.containsKey('content_type') &&
+                  image.containsKey('data')) {
+                processedImages.add({
+                  'id': image['id'],
+                  'content_type': image['content_type'],
+                  'data': image['data'].toString()
+                });
+                print(
+                    'Processed image ${image['id']} with type ${image['content_type']}');
+              }
             }
           }
         }
@@ -157,7 +161,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error loading post details: $e');
+      print('Error in _loadPostDetails: $e');
       if (_mounted) {
         setState(() {
           hasError = true;
@@ -494,58 +498,40 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  String cleanBase64String(String input) {
+  Uint8List _processBase64Image(String base64String) {
     try {
-      // Handle JPEG data starting with /9j/
-      if (input.contains('/9j/')) {
-        input = input.substring(input.indexOf('/9j/'));
+      // Handle the data URI prefix
+      if (base64String.contains(';base64,')) {
+        base64String = base64String.split(';base64,')[1];
+      } else if (base64String.contains(',')) {
+        base64String = base64String.split(',')[1];
       }
 
-      // Remove data URL prefix if present
-      if (input.contains('base64,')) {
-        input = input.split('base64,').last;
-      }
-
-      // Remove all whitespace and newlines
-      input = input.replaceAll(RegExp(r'\s+'), '');
-
-      // Keep only valid base64 characters
-      input = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=\/]'), '');
+      // Clean the string
+      base64String = base64String.trim();
+      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
 
       // Add padding if needed
-      while (input.length % 4 != 0) {
-        input += '=';
+      while (base64String.length % 4 != 0) {
+        base64String += '=';
       }
 
-      return input;
+      return base64.decode(base64String);
     } catch (e) {
-      print('Error cleaning base64 string: $e');
-      throw FormatException('Failed to clean base64 data');
+      print('Error processing base64 string: $e');
+      rethrow;
     }
   }
 
   Widget _buildPostImage(Map<String, dynamic> image) {
     try {
-      String imageData = image['data'];
-      if (imageData == null || imageData.isEmpty) {
-        print('No image data available');
+      if (!image.containsKey('data') || image['data'] == null) {
+        print('Image data is missing');
         return _buildPlaceholder();
       }
 
-      // Remove data URI prefix if present
-      if (imageData.contains(',')) {
-        imageData = imageData.split(',')[1];
-      }
-
-      // Clean the base64 string
-      imageData = imageData.trim().replaceAll(RegExp(r'\s+'), '');
-
-      // Add padding if needed
-      while (imageData.length % 4 != 0) {
-        imageData += '=';
-      }
-
-      final Uint8List bytes = base64.decode(imageData);
+      final Uint8List bytes = _processBase64Image(image['data']);
 
       return Container(
         width: MediaQuery.of(context).size.width,
@@ -555,14 +541,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
             print('Error displaying image: $error');
-            print(stackTrace);
             return _buildPlaceholder();
           },
         ),
       );
-    } catch (e, stackTrace) {
-      print('Error processing image: $e');
-      print(stackTrace);
+    } catch (e) {
+      print('Error in _buildPostImage: $e');
       return _buildPlaceholder();
     }
   }
@@ -589,10 +573,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
             },
             itemCount: processedImages.length,
             itemBuilder: (context, index) {
-              final image = processedImages[index];
-              print(
-                  'Building image at index $index with content type: ${image['content_type']}');
-              return _buildPostImage(image);
+              print('Building image at index $index');
+              return _buildPostImage(processedImages[index]);
             },
           ),
         ),
