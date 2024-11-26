@@ -128,35 +128,23 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
 
       print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        final Map<String, dynamic> postData = jsonResponse['post'];
 
-        if (!jsonResponse.containsKey('post')) {
-          throw Exception('Response missing post data');
-        }
-
-        final Map<String, dynamic> postData =
-            Map<String, dynamic>.from(jsonResponse['post']);
-
-        // Process images
+        // Clear and populate processed images
         processedImages = [];
-        if (postData['images'] != null && postData['images'] is List) {
-          for (var image in postData['images']) {
-            if (image is Map<String, dynamic> &&
-                image.containsKey('data') &&
-                image.containsKey('content_type')) {
-              // The image data should already be properly formatted from the backend
-              processedImages.add({
-                'id': image['id'],
-                'content_type': image['content_type'],
-                'data': image[
-                    'data'], // Backend now provides properly formatted base64 data
-              });
+
+        // Check if there's an 'images' array in the response
+        if (postData.containsKey('images') && postData['images'] is List) {
+          List<dynamic> images = postData['images'];
+          for (var image in images) {
+            if (image is Map<String, dynamic>) {
+              processedImages.add(image);
+              print('Added image with content type: ${image['content_type']}');
             }
           }
-          print('Processed ${processedImages.length} images');
         }
 
         if (_mounted) {
@@ -536,30 +524,45 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  Widget _buildPostImage(Map<String, dynamic> imageData) {
+  Widget _buildPostImage(Map<String, dynamic> image) {
     try {
-      if (imageData['data'] == null) {
-        print('Image data is null');
+      String imageData = image['data'];
+      if (imageData == null || imageData.isEmpty) {
+        print('No image data available');
         return _buildPlaceholder();
       }
 
-      // The data should already be in the correct format from the backend
-      // It includes the content type prefix and is properly base64 encoded
+      // Remove data URI prefix if present
+      if (imageData.contains(',')) {
+        imageData = imageData.split(',')[1];
+      }
+
+      // Clean the base64 string
+      imageData = imageData.trim().replaceAll(RegExp(r'\s+'), '');
+
+      // Add padding if needed
+      while (imageData.length % 4 != 0) {
+        imageData += '=';
+      }
+
+      final Uint8List bytes = base64.decode(imageData);
+
       return Container(
         width: MediaQuery.of(context).size.width,
         height: 300,
         child: Image.memory(
-          base64Decode(
-              imageData['data'].split(',').last), // Remove the data URI prefix
+          bytes,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
             print('Error displaying image: $error');
+            print(stackTrace);
             return _buildPlaceholder();
           },
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error processing image: $e');
+      print(stackTrace);
       return _buildPlaceholder();
     }
   }
@@ -568,7 +571,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
     if (!_mounted) return _buildPlaceholder();
 
     print('Building photo section with ${processedImages.length} images');
-
     if (processedImages.isEmpty) {
       print('No processed images available');
       return _buildPlaceholder();
@@ -587,8 +589,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
             },
             itemCount: processedImages.length,
             itemBuilder: (context, index) {
-              print('Building image at index $index');
-              return _buildPostImage(processedImages[index]);
+              final image = processedImages[index];
+              print(
+                  'Building image at index $index with content type: ${image['content_type']}');
+              return _buildPostImage(image);
             },
           ),
         ),
