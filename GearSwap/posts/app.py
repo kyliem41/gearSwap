@@ -417,16 +417,26 @@ def getPosts(event, context):
 def getPostById(event, context):
     try:
         post_id = event['pathParameters']['postId']
+        auth_header = event.get('headers', {}).get('Authorization')
+        user_id = None
+        
+        if auth_header:
+            token = auth_header.split(' ')[-1]
+            payload = verify_token(token)
+            user_id = payload.get('sub')
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Get post details with user info
+                
                 cursor.execute("""
-                    SELECT p.*, u.username
+                    SELECT p.*, u.username,
+                        CASE WHEN lp.id IS NOT NULL THEN true ELSE false END as is_liked
                     FROM posts p
                     JOIN users u ON p.userId = u.id
+                    LEFT JOIN likedPost lp ON p.id = lp.postId AND lp.userId = %s
                     WHERE p.id = %s
-                """, (post_id,))
+                """, (user_id, post_id) if user_id else (None, post_id))
+                
                 post = cursor.fetchone()
 
                 if not post:

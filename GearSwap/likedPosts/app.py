@@ -172,25 +172,46 @@ def addLikedPost(event, context):
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 # Check if user owns the post
-                if check_post_ownership(cursor, userId, postId):
+                cursor.execute("SELECT userId FROM posts WHERE id = %s", (postId,))
+                post = cursor.fetchone()
+                if not post:
+                    return cors_response(404, {"error": "Post not found"})
+                
+                if str(post['userid']) == str(userId):
                     return cors_response(400, {
                         "error": "Cannot like your own post"
                     })
 
-                insert_query = """
-                INSERT INTO likedPost (userId, postId) 
-                VALUES (%s, %s)
-                RETURNING id, userId, postId, dateLiked;
-                """
-                
-                cursor.execute(insert_query, (userId, postId))
-                new_liked_post = cursor.fetchone()
-                conn.commit()
-
-        return cors_response(201, {
-            "message": "Post liked successfully",
-            "likedPost": new_liked_post
-        })
+                try:
+                    # Start transaction
+                    cursor.execute("BEGIN")
+                    
+                    # Insert liked post
+                    insert_query = """
+                    INSERT INTO likedPost (userId, postId) 
+                    VALUES (%s, %s)
+                    RETURNING id, userId, postId, dateLiked;
+                    """
+                    cursor.execute(insert_query, (userId, postId))
+                    new_liked_post = cursor.fetchone()
+                    
+                    # Increment like count
+                    cursor.execute("""
+                        UPDATE posts 
+                        SET likeCount = likeCount + 1 
+                        WHERE id = %s
+                    """, (postId,))
+                    
+                    # Commit transaction
+                    conn.commit()
+                    
+                    return cors_response(201, {
+                        "message": "Post liked successfully",
+                        "likedPost": new_liked_post
+                    })
+                except Exception as e:
+                    conn.rollback()
+                    raise e
 
     except ValueError as e:
         return cors_response(400, {"error": str(e)})
@@ -210,13 +231,13 @@ def getLikedPosts(event, context):
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 get_query = """
                     SELECT p.*, lp.dateLiked, 
-                           ARRAY_AGG(
-                               json_build_object(
-                                   'id', pi.id,
-                                   'content_type', pi.content_type,
-                                   'data', encode(pi.image_data, 'base64')
-                               )
-                           ) as images
+                        ARRAY_AGG(
+                            json_build_object(
+                                'id', pi.id,
+                                'content_type', pi.content_type,
+                                'data', encode(pi.image_data, 'base64')
+                            )
+                        ) as images
                     FROM likedPost lp
                     JOIN posts p ON lp.postId = p.id
                     LEFT JOIN post_images pi ON p.id = pi.post_id
@@ -257,34 +278,46 @@ def removeLikedPost(event, context):
         if not postId:
             return cors_response(400, {"error": "Missing postId in path parameters"})
         
-    except KeyError as e:
-        return cors_response(400, {"error": f"Missing required parameter: {str(e)}"})
-        
-    delete_query = "DELETE FROM likedPost WHERE postId = %s AND userId = %s RETURNING id;"
-
-    try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(delete_query, (postId, userId))
-                removed_search = cursor.fetchone()
-                conn.commit()
-        
-        if removed_search:
-            return cors_response(200, {
-                "message": "Post removed successfully",
-                "removedPostId": removed_search['id']
-            })
-            
-        else:
-            return cors_response(404, {"error": "Post not found or does not belong to the user"})
-        
+                try:
+                    # Start transaction
+                    cursor.execute("BEGIN")
+                    
+                    # Delete the liked post
+                    delete_query = """
+                    DELETE FROM likedPost 
+                    WHERE postId = %s AND userId = %s 
+                    RETURNING id;
+                    """
+                    cursor.execute(delete_query, (postId, userId))
+                    removed_like = cursor.fetchone()
+                    
+                    if removed_like:
+                        # Decrement like count
+                        cursor.execute("""
+                            UPDATE posts 
+                            SET likeCount = GREATEST(0, likeCount - 1) 
+                            WHERE id = %s
+                        """, (postId,))
+                        
+                        conn.commit()
+                        
+                        return cors_response(200, {
+                            "message": "Post unliked successfully",
+                            "removedPostId": removed_like['id']
+                        })
+                    else:
+                        conn.rollback()
+                        return cors_response(404, {"error": "Like not found"})
+                        
+                except Exception as e:
+                    conn.rollback()
+                    raise e
+                    
     except Exception as e:
-        print(f"Failed to remove post. Error: {str(e)}")
-        return cors_response(500, {"error": f"Error removing post: {str(e)}"})
-        
-    finally:
-        if conn:
-            conn.close()
+        print(f"Failed to remove like. Error: {str(e)}")
+        return cors_response(500, {"error": f"Error removing like: {str(e)}"})
             
 ################
 def getLikedPostById(event, context):

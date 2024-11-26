@@ -155,30 +155,69 @@ def add_to_cart(event, user_id):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Check if user owns the post
-                if check_post_ownership(cursor, user_id, post_id):
-                    return cors_response(400, {
-                        "error": "Cannot add your own post to cart"
+                # First check if post exists and get post owner
+                cursor.execute("""
+                    SELECT userId, isSold 
+                    FROM posts 
+                    WHERE id = %s
+                """, (post_id,))
+                post = cursor.fetchone()
+                
+                if not post:
+                    return cors_response(404, {
+                        "error": "Post not found"
                     })
 
-                cursor.execute("SELECT * FROM cart WHERE userId = %s AND postId = %s", (user_id, post_id))
+                # Check if user is trying to add their own post
+                if str(post['userid']) == str(user_id):
+                    return cors_response(400, {
+                        "error": "You cannot add your own items to cart"
+                    })
+
+                # Check if post is already sold
+                if post.get('issold'):
+                    return cors_response(400, {
+                        "error": "This item has already been sold"
+                    })
+
+                # Check if item is already in cart
+                cursor.execute(
+                    "SELECT * FROM cart WHERE userId = %s AND postId = %s", 
+                    (user_id, post_id)
+                )
                 existing_item = cursor.fetchone()
 
-                if existing_item:
-                    cursor.execute("UPDATE cart SET quantity = quantity + %s WHERE userId = %s AND postId = %s RETURNING *",
-                                (quantity, user_id, post_id))
-                else:
-                    cursor.execute("INSERT INTO cart (userId, postId, quantity) VALUES (%s, %s, %s) RETURNING *",
-                                (user_id, post_id, quantity))
+                try:
+                    cursor.execute("BEGIN")
+                    
+                    if existing_item:
+                        cursor.execute("""
+                            UPDATE cart 
+                            SET quantity = quantity + %s 
+                            WHERE userId = %s AND postId = %s 
+                            RETURNING *
+                            """, (quantity, user_id, post_id))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO cart (userId, postId, quantity) 
+                            VALUES (%s, %s, %s) 
+                            RETURNING *
+                            """, (user_id, post_id, quantity))
 
-                new_item = cursor.fetchone()
-                conn.commit()
+                    new_item = cursor.fetchone()
+                    conn.commit()
 
-        return cors_response(200, {
-            "message": "Item added to cart successfully",
-            "item": new_item
-        })
+                    return cors_response(200, {
+                        "message": "Item added to cart successfully",
+                        "item": new_item
+                    })
+                    
+                except Exception as e:
+                    conn.rollback()
+                    raise e
 
+    except KeyError as e:
+        return cors_response(400, {"error": f"Missing required field: {str(e)}"})
     except ValueError as e:
         return cors_response(400, {"error": str(e)})
     except Exception as e:
