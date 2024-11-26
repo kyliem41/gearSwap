@@ -554,7 +554,7 @@ def putPost(event, context):
                 # Verify post ownership
                 cursor.execute("SELECT userId FROM posts WHERE id = %s", (post_id,))
                 post = cursor.fetchone()
-                if not post or str(post['userId']) != user_id:
+                if not post or str(post['userid']) != user_id:
                     return cors_response(404, {'error': "Post not found or access denied"})
 
                 # Update post details
@@ -577,11 +577,9 @@ def putPost(event, context):
                         UPDATE posts 
                         SET {', '.join(update_sql)}
                         WHERE id = %s AND userId = %s
-                        RETURNING *
                     """
                     update_values.extend([post_id, user_id])
                     cursor.execute(query, update_values)
-                    updated_post = cursor.fetchone()
 
                 # Handle image updates
                 if 'images' in body:
@@ -595,6 +593,35 @@ def putPost(event, context):
                                 continue
                             validate_image(image['data'], image['content_type'])
                             store_image(cursor, post_id, image['data'], image['content_type'])
+                            
+                        elif image['action'] == 'update' and 'id' in image:
+                            if 'data' not in image or 'content_type' not in image:
+                                continue
+
+                            # Remove data:image prefix if present
+                            image_data = image['data']
+                            if ';base64,' in image_data:
+                                image_data = image_data.split(';base64,')[1]
+
+                            try:
+                                # First validate the new image data
+                                validate_image(image_data, image['content_type'])
+
+                                # Decode base64 to binary
+                                decoded_image = base64.b64decode(image_data)
+
+                                # Then update the existing image
+                                cursor.execute(
+                                    """
+                                    UPDATE post_images 
+                                    SET image_data = %s, content_type = %s 
+                                    WHERE id = %s AND post_id = %s
+                                    """,
+                                    (decoded_image, image['content_type'], image['id'], post_id)
+                                )
+                            except Exception as e:
+                                print(f"Error updating image: {str(e)}")
+                                continue
 
                         elif image['action'] == 'delete' and 'id' in image:
                             cursor.execute(
@@ -602,10 +629,19 @@ def putPost(event, context):
                                 (image['id'], post_id)
                             )
 
-                # Get updated post with images
                 cursor.execute("""
                     SELECT p.*, u.username,
-                        array_agg(json_build_object('id', pi.id, 'content_type', pi.content_type)) as images
+                        array_agg(
+                            CASE WHEN pi.id IS NOT NULL THEN
+                                json_build_object(
+                                    'id', pi.id,
+                                    'content_type', pi.content_type,
+                                    'data', concat('data:', pi.content_type, ';base64,', 
+                                        replace(encode(pi.image_data, 'base64'), E'\n', ''))
+                                )
+                            ELSE NULL
+                            END
+                        ) filter (where pi.id is not null) as images
                     FROM posts p
                     JOIN users u ON p.userId = u.id
                     LEFT JOIN post_images pi ON pi.post_id = p.id

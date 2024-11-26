@@ -596,6 +596,10 @@ class _ProfilePageState extends State<ProfilePage>
                         },
                         child: Card(
                           elevation: 4.0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
+                          clipBehavior: Clip.antiAlias,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
@@ -603,26 +607,28 @@ class _ProfilePageState extends State<ProfilePage>
                                 child: Container(
                                   width: double.infinity,
                                   color: Colors.grey[200],
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Expanded(
-                                          child: _buildPostImage(post),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            '\$${post['price']}',
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                  child: Stack(
+                                    children: [
+                                      _buildPostImage(post),
+                                      Positioned(
+                                        bottom: 8,
+                                        left: 8,
+                                        right: 8,
+                                        child: Text(
+                                          '\$${post['price']}',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black,
+                                            backgroundColor:
+                                                Colors.white.withOpacity(0.8),
+                                            // Add padding to the text
+                                            height: 1.5,
                                           ),
+                                          textAlign: TextAlign.center,
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),

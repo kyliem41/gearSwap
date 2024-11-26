@@ -530,17 +530,17 @@ class _SearchPageState extends State<SearchPage> {
                             },
                             child: Card(
                               elevation: 4.0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.0),
+                              ),
+                              clipBehavior: Clip.antiAlias,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
                                   Expanded(
                                     child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
-                                        borderRadius: BorderRadius.vertical(
-                                          top: Radius.circular(10.0),
-                                        ),
-                                      ),
+                                      width: double.infinity,
+                                      color: Colors.grey[200],
                                       child: Center(
                                         child: Column(
                                           mainAxisAlignment:

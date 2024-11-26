@@ -72,6 +72,7 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
     });
 
     try {
+      final baseUrl = await ConfigUtils.getPasswordResetUrl();
       final response = await http.put(
         Uri.parse('$baseUrl/users/password/$userId'),
         headers: {'Content-Type': 'application/json'},

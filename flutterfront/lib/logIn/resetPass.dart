@@ -53,6 +53,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     });
 
     try {
+      final baseUrl = await ConfigUtils.getPasswordResetUrl();
       final response = await http.post(
         Uri.parse('$baseUrl/users/password-reset/request'),
         headers: {'Content-Type': 'application/json'},
@@ -63,9 +64,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
       if (response.statusCode == 200) {
         setState(() {
-          _successMessage = 'Password reset instructions have been sent to your email.';
+          _successMessage =
+              'Password reset instructions have been sent to your email.';
         });
-        
+
         // Wait briefly then navigate back to login
         await Future.delayed(const Duration(seconds: 3));
         if (mounted) {
@@ -194,12 +196,14 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                                 width: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
                                 ),
                               )
                             : const Text(
                                 'Send Reset Instructions',
-                                style: TextStyle(fontSize: 16, color: Colors.white),
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.white),
                               ),
                       ),
                       const SizedBox(height: 16),

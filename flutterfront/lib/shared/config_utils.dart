@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 class ConfigUtils {
   static String? _baseUrl;
   static Map<String, String>? _config;
+  static String? _passwordResetUrl;
 
   static Future<Map<String, String>> _loadConfig() async {
     if (_config != null) return _config!;
@@ -21,6 +22,24 @@ class ConfigUtils {
     _baseUrl = config['url'];
     print('Base URL: $_baseUrl');
     return _baseUrl!;
+  }
+
+  static Future<String> getPasswordResetUrl() async {
+    if (_passwordResetUrl != null) return _passwordResetUrl!;
+
+    final config = await _loadConfig();
+    final baseUrl = config['url'];
+    if (baseUrl == null) {
+      throw Exception('Missing API URL configuration');
+    }
+    
+    // Remove trailing slash if present
+    final cleanBaseUrl = baseUrl.endsWith('/') 
+        ? baseUrl.substring(0, baseUrl.length - 1) 
+        : baseUrl;
+        
+    _passwordResetUrl = cleanBaseUrl;
+    return _passwordResetUrl!;
   }
 
   static Future<String> getWebSocketUrl() async {

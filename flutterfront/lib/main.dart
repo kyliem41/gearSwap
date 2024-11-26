@@ -168,7 +168,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _buildPostImage(Map<String, dynamic> post) {
     // First try to get the first_image (used in grid view/list)
-    if (post['images'] != null && post['images'] is List && post['images'].isNotEmpty) {
+    if (post['images'] != null &&
+        post['images'] is List &&
+        post['images'].isNotEmpty) {
       final firstImage = post['images'][0];
       if (firstImage != null && firstImage['data'] != null) {
         try {
@@ -179,7 +181,7 @@ class _MyHomePageState extends State<MyHomePage> {
         }
       }
     }
-    
+
     // Fallback to first_image if images array is empty
     if (post['first_image'] != null && post['first_image']['data'] != null) {
       try {
@@ -189,7 +191,7 @@ class _MyHomePageState extends State<MyHomePage> {
         return _buildPlaceholder();
       }
     }
-    
+
     return _buildPlaceholder();
   }
 
@@ -228,25 +230,26 @@ class _MyHomePageState extends State<MyHomePage> {
       } else {
         pureBase64 = base64String.trim();
       }
-      
+
       // Remove any whitespace
       pureBase64 = pureBase64.replaceAll(RegExp(r'\s+'), '');
-      
+
       // Add padding if needed
       while (pureBase64.length % 4 != 0) {
         pureBase64 += '=';
       }
-      
+
       final bytes = base64Decode(pureBase64);
       if (bytes.isEmpty) {
         throw Exception('Decoded base64 is empty');
       }
-      
+
       print('Successfully decoded image, byte length: ${bytes.length}');
       return bytes;
     } catch (e) {
       print('Error decoding base64: $e');
-      print('Base64 string preview: ${base64String.substring(0, min<int>(100, base64String.length))}');
+      print(
+          'Base64 string preview: ${base64String.substring(0, min<int>(100, base64String.length))}');
       rethrow;
     }
   }
@@ -319,6 +322,10 @@ class _MyHomePageState extends State<MyHomePage> {
                               },
                               child: Card(
                                 elevation: 4.0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                clipBehavior: Clip.antiAlias,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: <Widget>[

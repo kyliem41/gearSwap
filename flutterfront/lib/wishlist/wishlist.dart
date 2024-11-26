@@ -283,7 +283,10 @@ class _WishlistPageState extends State<WishlistPage> {
                               SizedBox(height: 8),
                               Text(
                                 'Items you like will appear here',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
                                       color: Colors.grey,
                                     ),
                               ),
@@ -291,7 +294,8 @@ class _WishlistPageState extends State<WishlistPage> {
                           ),
                         )
                       : GridView.builder(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 4,
                             crossAxisSpacing: 10.0,
                             mainAxisSpacing: 10.0,
@@ -313,6 +317,10 @@ class _WishlistPageState extends State<WishlistPage> {
                               },
                               child: Card(
                                 elevation: 4.0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                clipBehavior: Clip.antiAlias,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: <Widget>[
@@ -324,18 +332,23 @@ class _WishlistPageState extends State<WishlistPage> {
                                             color: Colors.grey[200],
                                             child: Center(
                                               child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
                                                 children: [
                                                   Expanded(
-                                                    child: _buildPostImage(post),
+                                                    child:
+                                                        _buildPostImage(post),
                                                   ),
                                                   Padding(
-                                                    padding: const EdgeInsets.all(8.0),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            8.0),
                                                     child: Text(
                                                       '\$${post['price']}',
                                                       style: TextStyle(
                                                         fontSize: 18,
-                                                        fontWeight: FontWeight.bold,
+                                                        fontWeight:
+                                                            FontWeight.bold,
                                                       ),
                                                     ),
                                                   ),
@@ -351,7 +364,8 @@ class _WishlistPageState extends State<WishlistPage> {
                                                 Icons.favorite,
                                                 color: Colors.red,
                                               ),
-                                              onPressed: () => _unlikePost(post['id'].toString()),
+                                              onPressed: () => _unlikePost(
+                                                  post['id'].toString()),
                                             ),
                                           ),
                                         ],
@@ -360,10 +374,12 @@ class _WishlistPageState extends State<WishlistPage> {
                                     Padding(
                                       padding: const EdgeInsets.all(8.0),
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            post['description'] ?? 'No description',
+                                            post['description'] ??
+                                                'No description',
                                             style: TextStyle(fontSize: 14),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,

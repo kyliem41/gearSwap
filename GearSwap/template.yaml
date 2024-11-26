@@ -454,6 +454,20 @@ Resources:
             Method: OPTIONS
             Auth:
               Authorizer: NONE
+        UpdateUserPassword:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/password/{Id}
+            Method: PUT
+        UpdateUserPasswordOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /users/password/{Id}
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
         VerifyPasswordReset:
           Type: Api
           Properties:
@@ -521,20 +535,6 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /users/{Id}
             Method: PUT
-        UpdateUserPassword:
-          Type: Api
-          Properties:
-            RestApiId: !Ref gearSwap
-            Path: /users/password/{Id}
-            Method: PUT
-        UpdateUserPasswordOptions:
-          Type: Api
-          Properties:
-            RestApiId: !Ref gearSwap
-            Path: /users/password/{Id}
-            Method: OPTIONS
-            Auth:
-              Authorizer: NONE
         DeleteUser:
           Type: Api
           Properties:

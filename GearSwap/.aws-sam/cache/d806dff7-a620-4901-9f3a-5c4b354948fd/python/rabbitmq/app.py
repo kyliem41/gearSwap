@@ -54,10 +54,13 @@ def lambda_handler(event, context):
     try:
         print("Received event:", json.dumps(event))
         
-        if event['resource'] == '/users/password-reset/request':
+        path = event.get('path', '')
+        resource = event.get('resource', '')
+        
+        if path == '/users/password-reset/request':
             return handle_reset_request(event)
-        elif event['resource'] == '/users/password-reset/verify':
-            return handle_reset_verification(event)
+        elif resource == '/users/password/{Id}':
+            return handle_password_update(event)
         else:
             return cors_response(400, {'error': 'Invalid endpoint'})
 
@@ -69,6 +72,7 @@ def lambda_handler(event, context):
             'details': str(e)
         })
 
+########
 def get_db_connection():
     return psycopg2.connect(
         host=os.environ['DB_HOST'],
@@ -79,13 +83,11 @@ def get_db_connection():
         connect_timeout=5
     )
 
+################
 def handle_reset_request(event):
+    conn = None
     try:
-        try:
-            body = parse_body(event)
-        except ValueError as e:
-            return cors_response(400, {'error': str(e)})
-        
+        body = parse_body(event)
         email = body.get('email')
 
         if not email:
@@ -111,7 +113,7 @@ def handle_reset_request(event):
             cursor.execute("""
                 INSERT INTO password_reset_tokens (userId, token, expiration)
                 VALUES (%s, %s, %s)
-                ON CONFLICT (userId)
+                ON CONFLICT (user_id)
                 DO UPDATE SET 
                     token = EXCLUDED.token,
                     expiration = EXCLUDED.expiration,
@@ -143,6 +145,78 @@ def handle_reset_request(event):
         if conn:
             conn.close()
 
+################  
+def handle_password_update(event):
+    conn = None
+    try:
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
+        
+        # Extract user ID from path
+        path_parts = event['path'].split('/')
+        user_id = path_parts[-1]
+        
+        token = body.get('token')
+        new_password = body.get('new_password')
+
+        if not token or not new_password:
+            return cors_response(400, {'error': 'Token and new password are required'})
+
+        conn = get_db_connection()
+        
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Verify token and get user
+            cursor.execute("""
+                SELECT rt.user_id, rt.expiration, u.email 
+                FROM password_reset_tokens rt
+                JOIN users u ON u.id = rt.user_id
+                WHERE rt.token = %s AND rt.user_id = %s
+            """, (token, user_id))
+            
+            result = cursor.fetchone()
+            
+            if not result:
+                return cors_response(400, {'error': 'Invalid reset token'})
+
+            if result['expiration'] < datetime.utcnow():
+                # Delete expired token
+                cursor.execute(
+                    "DELETE FROM password_reset_tokens WHERE user_id = %s",
+                    (user_id,)
+                )
+                conn.commit()
+                return cors_response(400, {'error': 'Reset token has expired'})
+
+            # Hash the new password (implement your password hashing here)
+            # Update password
+            cursor.execute("""
+                UPDATE users 
+                SET password = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (new_password, user_id))
+
+            # Delete used token
+            cursor.execute(
+                "DELETE FROM password_reset_tokens WHERE user_id = %s",
+                (user_id,)
+            )
+
+            conn.commit()
+
+            return cors_response(200, {'message': 'Password updated successfully'})
+
+    except Exception as e:
+        print(f"Error in password update: {str(e)}")
+        return cors_response(500, {'error': str(e)})
+
+    finally:
+        if conn:
+            conn.close()
+
+################
 def handle_reset_verification(event):
     try:
         try:

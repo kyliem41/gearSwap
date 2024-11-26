@@ -38,7 +38,7 @@ class EmailService:
     def create_email_message(self, to_email: str, reset_token: str, userId: str) -> Dict:
         """Create the email message structure"""
         app_url = os.environ.get('FLUTTER_APP_URL')
-        reset_link = f"{app_url}/update-password?token={reset_token}&userId={userId}"
+        reset_link = f"{app_url}/users/password/{userId}?token={reset_token}&userId={userId}"
         
         print(f"Generated reset link: {reset_link}")
         
@@ -61,22 +61,22 @@ class EmailService:
                                     <h2 style="color: #2c3e50;">Password Reset Request</h2>
                                     <p>Hello,</p>
                                     <p>We received a request to reset your password for your GearSwap account. 
-                                       Click the button below to set a new password:</p>
+                                    Click the button below to set a new password:</p>
                                     
                                     <div style="text-align: center; margin: 30px 0;">
                                         <a href="{reset_link}" 
-                                           style="background-color: #3498db; 
-                                                  color: white; 
-                                                  padding: 12px 24px; 
-                                                  text-decoration: none; 
-                                                  border-radius: 4px; 
-                                                  display: inline-block;">
+                                        style="background-color: #3498db; 
+                                            color: white; 
+                                            padding: 12px 24px; 
+                                            text-decoration: none; 
+                                            border-radius: 4px; 
+                                            display: inline-block;">
                                             Reset Password
                                         </a>
                                     </div>
                                     
                                     <p>If you didn't request this password reset, please ignore this email 
-                                       or contact support if you have concerns.</p>
+                                    or contact support if you have concerns.</p>
                                     
                                     <p>This password reset link will expire in 24 hours.</p>
                                     

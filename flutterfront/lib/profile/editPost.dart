@@ -3,8 +3,10 @@ import 'package:sample/appBars/bottomNavBar.dart';
 import 'package:sample/appBars/topNavBar.dart';
 import 'package:sample/shared/config_utils.dart';
 import 'package:http/http.dart' as http;
+import 'dart:math';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:html' as html;
 
 class EditPostPage extends StatefulWidget {
   final String postId;
@@ -55,8 +57,10 @@ class _EditPostPageState extends State<EditPostPage> {
   String? selectedSize;
   String? selectedCategory;
   String? selectedClothingType;
-  List<String> photos = [];
+  List<Map<String, dynamic>> existingImages = [];
+  List<Map<String, dynamic>> newImages = [];
   bool _isLoading = false;
+  bool _isProcessingImage = false;
   String? userId;
   String? baseUrl;
 
@@ -87,51 +91,20 @@ class _EditPostPageState extends State<EditPostPage> {
       selectedCategory = widget.postDetails['category']?.toString();
       selectedClothingType = widget.postDetails['clothingType']?.toString();
 
-      // Validate dropdown values against available options
-      if (selectedSize != null &&
-          !sizes.any((size) => size['value'] == selectedSize)) {
-        print('Warning: Invalid size value: $selectedSize');
-        selectedSize = null;
-      }
-
-      if (selectedCategory != null &&
-          !categories.any((cat) => cat['value'] == selectedCategory)) {
-        print('Warning: Invalid category value: $selectedCategory');
-        selectedCategory = null;
-      }
-
-      if (selectedClothingType != null &&
-          !clothingTypes.any((type) => type['value'] == selectedClothingType)) {
-        print('Warning: Invalid clothingType value: $selectedClothingType');
-        selectedClothingType = null;
-      }
-
       // Initialize tags
       selectedTags = [];
       if (widget.postDetails['tags'] != null) {
         if (widget.postDetails['tags'] is List) {
-          selectedTags = widget.postDetails['tags']
-              .whereType<String>()
-              .where((tag) => tags.contains(tag))
-              .toList();
+          selectedTags = List<String>.from(widget.postDetails['tags']);
         }
       }
 
-      // Initialize photos
-      photos = [];
-      if (widget.postDetails['photos'] != null) {
-        if (widget.postDetails['photos'] is List) {
-          photos = List<String>.from(widget.postDetails['photos']);
-        }
+      // Initialize existing images
+      if (widget.postDetails['images'] != null) {
+        existingImages =
+            List<Map<String, dynamic>>.from(widget.postDetails['images']);
       }
     });
-
-    print('Form initialized with:');
-    print('Size: $selectedSize');
-    print('Category: $selectedCategory');
-    print('ClothingType: $selectedClothingType');
-    print('Tags: $selectedTags');
-    print('Photos: ${photos.length} photos');
   }
 
   Future<void> _loadUserId() async {
@@ -148,14 +121,79 @@ class _EditPostPageState extends State<EditPostPage> {
     }
   }
 
-  Future<void> _updatePost() async {
-    if (!_validateInputs()) return;
-
-    if (baseUrl == null) {
-      _showErrorDialog('Configuration error. Please try again later.');
+  Future<void> _pickImages() async {
+    if (existingImages.length + newImages.length >= 5) {
+      _showErrorDialog('Maximum 5 photos allowed');
       return;
     }
 
+    try {
+      setState(() => _isProcessingImage = true);
+
+      final input = html.FileUploadInputElement()
+        ..accept = 'image/*'
+        ..multiple = true;
+      input.click();
+
+      await input.onChange.first;
+      if (input.files == null || input.files!.isEmpty) return;
+
+      for (var file in input.files!) {
+        if (existingImages.length + newImages.length >= 5) break;
+
+        if (!file.type!.startsWith('image/')) {
+          _showErrorDialog('Only image files are allowed');
+          continue;
+        }
+
+        final reader = html.FileReader();
+        reader.readAsDataUrl(file);
+        await reader.onLoad.first;
+
+        String base64String = reader.result as String;
+        String contentType = file.type ?? 'image/jpeg';
+
+        final regExp = RegExp(r'data:image/[^;]+;base64,');
+        base64String = base64String.replaceFirst(regExp, '');
+        base64String = base64String.trim().replaceAll(RegExp(r'\s+'), '');
+        base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+        while (base64String.length % 4 != 0) {
+          base64String += '=';
+        }
+
+        setState(() {
+          newImages.add({
+            'data': base64String,
+            'content_type': contentType,
+            'action': 'add'
+          });
+        });
+      }
+    } catch (e) {
+      print('Error picking images: $e');
+      _showErrorDialog('Failed to load images: ${e.toString()}');
+    } finally {
+      setState(() => _isProcessingImage = false);
+    }
+  }
+
+  void _removeExistingImage(int index) {
+    setState(() {
+      Map<String, dynamic> image = existingImages[index];
+      image['action'] = 'delete';
+      existingImages.removeAt(index);
+    });
+  }
+
+  void _removeNewImage(int index) {
+    setState(() {
+      newImages.removeAt(index);
+    });
+  }
+
+  Future<void> _updatePost() async {
+    if (!_validateInputs()) return;
     setState(() => _isLoading = true);
 
     try {
@@ -167,7 +205,17 @@ class _EditPostPageState extends State<EditPostPage> {
         return;
       }
 
-      // Prepare the request body
+      // Prepare all images (existing and new) with their actions
+      List<Map<String, dynamic>> allImages = [
+        ...existingImages.where((img) => img['action'] == 'delete').toList(),
+        ...newImages
+            .map((img) => {
+                  ...img,
+                  'action': 'add',
+                })
+            .toList(),
+      ];
+
       final requestBody = {
         'price': double.parse(priceController.text),
         'description': descriptionController.text.trim(),
@@ -175,16 +223,11 @@ class _EditPostPageState extends State<EditPostPage> {
         'category': selectedCategory,
         'clothingType': selectedClothingType,
         'tags': selectedTags,
-        'photos': photos,
+        'images': allImages,
       };
 
-      print('Updating post with data:');
-      print(json.encode(requestBody));
-
-      final url = Uri.parse('$baseUrl/posts/update/$userId/${widget.postId}');
-
       final response = await http.put(
-        url,
+        Uri.parse('$baseUrl/posts/update/$userId/${widget.postId}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
@@ -192,30 +235,10 @@ class _EditPostPageState extends State<EditPostPage> {
         body: json.encode(requestBody),
       );
 
-      print('Update response status: ${response.statusCode}');
-      print('Update response body: ${response.body}');
-
       if (response.statusCode == 200) {
         if (!context.mounted) return;
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text("Success"),
-              content: Text("Post updated successfully!"),
-              actions: [
-                TextButton(
-                  child: Text("OK"),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            );
-          },
-        );
+        Navigator.of(context)
+            .pop(true); // Return true to indicate successful update
       } else {
         throw Exception('Failed to update post: ${response.statusCode}');
       }
@@ -254,6 +277,10 @@ class _EditPostPageState extends State<EditPostPage> {
       _showErrorDialog('Please select a clothing type');
       return false;
     }
+    if (existingImages.isEmpty && newImages.isEmpty) {
+      _showErrorDialog('Please add at least one photo');
+      return false;
+    }
     return true;
   }
 
@@ -272,6 +299,65 @@ class _EditPostPageState extends State<EditPostPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildImagePreview(
+      Map<String, dynamic> image, int index, bool isExisting) {
+    return Stack(
+      children: [
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: isExisting
+                ? Image.memory(
+                    base64Decode(image['data'].split(',').last),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Error displaying image: $error');
+                      return Icon(Icons.image_not_supported,
+                          color: Colors.grey[400]);
+                    },
+                  )
+                : Image.memory(
+                    base64Decode(image['data']),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Error displaying image: $error');
+                      return Icon(Icons.image_not_supported,
+                          color: Colors.grey[400]);
+                    },
+                  ),
+          ),
+        ),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: GestureDetector(
+            onTap: () {
+              if (isExisting) {
+                _removeExistingImage(index);
+              } else {
+                _removeNewImage(index);
+              }
+            },
+            child: Container(
+              padding: EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.close, size: 16, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -298,6 +384,70 @@ class _EditPostPageState extends State<EditPostPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Image management section
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          "Photos (${existingImages.length + newImages.length}/5)",
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 16),
+                        if (_isProcessingImage)
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        if (existingImages.isNotEmpty || newImages.isNotEmpty)
+                          Container(
+                            height: 120,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: [
+                                ...existingImages.asMap().entries.map((entry) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 8.0),
+                                    child: _buildImagePreview(
+                                        entry.value, entry.key, true),
+                                  );
+                                }),
+                                ...newImages.asMap().entries.map((entry) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 8.0),
+                                    child: _buildImagePreview(
+                                        entry.value, entry.key, false),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        SizedBox(height: 16),
+                        if (existingImages.length + newImages.length < 5)
+                          Container(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _pickImages,
+                              icon: Icon(Icons.photo_library,
+                                  color: Colors.white),
+                              label: Text("Add Photos",
+                                  style: TextStyle(color: Colors.white)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepOrange,
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 12),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
                   TextField(
                     controller: descriptionController,
                     decoration: InputDecoration(
