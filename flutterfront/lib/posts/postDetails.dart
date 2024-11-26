@@ -128,21 +128,33 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
 
       print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
-        final Map<String, dynamic> postData = jsonResponse['post'];
 
-        // Clear and populate processed images
+        if (!jsonResponse.containsKey('post')) {
+          throw Exception('Response missing post data');
+        }
+
+        final Map<String, dynamic> postData =
+            Map<String, dynamic>.from(jsonResponse['post']);
+
+        // Process images
         processedImages = [];
-
-        // Check if there's an 'images' array in the response
-        if (postData.containsKey('images') && postData['images'] is List) {
-          List<dynamic> images = postData['images'];
-          for (var image in images) {
-            if (image is Map<String, dynamic>) {
-              processedImages.add(image);
-              print('Added image with content type: ${image['content_type']}');
+        if (postData['images'] != null && postData['images'] is List) {
+          for (var image in postData['images']) {
+            if (image is Map<String, dynamic> &&
+                image.containsKey('data') &&
+                image.containsKey('content_type')) {
+              // Store processed image data
+              processedImages.add({
+                'id': image['id'],
+                'content_type': image['content_type'],
+                'data': image['data'] // Keep the full data URI
+              });
+              print(
+                  'Processed image ${image['id']} with content type ${image['content_type']}');
             }
           }
         }
@@ -524,28 +536,26 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  Widget _buildPostImage(Map<String, dynamic> image) {
+  Widget _buildPostImage(Map<String, dynamic> imageData) {
     try {
-      String imageData = image['data'];
-      if (imageData == null || imageData.isEmpty) {
-        print('No image data available');
+      if (imageData['data'] == null) {
+        print('Image data is null');
         return _buildPlaceholder();
       }
 
-      // Remove data URI prefix if present
-      if (imageData.contains(',')) {
-        imageData = imageData.split(',')[1];
+      // Split data URI and get base64 content
+      String base64String = imageData['data'];
+      if (base64String.contains(',')) {
+        base64String = base64String.split(',')[1];
       }
 
-      // Clean the base64 string
-      imageData = imageData.trim().replaceAll(RegExp(r'\s+'), '');
-
-      // Add padding if needed
-      while (imageData.length % 4 != 0) {
-        imageData += '=';
+      // Remove any whitespace and add padding if needed
+      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+      while (base64String.length % 4 != 0) {
+        base64String += '=';
       }
 
-      final Uint8List bytes = base64.decode(imageData);
+      final bytes = base64.decode(base64String);
 
       return Container(
         width: MediaQuery.of(context).size.width,
@@ -555,14 +565,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
             print('Error displaying image: $error');
-            print(stackTrace);
             return _buildPlaceholder();
           },
         ),
       );
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('Error processing image: $e');
-      print(stackTrace);
       return _buildPlaceholder();
     }
   }
@@ -571,6 +579,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     if (!_mounted) return _buildPlaceholder();
 
     print('Building photo section with ${processedImages.length} images');
+
     if (processedImages.isEmpty) {
       print('No processed images available');
       return _buildPlaceholder();
@@ -589,10 +598,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
             },
             itemCount: processedImages.length,
             itemBuilder: (context, index) {
-              final image = processedImages[index];
-              print(
-                  'Building image at index $index with content type: ${image['content_type']}');
-              return _buildPostImage(image);
+              print('Building image at index $index');
+              return _buildPostImage(processedImages[index]);
             },
           ),
         ),
