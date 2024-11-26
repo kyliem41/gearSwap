@@ -794,15 +794,126 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     final theme = Theme.of(context);
 
     if (isLoading) {
-      return _buildScaffold(
-        context,
+      return Scaffold(
+        appBar: PreferredSize(
+          preferredSize: Size.fromHeight(60.0),
+          child: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: Colors.deepOrange,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                // Logo and title
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.swap_calls_rounded, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'GearSwap',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+                // Right side icons
+                Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.shopping_bag_outlined,
+                          color: Color.fromARGB(248, 255, 255, 255),
+                          size: 30,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CartPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    _buildPostMenu(),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
         body: const Center(child: CircularProgressIndicator()),
+        bottomNavigationBar: BottomNavBar(),
       );
     }
 
     if (hasError || post == null) {
-      return _buildScaffold(
-        context,
+      return Scaffold(
+        appBar: PreferredSize(
+          preferredSize: Size.fromHeight(60.0),
+          child: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: Colors.deepOrange,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                // Logo and title
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.swap_calls_rounded, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'GearSwap',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+                // Right side icons
+                Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.shopping_bag_outlined,
+                          color: Color.fromARGB(248, 255, 255, 255),
+                          size: 30,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CartPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    _buildPostMenu(),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -815,7 +926,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.colorScheme.error,
-                  foregroundColor: Colors.white,
+                  textStyle:
+                      theme.textTheme.bodyLarge?.copyWith(color: Colors.white),
                 ),
                 onPressed: _loadPostDetails,
                 child: const Text('Retry'),
@@ -823,31 +935,136 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
             ],
           ),
         ),
+        bottomNavigationBar: BottomNavBar(),
       );
     }
 
-    // Safely access post data with null checks
-    final postData = post!;
-    final firstName = postData['firstname'] as String? ?? '';
-    final username = postData['username'] as String? ?? 'unknown';
-    final price = postData['price']?.toString() ?? '0.00';
-    final description =
-        postData['description'] as String? ?? 'No description provided';
-    final size = postData['size'] as String?;
-    final category = postData['category'] as String?;
-    final clothingType = postData['clothingType'] as String?;
-    final isSold = postData['isSold'] as bool? ?? false;
-    final likeCount = postData['likecount'] as int? ?? 0;
+    String firstLetter = (post!['firstname'] as String?)?.isNotEmpty == true
+        ? post!['firstname'][0].toUpperCase()
+        : '?';
 
-    return _buildScaffold(
-      context,
+    return Scaffold(
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(60.0),
+        child: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: Colors.deepOrange,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 30,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              // Logo and title
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.swap_calls_rounded, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    'GearSwap',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+              // Right side icons
+              Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16.0),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.shopping_bag_outlined,
+                        color: Color.fromARGB(248, 255, 255, 255),
+                        size: 30,
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CartPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  _buildPostMenu(),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: () => _handleProfileNavigation(postData),
+              onTap: () async {
+                if (baseUrl == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            'Configuration error. Please try again later.')),
+                  );
+                  return;
+                }
+
+                try {
+                  final prefs = await SharedPreferences.getInstance();
+                  final userStr = prefs.getString('user');
+                  final idToken = prefs.getString('idToken');
+
+                  if (userStr != null && idToken != null) {
+                    final userData = jsonDecode(userStr);
+                    final currentUserId = userData['id'].toString();
+                    final postUserId = post!['userid'].toString();
+
+                    if (currentUserId == postUserId) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ProfilePage()),
+                      );
+                    } else {
+                      final url = Uri.parse('$baseUrl/users/$postUserId');
+
+                      final response = await http.get(
+                        url,
+                        headers: {
+                          'Authorization': 'Bearer $idToken',
+                        },
+                      );
+
+                      if (response.statusCode == 200) {
+                        final data = jsonDecode(response.body);
+                        final sellerUserData = data['user'];
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SellerProfilePage(
+                              sellerId: postUserId,
+                            ),
+                          ),
+                        );
+                      } else {
+                        throw Exception('Failed to fetch seller data');
+                      }
+                    }
+                  }
+                } catch (e) {
+                  print('Error navigating to profile: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to load profile')),
+                  );
+                }
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(
@@ -855,15 +1072,15 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                     CircleAvatar(
                       radius: 15,
                       child: Text(
-                        firstName.isNotEmpty ? firstName[0].toUpperCase() : '?',
-                        style: const TextStyle(color: Colors.white),
+                        firstLetter,
+                        style: TextStyle(color: Colors.white),
                       ),
                       backgroundColor: Colors.deepOrange,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
-                      '@$username',
-                      style: const TextStyle(
+                      '@${post!['username'] ?? 'unknown'}',
+                      style: TextStyle(
                         color: Colors.deepOrange,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -881,34 +1098,33 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '\$$price',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
+                    '\$${post!['price'] ?? '0.00'}',
+                    style: theme.textTheme.headlineMedium
+                        ?.copyWith(color: theme.colorScheme.primary),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    description,
+                    post!['description'] ?? 'No description provided',
                     style: theme.textTheme.bodyMedium,
                   ),
-                  if (size != null) ...[
-                    const SizedBox(height: 16),
+                  const SizedBox(height: 16),
+                  if (post!['size'] != null) ...[
                     Text(
-                      'Size: $size',
+                      'Size: ${post!['size']}',
                       style: theme.textTheme.bodyMedium,
                     ),
                   ],
-                  if (category != null) ...[
-                    const SizedBox(height: 8),
+                  const SizedBox(height: 8),
+                  if (post!['category'] != null) ...[
                     Text(
-                      'Category: $category',
+                      'Category: ${post!['category']}',
                       style: theme.textTheme.bodyMedium,
                     ),
                   ],
-                  if (clothingType != null) ...[
-                    const SizedBox(height: 8),
+                  const SizedBox(height: 8),
+                  if (post!['clothingType'] != null) ...[
                     Text(
-                      'Type: $clothingType',
+                      'Type: ${post!['clothingType']}',
                       style: theme.textTheme.bodyMedium,
                     ),
                   ],
@@ -918,15 +1134,14 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Add to Cart button
                 ElevatedButton.icon(
-                  onPressed: isSold ? null : _addToCart,
+                  onPressed: post?['isSold'] == true ? null : _addToCart,
                   icon: Icon(Icons.shopping_cart,
                       color: theme.colorScheme.onPrimary),
                   label: Text(
-                    isSold ? 'Sold' : 'Add to Cart',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onPrimary,
-                    ),
+                    post?['isSold'] == true ? 'Sold' : 'Add to Cart',
+                    style: theme.textTheme.labelLarge,
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
@@ -934,6 +1149,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                         horizontal: 16, vertical: 12),
                   ),
                 ),
+                // Like count display
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -945,24 +1161,20 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.favorite, color: Colors.red, size: 20),
+                      Icon(Icons.favorite, color: Colors.red, size: 20),
                       const SizedBox(width: 4),
                       Text(
-                        '$likeCount',
+                        '${post!['likecount'] ?? 0}',
                         style: theme.textTheme.bodyMedium,
                       ),
                     ],
                   ),
                 ),
+                // Message button
                 ElevatedButton.icon(
                   onPressed: _messageUser,
                   icon: Icon(Icons.message, color: theme.colorScheme.onPrimary),
-                  label: Text(
-                    'Message',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onPrimary,
-                    ),
-                  ),
+                  label: Text('Message', style: theme.textTheme.labelLarge),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
                     padding: const EdgeInsets.symmetric(
@@ -971,7 +1183,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                 ),
               ],
             ),
-            if (isSold)
+            if (post?['isSold'] == true)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -989,126 +1201,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           ],
         ),
       ),
-    );
-  }
-
-// Helper method to build the scaffold
-  Widget _buildScaffold(BuildContext context, {required Widget body}) {
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60.0),
-        child: AppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: Colors.deepOrange,
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 30,
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.swap_calls_rounded, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text(
-                    'GearSwap',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16.0),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.shopping_bag_outlined,
-                        color: Colors.white,
-                        size: 30,
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => CartPage()),
-                        );
-                      },
-                    ),
-                  ),
-                  if (_isCurrentUserPost) _buildPostMenu(),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: body,
       bottomNavigationBar: BottomNavBar(),
     );
-  }
-
-// Helper method to handle profile navigation
-  Future<void> _handleProfileNavigation(Map<String, dynamic> postData) async {
-    if (baseUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Configuration error. Please try again later.'),
-        ),
-      );
-      return;
-    }
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userStr = prefs.getString('user');
-      final idToken = prefs.getString('idToken');
-
-      if (userStr != null && idToken != null) {
-        final userData = jsonDecode(userStr);
-        final currentUserId = userData['id'].toString();
-        final postUserId = postData['userid'].toString();
-
-        if (currentUserId == postUserId) {
-          if (!context.mounted) return;
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ProfilePage()),
-          );
-        } else {
-          final url = Uri.parse('$baseUrl/users/$postUserId');
-          final response = await http.get(
-            url,
-            headers: {
-              'Authorization': 'Bearer $idToken',
-            },
-          );
-
-          if (response.statusCode == 200) {
-            if (!context.mounted) return;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SellerProfilePage(
-                  sellerId: postUserId,
-                ),
-              ),
-            );
-          } else {
-            throw Exception('Failed to fetch seller data');
-          }
-        }
-      }
-    } catch (e) {
-      print('Error navigating to profile: $e');
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load profile')),
-      );
-    }
   }
 }

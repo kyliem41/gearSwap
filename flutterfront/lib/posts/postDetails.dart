@@ -635,7 +635,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
     }
 
-    // Safely get the first letter of firstname or use a default
     String firstLetter = (post!['firstname'] as String?)?.isNotEmpty == true
         ? post!['firstname'][0].toUpperCase()
         : '?';
