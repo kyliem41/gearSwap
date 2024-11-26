@@ -117,6 +117,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
       }
 
       final url = Uri.parse('$baseUrl/posts/${widget.postId}');
+      print('Loading post details from: $url');
+
       final response = await http.get(
         url,
         headers: {
@@ -125,30 +127,31 @@ class _PostDetailPageState extends State<PostDetailPage> {
         },
       );
 
+      print('Response status code: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
         final Map<String, dynamic> postData = jsonResponse['post'];
 
-        // Process images
+        // Process images from the 'images' array in the response
         processedImages = [];
         if (postData.containsKey('images') && postData['images'] is List) {
           final List<dynamic> images = postData['images'];
-          for (var image in images) {
-            if (image is Map<String, dynamic>) {
-              // Ensure we have all required fields
-              if (image.containsKey('id') &&
-                  image.containsKey('content_type') &&
-                  image.containsKey('data')) {
-                processedImages.add({
-                  'id': image['id'],
-                  'content_type': image['content_type'],
-                  'data': image['data'].toString()
-                });
-                print(
-                    'Processed image ${image['id']} with type ${image['content_type']}');
-              }
+          for (var img in images) {
+            if (img is Map<String, dynamic> &&
+                img.containsKey('content_type') &&
+                img.containsKey('data')) {
+              processedImages.add({
+                'id': img['id'],
+                'content_type': img['content_type'],
+                'data': img['data']
+              });
+              print('Added image with content type: ${img['content_type']}');
             }
           }
+          print('Processed ${processedImages.length} images');
+        } else {
+          print('No images array found in post data');
         }
 
         if (_mounted) {
@@ -161,7 +164,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         throw Exception('Failed to load post details: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in _loadPostDetails: $e');
+      print('Error loading post details: $e');
       if (_mounted) {
         setState(() {
           hasError = true;
@@ -524,14 +527,34 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  Widget _buildPostImage(Map<String, dynamic> image) {
+  Widget _buildPostImage(Map<String, dynamic> imageData) {
     try {
-      if (!image.containsKey('data') || image['data'] == null) {
-        print('Image data is missing');
+      if (imageData['data'] == null) {
+        print('Image data is null');
         return _buildPlaceholder();
       }
 
-      final Uint8List bytes = _processBase64Image(image['data']);
+      String base64String = imageData['data'];
+
+      // Remove data URI prefix if present
+      if (base64String.contains(';base64,')) {
+        base64String = base64String.split(';base64,')[1];
+      } else if (base64String.contains(',')) {
+        base64String = base64String.split(',')[1];
+      }
+
+      // Clean the base64 string
+      base64String = base64String.trim();
+      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+
+      // Add padding if needed
+      while (base64String.length % 4 != 0) {
+        base64String += '=';
+      }
+
+      final bytes = base64.decode(base64String);
+      print('Successfully decoded image, byte length: ${bytes.length}');
 
       return Container(
         width: MediaQuery.of(context).size.width,
@@ -546,7 +569,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         ),
       );
     } catch (e) {
-      print('Error in _buildPostImage: $e');
+      print('Error processing image: $e');
       return _buildPlaceholder();
     }
   }
@@ -573,8 +596,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
             },
             itemCount: processedImages.length,
             itemBuilder: (context, index) {
-              print('Building image at index $index');
-              return _buildPostImage(processedImages[index]);
+              final image = processedImages[index];
+              print(
+                  'Building image at index $index with content type: ${image['content_type']}');
+              return _buildPostImage(image);
             },
           ),
         ),
