@@ -173,7 +173,7 @@ class _ProfilePageState extends State<ProfilePage>
     if (baseUrl == null) return;
 
     try {
-      final url = Uri.parse('$baseUrl/posts');
+      final url = Uri.parse('$baseUrl/posts?include_sold=true');
       print('Fetching posts for user ID: ${userData!.id}');
 
       final response = await http.get(
@@ -189,20 +189,11 @@ class _ProfilePageState extends State<ProfilePage>
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
         var allPosts = data['posts'] as List;
+        // Remove the filter that was excluding sold posts
         var userPosts =
             allPosts.where((post) => post['userid'] == userData!.id).toList();
 
         print('Found ${userPosts.length} posts for user ${userData!.id}');
-
-        // Debug first post's image data
-        if (userPosts.isNotEmpty) {
-          var firstPost = userPosts[0];
-          print('First post data structure: ${json.encode(firstPost)}');
-          if (firstPost['images'] != null && firstPost['images'].isNotEmpty) {
-            print(
-                'First post first image type: ${firstPost['images'][0].runtimeType}');
-          }
-        }
 
         setState(() {
           userData!.posts = userPosts;

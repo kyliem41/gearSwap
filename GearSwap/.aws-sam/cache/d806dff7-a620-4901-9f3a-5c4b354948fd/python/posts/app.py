@@ -323,16 +323,21 @@ def getPosts(event, context):
         query_params = event.get('queryStringParameters') or {}
         page = int(query_params.get('page', 1))
         page_size = int(query_params.get('page_size', 10))
+        include_sold = query_params.get('include_sold', 'false').lower() == 'true'
         offset = (page - 1) * page_size
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Get total count
-                cursor.execute("SELECT COUNT(*) FROM posts")
+                
+                if not include_sold:
+                    cursor.execute("SELECT COUNT(*) FROM posts WHERE isSold = FALSE")
+                else:
+                    cursor.execute("SELECT COUNT(*) FROM posts")
                 total_posts = cursor.fetchone()['count']
+                
+                where_clause = "" if include_sold else "WHERE p.isSold = FALSE"
 
-                # Get posts with basic info, excluding sold items
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT 
                         p.*,
                         u.username,
@@ -359,7 +364,7 @@ def getPosts(event, context):
                         ORDER BY id
                         LIMIT 1
                     ) pi ON true
-                    WHERE p.isSold = FALSE
+                    {where_clause}
                     ORDER BY p.datePosted DESC
                     LIMIT %s OFFSET %s
                 """, (page_size, offset))
