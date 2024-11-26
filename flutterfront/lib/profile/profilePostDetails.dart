@@ -36,6 +36,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   PageController _pageController = PageController();
   bool _mounted = true;
   List<Map<String, dynamic>> processedImages = [];
+  bool isSold = false;
 
   @override
   void initState() {
@@ -357,6 +358,9 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
       final url = Uri.parse('$baseUrl/posts/update/$userId/${widget.postId}');
 
+      // Toggle the sold status
+      final newSoldStatus = !(post?['isSold'] ?? false);
+
       final response = await http.put(
         url,
         headers: {
@@ -364,26 +368,32 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           'Authorization': 'Bearer $idToken',
         },
         body: json.encode({
-          'isSold': true,
+          'isSold': newSoldStatus,
         }),
       );
 
       if (response.statusCode == 200) {
         setState(() {
-          post!['isSold'] = true;
+          if (post != null) {
+            post!['isSold'] = newSoldStatus;
+          }
         });
-        if (!context.mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post marked as sold')),
+          SnackBar(
+            content: Text(newSoldStatus
+                ? 'Post marked as sold'
+                : 'Post marked as available'),
+          ),
         );
       } else {
         throw Exception('Failed to update post: ${response.statusCode}');
       }
     } catch (e) {
       print('Error marking post as sold: $e');
-      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to mark post as sold: ${e.toString()}')),
+        SnackBar(
+            content: Text('Failed to update post status: ${e.toString()}')),
       );
     }
   }
@@ -930,26 +940,47 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
             ),
           ),
         ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Failed to load post details',
-                style: theme.textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.error,
-                  textStyle:
-                      theme.textTheme.bodyLarge?.copyWith(color: Colors.white),
+        body: Stack(
+          children: [
+            if (post?['isSold'] == true)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: Colors.red,
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'SOLD',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
                 ),
-                onPressed: _loadPostDetails,
-                child: const Text('Retry'),
               ),
-            ],
-          ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Failed to load post details',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    textStyle: theme.textTheme.bodyLarge
+                        ?.copyWith(color: Colors.white),
+                  ),
+                  onPressed: _loadPostDetails,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ],
         ),
         bottomNavigationBar: BottomNavBar(),
       );

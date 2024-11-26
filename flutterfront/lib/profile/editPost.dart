@@ -63,6 +63,7 @@ class _EditPostPageState extends State<EditPostPage> {
   bool _isProcessingImage = false;
   String? userId;
   String? baseUrl;
+  bool isSold = false;
 
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
@@ -377,6 +378,25 @@ class _EditPostPageState extends State<EditPostPage> {
             Container(
               color: Colors.black.withOpacity(0.3),
               child: Center(child: CircularProgressIndicator()),
+            ),
+          if (widget.postDetails['isSold'] == true)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.red,
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'SOLD',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
             ),
           Padding(
             padding: const EdgeInsets.all(16.0),

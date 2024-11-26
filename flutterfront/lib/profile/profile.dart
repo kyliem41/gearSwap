@@ -668,26 +668,49 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildPostImage(Map<String, dynamic> post) {
     try {
-      // Check for first_image from the updated API response
       if (post['first_image'] != null &&
           post['first_image']['data'] != null &&
           post['first_image']['content_type'] != null) {
         String imageData = post['first_image']['data'];
         try {
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            child: ClipRRect(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(4.0)),
-              child: Image.memory(
-                _base64ToImage(imageData),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  print('Error loading image: $error');
-                  return _buildPlaceholder();
-                },
+          return Stack(
+            children: [
+              Container(
+                width: double.infinity,
+                height: double.infinity,
+                child: ClipRRect(
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(4.0)),
+                  child: Image.memory(
+                    _base64ToImage(imageData),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Error loading image: $error');
+                      return _buildPlaceholder();
+                    },
+                  ),
+                ),
               ),
-            ),
+              if (post['isSold'] == true)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  left: 0,
+                  child: Container(
+                    color: Colors.red,
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      'SOLD',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           );
         } catch (e) {
           print('Error processing image: $e');

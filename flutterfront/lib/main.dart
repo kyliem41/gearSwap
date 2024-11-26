@@ -122,6 +122,8 @@ class _MyHomePageState extends State<MyHomePage> {
         var data = jsonDecode(response.body);
         List<dynamic> postsData = data['posts'];
 
+        postsData = postsData.where((post) => post['isSold'] != true).toList();
+
         // Debug info for first post with image
         if (postsData.isNotEmpty) {
           var firstPost = postsData[0];
