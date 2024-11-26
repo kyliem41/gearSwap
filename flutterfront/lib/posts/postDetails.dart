@@ -465,16 +465,13 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Widget _buildImageFromData(String imageData) {
     try {
       final Uint8List bytes = _base64ToImage(imageData);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(4.0),
-        child: Image.memory(
-          bytes,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            print('Error rendering image: $error');
-            return _buildPlaceholder();
-          },
-        ),
+      return Image.memory(
+        bytes,
+        fit: BoxFit.contain, // Changed from cover to contain
+        errorBuilder: (context, error, stackTrace) {
+          print('Error rendering image: $error');
+          return _buildPlaceholder();
+        },
       );
     } catch (e) {
       print('Error processing image data: $e');
@@ -510,7 +507,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
 
     try {
-      return _buildImageFromData(imageData['data']);
+      return Container(
+        width: double.infinity,
+        child: _buildImageFromData(imageData['data']),
+      );
     } catch (e) {
       print('Error building post image: $e');
       return _buildPlaceholder();
@@ -525,8 +525,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
     return Column(
       children: [
-        SizedBox(
-          height: 300,
+        AspectRatio(
+          // Wrap PageView in AspectRatio
+          aspectRatio: 4 / 3, // Adjust this ratio as needed (e.g., 16/9, 1/1)
           child: PageView.builder(
             controller: _pageController,
             onPageChanged: (index) {
@@ -536,24 +537,30 @@ class _PostDetailPageState extends State<PostDetailPage> {
             },
             itemCount: processedImages.length,
             itemBuilder: (context, index) {
-              return _buildPostImage(processedImages[index]);
+              return Container(
+                width: double.infinity,
+                child: _buildPostImage(processedImages[index]),
+              );
             },
           ),
         ),
         if (processedImages.length > 1)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              processedImages.length,
-              (index) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                width: 8.0,
-                height: 8.0,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _currentImageIndex == index
-                      ? Colors.deepOrange
-                      : Colors.grey,
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                processedImages.length,
+                (index) => Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                  width: 8.0,
+                  height: 8.0,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _currentImageIndex == index
+                        ? Colors.deepOrange
+                        : Colors.grey,
+                  ),
                 ),
               ),
             ),
@@ -563,20 +570,23 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _buildPlaceholder() {
-    return Container(
-      height: 300,
-      color: Colors.grey[200],
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.image_not_supported, size: 50, color: Colors.grey[400]),
-            SizedBox(height: 8),
-            Text(
-              'Image not available',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: Container(
+        color: Colors.grey[200],
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.image_not_supported,
+                  size: 50, color: Colors.grey[400]),
+              SizedBox(height: 8),
+              Text(
+                'Image not available',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -780,15 +790,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   icon: Icon(Icons.message,
                       color: Theme.of(context).colorScheme.onPrimary),
                   label: Text('Message',
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(
-                              color: Theme.of(context).colorScheme.onPrimary)),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onPrimary)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                   ),
                 ),
               ],
