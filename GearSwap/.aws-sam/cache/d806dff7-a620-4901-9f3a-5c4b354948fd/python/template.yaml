@@ -679,6 +679,20 @@ Resources:
             RestApiId: !Ref gearSwap
             Path: /cart/{Id}
             Method: DELETE
+        Checkout:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}/checkout
+            Method: POST
+        CheckoutOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref gearSwap
+            Path: /cart/{Id}/checkout
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
 
   # Posts Functions
   PostsFunctions:

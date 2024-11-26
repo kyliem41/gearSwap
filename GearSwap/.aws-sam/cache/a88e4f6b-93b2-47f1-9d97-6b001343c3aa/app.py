@@ -423,19 +423,34 @@ def getPostById(event, context):
         if auth_header:
             token = auth_header.split(' ')[-1]
             payload = verify_token(token)
-            user_id = payload.get('sub')
+            user_email = payload.get('email')
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                
-                cursor.execute("""
-                    SELECT p.*, u.username,
-                        CASE WHEN lp.id IS NOT NULL THEN true ELSE false END as is_liked
-                    FROM posts p
-                    JOIN users u ON p.userId = u.id
-                    LEFT JOIN likedPost lp ON p.id = lp.postId AND lp.userId = %s
-                    WHERE p.id = %s
-                """, (user_id, post_id) if user_id else (None, post_id))
+                cursor.execute("SELECT id FROM users WHERE email = %s", (user_email,))
+                user_result = cursor.fetchone()
+                if user_result:
+                    user_id = user_result['id']
+                        
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                if user_id:
+                    cursor.execute("""
+                        SELECT p.*, u.username, u.firstname,
+                            CASE WHEN lp.id IS NOT NULL THEN true ELSE false END as is_liked
+                        FROM posts p
+                        JOIN users u ON p.userId = u.id
+                        LEFT JOIN likedPost lp ON p.id = lp.postId AND lp.userId = %s
+                        WHERE p.id = %s
+                    """, (user_id, post_id))
+                else:
+                    cursor.execute("""
+                        SELECT p.*, u.username, u.firstname,
+                            false as is_liked
+                        FROM posts p
+                        JOIN users u ON p.userId = u.id
+                        WHERE p.id = %s
+                    """, (post_id,))
                 
                 post = cursor.fetchone()
 

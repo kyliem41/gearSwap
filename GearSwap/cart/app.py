@@ -76,6 +76,9 @@ def lambda_handler(event, context):
             return update_cart_item(event, user_id)
         elif http_method == 'DELETE':
             return remove_from_cart(event, user_id)
+    elif resource_path == '/cart/{Id}/checkout':
+        if http_method == 'POST':
+            return checkout_cart(event, context)
 
     return cors_response(400, {'error': 'Unsupported route'})
     
@@ -321,3 +324,70 @@ def remove_from_cart(event, user_id):
     except Exception as e:
         print(f"Failed to remove item from cart. Error: {str(e)}")
         return cors_response(500, {"error": f"Error removing item from cart: {str(e)}"})
+    
+########################
+def checkout_cart(event, context):
+    try:
+        try:
+            body = parse_body(event)
+        except ValueError as e:
+            return cors_response(400, {'error': str(e)})
+        
+        user_id = event['pathParameters']['Id']
+        post_id = body['postId']
+
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                try:
+                    # Start transaction
+                    cursor.execute("BEGIN")
+
+                    # First check if post exists and is not already sold
+                    cursor.execute("""
+                        SELECT userId, isSold, price 
+                        FROM posts 
+                        WHERE id = %s
+                    """, (post_id,))
+                    post = cursor.fetchone()
+                    
+                    if not post:
+                        return cors_response(404, {
+                            "error": "Post not found"
+                        })
+
+                    # Check if post is already sold
+                    if post.get('issold'):
+                        return cors_response(400, {
+                            "error": "This item has already been sold"
+                        })
+
+                    # Mark post as sold
+                    cursor.execute("""
+                        UPDATE posts 
+                        SET isSold = TRUE 
+                        WHERE id = %s
+                        RETURNING id
+                    """, (post_id,))
+
+                    # Remove from cart
+                    cursor.execute("""
+                        DELETE FROM cart 
+                        WHERE userId = %s AND postId = %s 
+                        RETURNING id
+                    """, (user_id, post_id))
+
+                    conn.commit()
+
+                    return cors_response(200, {
+                        "message": "Checkout successful",
+                        "postId": post_id,
+                        "price": float(post['price'])
+                    })
+
+                except Exception as e:
+                    conn.rollback()
+                    raise e
+
+    except Exception as e:
+        print(f"Failed to checkout cart. Error: {str(e)}")
+        return cors_response(500, {"error": f"Error during checkout: {str(e)}"})

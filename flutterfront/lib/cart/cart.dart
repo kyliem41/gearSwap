@@ -301,6 +301,97 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
+  Future<void> _checkoutPost(List<Map<String, dynamic>> items) async {
+    try {
+      if (baseUrl == null || userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Configuration error. Please try again later.')),
+        );
+        return;
+      }
+
+      bool confirmed = await showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Confirm Purchase'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                      'Are you sure you want to purchase ${items.length} item(s) for \$${_calculateGroupTotal(items).toStringAsFixed(2)}?'),
+                  const SizedBox(height: 16),
+                  Text(
+                    'This action cannot be undone, and the items will be marked as sold.',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepOrange,
+                  ),
+                  child: const Text('Confirm Purchase'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+
+      if (!confirmed) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final idToken = prefs.getString('idToken');
+
+      if (idToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      // Process each item
+      for (var item in items) {
+        final url = Uri.parse('$baseUrl/cart/$userId/checkout');
+
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: json.encode({
+            'postId': item['id'],
+          }),
+        );
+
+        if (response.statusCode != 200) {
+          throw Exception(
+              'Failed to checkout item ${item['id']}: ${response.statusCode}');
+        }
+      }
+
+      if (!mounted) return;
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Purchase successful!')),
+      );
+
+      // Refresh cart
+      await _loadCartItems();
+    } catch (e) {
+      print('Error during checkout: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to complete purchase: ${e.toString()}')),
+      );
+    }
+  }
+
   Widget _buildImage(Map<String, dynamic> item) {
     try {
       print('Building image for item: ${item['id']}');
@@ -679,9 +770,8 @@ class _CartPageState extends State<CartPage> {
                                                   ),
                                                 ),
                                                 ElevatedButton(
-                                                  onPressed: () {
-                                                    // Implement checkout logic
-                                                  },
+                                                  onPressed: () =>
+                                                      _checkoutPost(items),
                                                   child: Text('Checkout'),
                                                   style:
                                                       ElevatedButton.styleFrom(
