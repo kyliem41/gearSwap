@@ -133,25 +133,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
         final Map<String, dynamic> postData = jsonResponse['post'];
 
-        // Process images from the 'images' array in the response
+        // Process images
         processedImages = [];
-        if (postData.containsKey('images') && postData['images'] is List) {
-          final List<dynamic> images = postData['images'];
+        if (postData['images'] != null && postData['images'] is List) {
+          List<dynamic> images = postData['images'];
           for (var img in images) {
             if (img is Map<String, dynamic> &&
-                img.containsKey('content_type') &&
-                img.containsKey('data')) {
-              processedImages.add({
-                'id': img['id'],
-                'content_type': img['content_type'],
-                'data': img['data']
-              });
+                img.containsKey('data') &&
+                img.containsKey('content_type')) {
+              processedImages.add(img);
               print('Added image with content type: ${img['content_type']}');
             }
           }
           print('Processed ${processedImages.length} images');
-        } else {
-          print('No images array found in post data');
         }
 
         if (_mounted) {
@@ -501,75 +495,75 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Uint8List _processBase64Image(String base64String) {
+  Widget _buildImageFromData(String imageData) {
     try {
-      // Handle the data URI prefix
+      final Uint8List bytes = _base64ToImage(imageData);
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        child: ClipRRect(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(4.0)),
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              print('Error loading image: $error');
+              return _buildPlaceholder();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error processing image data: $e');
+      return _buildPlaceholder();
+    }
+  }
+
+  Uint8List _base64ToImage(String base64String) {
+    try {
+      // Handle both formats: with and without data URI scheme
+      String pureBase64;
       if (base64String.contains(';base64,')) {
-        base64String = base64String.split(';base64,')[1];
+        pureBase64 = base64String.split(';base64,')[1].trim();
       } else if (base64String.contains(',')) {
-        base64String = base64String.split(',')[1];
+        pureBase64 = base64String.split(',')[1].trim();
+      } else {
+        pureBase64 = base64String.trim();
       }
 
-      // Clean the string
-      base64String = base64String.trim();
-      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+      // Remove any whitespace
+      pureBase64 = pureBase64.replaceAll(RegExp(r'\s+'), '');
 
       // Add padding if needed
-      while (base64String.length % 4 != 0) {
-        base64String += '=';
+      while (pureBase64.length % 4 != 0) {
+        pureBase64 += '=';
       }
 
-      return base64.decode(base64String);
+      final bytes = base64Decode(pureBase64);
+      if (bytes.isEmpty) {
+        throw Exception('Decoded base64 is empty');
+      }
+
+      print('Successfully decoded image, byte length: ${bytes.length}');
+      return bytes;
     } catch (e) {
-      print('Error processing base64 string: $e');
+      print('Error decoding base64: $e');
+      print(
+          'Base64 string preview: ${base64String.substring(0, min<int>(100, base64String.length))}');
       rethrow;
     }
   }
 
   Widget _buildPostImage(Map<String, dynamic> imageData) {
+    if (imageData['data'] == null) {
+      print('Image data is null');
+      return _buildPlaceholder();
+    }
+
     try {
-      if (imageData['data'] == null) {
-        print('Image data is null');
-        return _buildPlaceholder();
-      }
-
-      String base64String = imageData['data'];
-
-      // Remove data URI prefix if present
-      if (base64String.contains(';base64,')) {
-        base64String = base64String.split(';base64,')[1];
-      } else if (base64String.contains(',')) {
-        base64String = base64String.split(',')[1];
-      }
-
-      // Clean the base64 string
-      base64String = base64String.trim();
-      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-
-      // Add padding if needed
-      while (base64String.length % 4 != 0) {
-        base64String += '=';
-      }
-
-      final bytes = base64.decode(base64String);
-      print('Successfully decoded image, byte length: ${bytes.length}');
-
-      return Container(
-        width: MediaQuery.of(context).size.width,
-        height: 300,
-        child: Image.memory(
-          bytes,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            print('Error displaying image: $error');
-            return _buildPlaceholder();
-          },
-        ),
-      );
+      return _buildImageFromData(imageData['data']);
     } catch (e) {
-      print('Error processing image: $e');
+      print('Error building post image: $e');
       return _buildPlaceholder();
     }
   }
@@ -599,7 +593,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
               final image = processedImages[index];
               print(
                   'Building image at index $index with content type: ${image['content_type']}');
-              return _buildPostImage(image);
+              return Container(
+                width: MediaQuery.of(context).size.width,
+                height: 300,
+                child: _buildImageFromData(image['data']),
+              );
             },
           ),
         ),
@@ -825,15 +823,17 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         children: [
                           _buildCartButton(),
                           IconButton(
-                            icon: Icon(
-                              isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: isLiked ? Colors.red : Colors.grey,
-                              size: 28,
-                            ),
-                            onPressed: () => _toggleLike() //.then((_) {
-                            //   _checkIfLiked();
-                            // }), //change?
-                          ),
+                              icon: Icon(
+                                isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: isLiked ? Colors.red : Colors.grey,
+                                size: 28,
+                              ),
+                              onPressed: () => _toggleLike() //.then((_) {
+                              //   _checkIfLiked();
+                              // }), //change?
+                              ),
                           ElevatedButton.icon(
                             onPressed: _messageUser,
                             icon: Icon(Icons.message,
