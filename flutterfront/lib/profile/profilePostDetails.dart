@@ -373,6 +373,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       );
 
       if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
         setState(() {
           if (post != null) {
             post!['isSold'] = newSoldStatus;
@@ -386,6 +387,10 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                 : 'Post marked as available'),
           ),
         );
+
+        // Refresh the posts in the profile page
+        if (!mounted) return;
+        Navigator.pop(context, true); // Return true to trigger refresh
       } else {
         throw Exception('Failed to update post: ${response.statusCode}');
       }

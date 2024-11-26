@@ -331,7 +331,7 @@ def getPosts(event, context):
                 cursor.execute("SELECT COUNT(*) FROM posts")
                 total_posts = cursor.fetchone()['count']
 
-                # Get posts with basic info
+                # Get posts with basic info, excluding sold items
                 cursor.execute("""
                     SELECT 
                         p.*,
@@ -359,6 +359,7 @@ def getPosts(event, context):
                         ORDER BY id
                         LIMIT 1
                     ) pi ON true
+                    WHERE p.isSold = FALSE
                     ORDER BY p.datePosted DESC
                     LIMIT %s OFFSET %s
                 """, (page_size, offset))
@@ -570,6 +571,8 @@ def putPost(event, context):
                             value = Decimal(str(value))
                         elif field == 'tags':
                             value = json.dumps(value)
+                        elif field == 'isSold':
+                            value = bool(value)
                         update_values.append(value)
 
                 if update_sql:
