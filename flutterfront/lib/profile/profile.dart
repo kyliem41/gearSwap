@@ -127,7 +127,6 @@ class _ProfilePageState extends State<ProfilePage>
         });
 
         await _fetchUserProfile();
-        await _fetchUserPosts();
       }
     } catch (e) {
       print('Error loading user data: $e');
@@ -152,11 +151,18 @@ class _ProfilePageState extends State<ProfilePage>
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final profile = data['userProfile'];
+
         setState(() {
           userData!.bio = profile['bio'];
           userData!.location = profile['location'];
           userData!.profilePicture = profile['profilepicture'];
+          userData!.posts = profile['posts'] ?? [];
         });
+
+        print('Fetched profile with ${userData!.posts.length} posts');
+      } else {
+        print('Error response: ${response.body}');
+        throw Exception('Failed to load profile: ${response.statusCode}');
       }
     } catch (e) {
       print('Error fetching user profile: $e');
@@ -400,15 +406,21 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildProfileImage() {
     if (userData?.profilePicture != null) {
-      return Image.network(
-        userData!.profilePicture!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildDefaultAvatar();
-        },
-      );
+      try {
+        return Image.memory(
+          _base64ToImage(userData!.profilePicture!),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error loading profile image: $error');
+            return _buildDefaultAvatar();
+          },
+        );
+      } catch (e) {
+        print('Error processing profile image: $e');
+        return _buildDefaultAvatar();
+      }
     }
     return _buildDefaultAvatar();
   }
@@ -649,41 +661,38 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildPostImage(Map<String, dynamic> post) {
-    // First try to get images array
-    if (post['images'] != null &&
-        post['images'] is List &&
-        post['images'].isNotEmpty) {
-      final firstImage = post['images'][0];
-      if (firstImage != null) {
+    try {
+      // Check for first_image from the updated API response
+      if (post['first_image'] != null &&
+          post['first_image']['data'] != null &&
+          post['first_image']['content_type'] != null) {
+        String imageData = post['first_image']['data'];
         try {
-          // Handle both map and string formats
-          String imageData;
-          if (firstImage is Map && firstImage['data'] != null) {
-            imageData = firstImage['data'];
-          } else if (firstImage is String) {
-            imageData = firstImage;
-          } else {
-            throw Exception('Invalid image data format');
-          }
-          return _buildImageFromData(imageData);
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(4.0)),
+              child: Image.memory(
+                _base64ToImage(imageData),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error loading image: $error');
+                  return _buildPlaceholder();
+                },
+              ),
+            ),
+          );
         } catch (e) {
-          print('Error building image from images array: $e');
+          print('Error processing image: $e');
           return _buildPlaceholder();
         }
       }
+      return _buildPlaceholder();
+    } catch (e) {
+      print('Error in _buildPostImage: $e');
+      return _buildPlaceholder();
     }
-
-    // Fallback to first_image if present
-    if (post['first_image'] != null && post['first_image']['data'] != null) {
-      try {
-        return _buildImageFromData(post['first_image']['data']);
-      } catch (e) {
-        print('Error building image from first_image: $e');
-        return _buildPlaceholder();
-      }
-    }
-
-    return _buildPlaceholder();
   }
 
   Widget _buildPlaceholder() {

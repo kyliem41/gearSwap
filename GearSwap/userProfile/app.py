@@ -208,41 +208,98 @@ def createProfile(event, context):
 def getUserProfile(event, context):
     user_id = event['pathParameters']['Id']
 
-    get_query = """
-    SELECT profilePicture, 
-        content_type,
-        bio, 
-        location
-    FROM userProfile
-    WHERE userId = %s
-    """
-    
+    # Get both profile and posts in a single database connection
     try:
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(get_query, (user_id,))
+                # First get the user profile
+                profile_query = """
+                SELECT up.profilePicture, 
+                    up.content_type,
+                    up.bio, 
+                    up.location
+                FROM userProfile up
+                WHERE up.userId = %s
+                """
+                cursor.execute(profile_query, (user_id,))
                 userProfile = cursor.fetchone()
 
-        if userProfile:
-            if userProfile['profilepicture'] is not None and userProfile['content_type'] is not None:
-                try:
-                    base64_str = base64.b64encode(userProfile['profilepicture']).decode('utf-8')
-                    userProfile['profilepicture'] = f"data:{userProfile['content_type']};base64,{base64_str}"
-                except Exception as e:
-                    print(f"Error encoding profile picture: {e}")
-                    userProfile['profilepicture'] = None
+                if not userProfile:
+                    return cors_response(404, "UserProfile not found")
 
-            return cors_response(200, {
-                "message": "UserProfile retrieved successfully",
-                "userProfile": userProfile
-            })
-        else:
-            return cors_response(404, "UserProfile not found")
-            
+                # Handle profile picture if it exists
+                if userProfile['profilepicture'] is not None and userProfile['content_type'] is not None:
+                    try:
+                        base64_str = base64.b64encode(userProfile['profilepicture']).decode('utf-8')
+                        userProfile['profilepicture'] = f"data:{userProfile['content_type']};base64,{base64_str}"
+                    except Exception as e:
+                        print(f"Error encoding profile picture: {e}")
+                        userProfile['profilepicture'] = None
+
+                # Then get the user's posts with their first image and image IDs
+                posts_query = """
+                SELECT 
+                    p.*,
+                    pi.id as first_image_id,
+                    pi.content_type as first_image_content_type,
+                    pi.image_data as first_image_data,
+                    (
+                        SELECT array_agg(
+                            json_build_object(
+                                'id', pi2.id,
+                                'content_type', pi2.content_type
+                            )
+                            ORDER BY pi2.id
+                        )
+                        FROM post_images pi2
+                        WHERE pi2.post_id = p.id
+                    ) as images
+                FROM posts p
+                LEFT JOIN LATERAL (
+                    SELECT id, content_type, image_data
+                    FROM post_images
+                    WHERE post_id = p.id
+                    ORDER BY id
+                    LIMIT 1
+                ) pi ON true
+                WHERE p.userId = %s
+                ORDER BY p.datePosted DESC
+                """
+                cursor.execute(posts_query, (user_id,))
+                posts = cursor.fetchall()
+
+                # Process posts and their images
+                for post in posts:
+                    # Handle the first image if it exists
+                    if post.get('first_image_id'):
+                        post['first_image'] = {
+                            'id': post['first_image_id'],
+                            'content_type': post['first_image_content_type'],
+                            'data': f"data:{post['first_image_content_type']};base64,{base64.b64encode(post['first_image_data']).decode('utf-8')}"
+                        }
+                    else:
+                        post['first_image'] = None
+
+                    # Clean up temporary fields
+                    post.pop('first_image_id', None)
+                    post.pop('first_image_content_type', None)
+                    post.pop('first_image_data', None)
+
+                    # Ensure images array is never null
+                    if post['images'] is None:
+                        post['images'] = []
+
+                # Add posts to the user profile response
+                userProfile['posts'] = posts
+
+                return cors_response(200, {
+                    "message": "UserProfile retrieved successfully",
+                    "userProfile": userProfile
+                })
+
     except Exception as e:
-        print(f"Error getting profile: {str(e)}")
-        return cors_response(500, f"Error getting profile: {str(e)}")
-
+        print(f"Error getting profile with posts: {str(e)}")
+        return cors_response(500, f"Error getting profile with posts: {str(e)}")
 ############
 def putUserProfile(event, context):
     try:
