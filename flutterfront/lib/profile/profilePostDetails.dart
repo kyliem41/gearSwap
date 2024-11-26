@@ -333,6 +333,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
   }
 
   Future<void> _markAsSold() async {
+    print('Starting _markAsSold...'); // Debug log
+
     if (baseUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Configuration error. Please try again later.')),
@@ -360,6 +362,11 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
       // Toggle the sold status
       final newSoldStatus = !(post?['isSold'] ?? false);
+      print('Current isSold status: ${post?['isSold']}'); // Debug log
+      print('Setting new status to: $newSoldStatus'); // Debug log
+
+      final requestBody = json.encode({'isSold': newSoldStatus});
+      print('Sending request to $url with body: $requestBody'); // Debug log
 
       final response = await http.put(
         url,
@@ -367,16 +374,18 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-        body: json.encode({
-          'isSold': newSoldStatus,
-        }),
+        body: requestBody,
       );
+
+      print('Response status code: ${response.statusCode}'); // Debug log
+      print('Response body: ${response.body}'); // Debug log
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         setState(() {
           if (post != null) {
             post!['isSold'] = newSoldStatus;
+            print('Updated post isSold to: ${post!['isSold']}'); // Debug log
           }
         });
 
@@ -396,6 +405,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       }
     } catch (e) {
       print('Error marking post as sold: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text('Failed to update post status: ${e.toString()}')),

@@ -549,6 +549,8 @@ def putPost(event, context):
         
         user_id = event['pathParameters']['userId']
         post_id = event['pathParameters']['postId']
+        
+        print(f"Updating post {post_id} with body: {json.dumps(body)}") 
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -558,8 +560,7 @@ def putPost(event, context):
                 if not post or str(post['userid']) != user_id:
                     return cors_response(404, {'error': "Post not found or access denied"})
 
-                # Update post details
-                update_fields = ['price', 'description', 'size', 'category', 'clothingType', 'tags']
+                update_fields = ['price', 'description', 'size', 'category', 'clothingType', 'tags', 'isSold']
                 update_values = []
                 update_sql = []
 
@@ -580,9 +581,13 @@ def putPost(event, context):
                         UPDATE posts 
                         SET {', '.join(update_sql)}
                         WHERE id = %s AND userId = %s
+                        RETURNING *;
                     """
                     update_values.extend([post_id, user_id])
+                    print(f"Executing query: {query} with values: {update_values}")
                     cursor.execute(query, update_values)
+                    updated_post = cursor.fetchone()
+                    print(f"Updated post: {updated_post}")
 
                 # Handle image updates
                 if 'images' in body:
