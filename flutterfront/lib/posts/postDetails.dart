@@ -97,7 +97,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         print('Loaded userId from user data: $userId');
         await Future.wait([
           _loadPostDetails(),
-          _checkIfLiked(),
+          // _checkIfLiked(),
         ]);
       }
     } catch (e) {
@@ -323,38 +323,38 @@ class _PostDetailPageState extends State<PostDetailPage> {
     });
   }
 
-  Future<void> _checkIfLiked() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final idToken = prefs.getString('idToken');
+  // Future<void> _checkIfLiked() async {
+  //   try {
+  //     final prefs = await SharedPreferences.getInstance();
+  //     final idToken = prefs.getString('idToken');
 
-      if (idToken == null || userId == null) {
-        throw Exception('No authentication token or user ID found');
-      }
+  //     if (idToken == null || userId == null) {
+  //       throw Exception('No authentication token or user ID found');
+  //     }
 
-      final url = Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}');
-      print('Checking like status at: $url');
+  //     final url = Uri.parse('$baseUrl/likedPosts/$userId/${widget.postId}');
+  //     print('Checking like status at: $url');
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $idToken',
-        },
-      );
+  //     final response = await http.get(
+  //       url,
+  //       headers: {
+  //         'Authorization': 'Bearer $idToken',
+  //       },
+  //     );
 
-      print('Like check response status: ${response.statusCode}');
-      print('Like check response body: ${response.body}');
+  //     print('Like check response status: ${response.statusCode}');
+  //     print('Like check response body: ${response.body}');
 
-      setState(() {
-        isLiked = response.statusCode == 200;
-      });
-    } catch (e) {
-      print('Error checking like status: $e');
-      setState(() {
-        isLiked = false;
-      });
-    }
-  }
+  //     setState(() {
+  //       isLiked = response.statusCode == 200;
+  //     });
+  //   } catch (e) {
+  //     print('Error checking like status: $e');
+  //     setState(() {
+  //       isLiked = false;
+  //     });
+  //   }
+  // }
 
   Future<void> _toggleLike() async {
     if (userId == null) {
@@ -830,9 +830,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
                               color: isLiked ? Colors.red : Colors.grey,
                               size: 28,
                             ),
-                            onPressed: () => _toggleLike().then((_) {
-                              _checkIfLiked();
-                            }), //change?
+                            onPressed: () => _toggleLike() //.then((_) {
+                            //   _checkIfLiked();
+                            // }), //change?
                           ),
                           ElevatedButton.icon(
                             onPressed: _messageUser,
