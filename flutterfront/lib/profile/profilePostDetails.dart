@@ -887,6 +887,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     }
 
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(60.0),
         child: AppBar(
