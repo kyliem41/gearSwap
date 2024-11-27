@@ -844,26 +844,17 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: 30,
-                  ),
+                  icon: Icon(Icons.arrow_back, color: Colors.white, size: 30),
                   onPressed: () => Navigator.pop(context),
                 ),
-                // Logo and title
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.swap_calls_rounded, color: Colors.white),
                     SizedBox(width: 8),
-                    Text(
-                      'GearSwap',
-                      style: TextStyle(color: Colors.white),
-                    ),
+                    Text('GearSwap', style: TextStyle(color: Colors.white)),
                   ],
                 ),
-                // Right side icons
                 Row(
                   children: [
                     Padding(
@@ -871,15 +862,13 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                       child: IconButton(
                         icon: Icon(
                           Icons.shopping_bag_outlined,
-                          color: Color.fromARGB(248, 255, 255, 255),
+                          color: Colors.white,
                           size: 30,
                         ),
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => CartPage(),
-                            ),
+                            MaterialPageRoute(builder: (context) => CartPage()),
                           );
                         },
                       ),
@@ -896,114 +885,6 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       );
     }
 
-    if (hasError || post == null) {
-      return Scaffold(
-        appBar: PreferredSize(
-          preferredSize: Size.fromHeight(60.0),
-          child: AppBar(
-            automaticallyImplyLeading: false,
-            backgroundColor: Colors.deepOrange,
-            title: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: 30,
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                // Logo and title
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.swap_calls_rounded, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text(
-                      'GearSwap',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ],
-                ),
-                // Right side icons
-                Row(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16.0),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.shopping_bag_outlined,
-                          color: Color.fromARGB(248, 255, 255, 255),
-                          size: 30,
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CartPage(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    _buildPostMenu(),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        body: Stack(
-          children: [
-            if (post?['isSold'] == true)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  color: Colors.red,
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    'SOLD',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                    ),
-                  ),
-                ),
-              ),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Failed to load post details',
-                  style: theme.textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.error,
-                    textStyle: theme.textTheme.bodyLarge
-                        ?.copyWith(color: Colors.white),
-                  ),
-                  onPressed: _loadPostDetails,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ],
-        ),
-        bottomNavigationBar: BottomNavBar(),
-      );
-    }
-
-    String firstLetter = (post!['firstname'] as String?)?.isNotEmpty == true
-        ? post!['firstname'][0].toUpperCase()
-        : '?';
-
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(60.0),
@@ -1014,26 +895,17 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 30,
-                ),
+                icon: Icon(Icons.arrow_back, color: Colors.white, size: 30),
                 onPressed: () => Navigator.pop(context),
               ),
-              // Logo and title
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.swap_calls_rounded, color: Colors.white),
                   SizedBox(width: 8),
-                  Text(
-                    'GearSwap',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                  Text('GearSwap', style: TextStyle(color: Colors.white)),
                 ],
               ),
-              // Right side icons
               Row(
                 children: [
                   Padding(
@@ -1041,15 +913,13 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                     child: IconButton(
                       icon: Icon(
                         Icons.shopping_bag_outlined,
-                        color: Color.fromARGB(248, 255, 255, 255),
+                        color: Colors.white,
                         size: 30,
                       ),
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => CartPage(),
-                          ),
+                          MaterialPageRoute(builder: (context) => CartPage()),
                         );
                       },
                     ),
@@ -1061,206 +931,165 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: () async {
-                if (baseUrl == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text(
-                            'Configuration error. Please try again later.')),
-                  );
-                  return;
-                }
-
-                try {
-                  final prefs = await SharedPreferences.getInstance();
-                  final userStr = prefs.getString('user');
-                  final idToken = prefs.getString('idToken');
-
-                  if (userStr != null && idToken != null) {
-                    final userData = jsonDecode(userStr);
-                    final currentUserId = userData['id'].toString();
-                    final postUserId = post!['userid'].toString();
-
-                    if (currentUserId == postUserId) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ProfilePage()),
-                      );
-                    } else {
-                      final url = Uri.parse('$baseUrl/users/$postUserId');
-
-                      final response = await http.get(
-                        url,
-                        headers: {
-                          'Authorization': 'Bearer $idToken',
-                        },
-                      );
-
-                      if (response.statusCode == 200) {
-                        final data = jsonDecode(response.body);
-                        final sellerUserData = data['user'];
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SellerProfilePage(
-                              sellerId: postUserId,
-                            ),
-                          ),
-                        );
-                      } else {
-                        throw Exception('Failed to fetch seller data');
-                      }
-                    }
-                  }
-                } catch (e) {
-                  print('Error navigating to profile: $e');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to load profile')),
-                  );
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 15,
-                      child: Text(
-                        firstLetter,
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      backgroundColor: Colors.deepOrange,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      '@${post!['username'] ?? 'unknown'}',
-                      style: TextStyle(
-                        color: Colors.deepOrange,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            _buildPhotoSection(),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '\$${post!['price'] ?? '0.00'}',
-                    style: theme.textTheme.headlineMedium
-                        ?.copyWith(color: theme.colorScheme.primary),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    post!['description'] ?? 'No description provided',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  if (post!['size'] != null) ...[
-                    Text(
-                      'Size: ${post!['size']}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  if (post!['category'] != null) ...[
-                    Text(
-                      'Category: ${post!['category']}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  if (post!['clothingType'] != null) ...[
-                    Text(
-                      'Type: ${post!['clothingType']}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Add to Cart button
-                ElevatedButton.icon(
-                  onPressed: post?['isSold'] == true ? null : _addToCart,
-                  icon: Icon(Icons.shopping_cart,
-                      color: theme.colorScheme.onPrimary),
-                  label: Text(
-                    post?['isSold'] == true ? 'Sold' : 'Add to Cart',
-                    style: theme.textTheme.labelLarge,
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (context) => ProfilePage()));
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 15,
+                          backgroundColor: Colors.deepOrange,
+                          child: Text(
+                            post?['firstname']?[0]?.toUpperCase() ?? '?',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          '@${post?['username'] ?? 'unknown'}',
+                          style: TextStyle(
+                            color: Colors.deepOrange,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                // Like count display
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: theme.colorScheme.outline),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                _buildPhotoSection(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.favorite, color: Colors.red, size: 20),
-                      const SizedBox(width: 4),
                       Text(
-                        '${post!['likecount'] ?? 0}',
+                        '\$${post!['price'] ?? '0.00'}',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        post!['description'] ?? 'No description provided',
                         style: theme.textTheme.bodyMedium,
                       ),
+                      const SizedBox(height: 16),
+                      if (post!['size'] != null) ...[
+                        Text(
+                          'Size: ${post!['size']}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (post!['category'] != null) ...[
+                        Text(
+                          'Category: ${post!['category']}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (post!['condition'] != null) ...[
+                        Text(
+                          'Condition: ${post!['condition']}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                // Message button
-                ElevatedButton.icon(
-                  onPressed: _messageUser,
-                  icon: Icon(Icons.message, color: theme.colorScheme.onPrimary),
-                  label: Text('Message', style: theme.textTheme.labelLarge),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: post?['isSold'] == true ? null : _addToCart,
+                      icon: Icon(Icons.shopping_cart,
+                          color: theme.colorScheme.onPrimary),
+                      label: Text(
+                        post?['isSold'] == true ? 'Sold' : 'Add to Cart',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: theme.colorScheme.outline),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.favorite, color: Colors.red, size: 20),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${post!['likecount'] ?? 0}',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _messageUser,
+                      icon: Icon(Icons.message,
+                          color: theme.colorScheme.onPrimary),
+                      label: Text(
+                        'Message',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            if (post?['isSold'] == true)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+          ),
+          if (post?['isSold'] == true)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
                 color: Colors.red,
-                child: Center(
-                  child: Text(
-                    'SOLD',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'SOLD',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
                   ),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
       bottomNavigationBar: BottomNavBar(),
     );

@@ -430,13 +430,11 @@ class _ProfilePageState extends State<ProfilePage>
             indicatorWeight: 3,
             onTap: (index) {
               if (index == 0) {
-                // Navigate to WishlistPage
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => WishlistPage()),
                 );
               } else if (index == 2) {
-                // Navigate to OutfitsPage
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => OutfitsPage()),
@@ -481,22 +479,6 @@ class _ProfilePageState extends State<ProfilePage>
             child: Column(
               children: [
                 _buildProfilePicture(),
-                // CircleAvatar(
-                //   radius: 50,
-                //   backgroundImage: userData!.profilePicture != null
-                //       ? NetworkImage(userData!.profilePicture!)
-                //       : null,
-                //   child: userData!.profilePicture == null
-                //       ? Text(
-                //           '${userData!.firstName[0]}${userData!.lastName[0]}',
-                //           style: TextStyle(
-                //             fontSize: 32,
-                //             fontWeight: FontWeight.bold,
-                //             color: Colors.deepOrange,
-                //           ),
-                //         )
-                //       : null,
-                // ),
                 const SizedBox(height: 16),
                 Text(
                   '${userData!.firstName} ${userData!.lastName}',
