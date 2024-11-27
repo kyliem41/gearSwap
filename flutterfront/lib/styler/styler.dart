@@ -19,6 +19,7 @@ class StylistPage extends StatefulWidget {
 class _StylistPageState extends State<StylistPage> {
   final List<Message> _messages = [];
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController(); 
   bool _isLoading = false;
   String? _baseUrl;
   String? _userId;
@@ -156,6 +157,7 @@ class _StylistPageState extends State<StylistPage> {
           ));
           _isLoading = false;
         });
+        _scrollToBottom();
       }
     } catch (e) {
       print('Error handling WebSocket message: $e');
@@ -203,6 +205,7 @@ class _StylistPageState extends State<StylistPage> {
       ));
       _isLoading = true;
     });
+    _scrollToBottom();
 
     try {
       final message = {
@@ -253,6 +256,7 @@ class _StylistPageState extends State<StylistPage> {
               )));
           _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
         });
+        _scrollToBottom();
       } else {
         throw Exception('Failed to load chat history: ${response.statusCode}');
       }
@@ -293,10 +297,23 @@ class _StylistPageState extends State<StylistPage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _wsSubscription?.cancel();
     _channel?.sink.close();
     _messageController.dispose();
     super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
@@ -351,6 +368,7 @@ class _StylistPageState extends State<StylistPage> {
           ),
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(8.0),
               itemCount: _messages.length + (_isLoading ? 1 : 0),
               itemBuilder: (context, index) {
