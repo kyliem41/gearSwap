@@ -275,6 +275,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: TopNavBar(),
+      backgroundColor: Color(0xFFFFFBF5),
       body: RefreshIndicator(
         onRefresh: _refreshPosts,
         child: Padding(
@@ -377,7 +378,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
         ),
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 0,),
     );
   }
 }

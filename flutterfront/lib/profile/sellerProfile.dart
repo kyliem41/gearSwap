@@ -276,7 +276,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
           title: Text('${sellerData?.username ?? "Seller"}\'s Profile'),
         ),
         body: Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(),
+        bottomNavigationBar: BottomNavBar(currentIndex: 0,),
       );
     }
 
@@ -287,11 +287,12 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
           title: Text('Seller Profile'),
         ),
         body: Center(child: Text('No seller data available')),
-        bottomNavigationBar: BottomNavBar(),
+        bottomNavigationBar: BottomNavBar(currentIndex: 0,),
       );
     }
 
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: AppBar(
         backgroundColor: Colors.deepOrange,
         title: Text('${sellerData!.username}\'s Profile'),
@@ -505,7 +506,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 0,),
     );
   }
 }

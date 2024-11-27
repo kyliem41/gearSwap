@@ -7,20 +7,21 @@ import 'package:sample/search/search.dart';
 import 'package:sample/styler/styler.dart';
 
 class BottomNavBar extends StatefulWidget {
+  final int currentIndex;
+
+  const BottomNavBar({
+    Key? key,
+    required this.currentIndex,
+  }) : super(key: key);
+
   @override
   _BottomNavBarState createState() => _BottomNavBarState();
 }
 
 class _BottomNavBarState extends State<BottomNavBar> {
-  int _selectedIndex = 0;
 
-  // Navigation functions
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
 
-    // Use Navigator to go to the new page
     switch (index) {
       case 0:
         Navigator.pushReplacement(
@@ -50,7 +51,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => StylistPage(),
+            builder: (context) => const StylistPage(),
           ),
         );
         break;
@@ -80,9 +81,10 @@ class _BottomNavBarState extends State<BottomNavBar> {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       backgroundColor: Colors.deepOrange,
-      selectedItemColor: Colors.lightBlue[300],
-      unselectedItemColor: Color.fromARGB(248, 255, 255, 255),
-      currentIndex: _selectedIndex,
+      selectedItemColor: Colors.white,
+      unselectedItemColor: Colors.white.withOpacity(0.7),
+      currentIndex: widget.currentIndex,
+      elevation: 8,
       onTap: _onItemTapped,
       items: const [
         BottomNavigationBarItem(

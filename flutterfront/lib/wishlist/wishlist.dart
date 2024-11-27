@@ -245,6 +245,7 @@ class _WishlistPageState extends State<WishlistPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: TopNavBar(),
       body: RefreshIndicator(
         onRefresh: _loadLikedPosts,
@@ -403,7 +404,7 @@ class _WishlistPageState extends State<WishlistPage> {
                         ),
         ),
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 5,),
     );
   }
 }

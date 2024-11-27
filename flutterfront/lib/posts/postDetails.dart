@@ -624,7 +624,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       return Scaffold(
         appBar: TopNavBar2(),
         body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(),
+        bottomNavigationBar: BottomNavBar(currentIndex: 0,),
       );
     }
 
@@ -647,7 +647,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
             ],
           ),
         ),
-        bottomNavigationBar: BottomNavBar(),
+        bottomNavigationBar: BottomNavBar(currentIndex: 0,),
       );
     }
 
@@ -656,6 +656,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         : '?';
 
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: TopNavBar2(),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -809,7 +810,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 0,),
     );
   }
 }

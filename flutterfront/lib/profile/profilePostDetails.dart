@@ -835,6 +835,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
     if (isLoading) {
       return Scaffold(
+        backgroundColor: Color(0xFFFFFBF5),
         appBar: PreferredSize(
           preferredSize: Size.fromHeight(60.0),
           child: AppBar(
@@ -881,7 +882,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           ),
         ),
         body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(),
+        bottomNavigationBar: BottomNavBar(currentIndex: 5,),
       );
     }
 
@@ -1091,7 +1092,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
             ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 5,),
     );
   }
 }

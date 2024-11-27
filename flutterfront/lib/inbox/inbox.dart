@@ -31,6 +31,7 @@ class InboxPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: TopNavBar(),
       body: ListView.builder(
         itemCount: messages.length,
@@ -72,7 +73,7 @@ class InboxPage extends StatelessWidget {
           );
         },
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 4,),
     );
   }
 }

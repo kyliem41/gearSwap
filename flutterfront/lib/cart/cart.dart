@@ -599,6 +599,7 @@ class _CartPageState extends State<CartPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: CartNavBar(),
       body: userId == null
           ? Center(
@@ -812,7 +813,7 @@ class _CartPageState extends State<CartPage> {
                             ],
                           ),
                         ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 0,),
     );
   }
 }

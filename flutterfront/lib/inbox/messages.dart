@@ -55,7 +55,7 @@ class MessagePage extends StatelessWidget {
           const MessageInput(),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 4,),
     );
   }
 }

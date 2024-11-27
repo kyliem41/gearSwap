@@ -304,7 +304,7 @@ class _StylistPageState extends State<StylistPage> {
         body: const Center(
           child: Text('Please log in to access the stylist'),
         ),
-        bottomNavigationBar: BottomNavBar(),
+        bottomNavigationBar: BottomNavBar(currentIndex: 3,),
       );
     }
 
@@ -312,7 +312,7 @@ class _StylistPageState extends State<StylistPage> {
       return Scaffold(
         appBar: TopNavBar(),
         body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(),
+        bottomNavigationBar: BottomNavBar(currentIndex: 3,),
       );
     }
 
@@ -379,7 +379,7 @@ class _StylistPageState extends State<StylistPage> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 3,),
     );
   }
 }
@@ -481,7 +481,7 @@ class MessageInput extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8.0),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Color(0xFFFFFBF5),
         boxShadow: [
           BoxShadow(
             offset: const Offset(0, -2),

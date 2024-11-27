@@ -18,7 +18,27 @@ class NewPostPage extends StatefulWidget {
 }
 
 class _NewPostPageState extends State<NewPostPage> {
-  final List<String> sizes = ['XXXS', 'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+  final List<Color> tagColors = [
+    Colors.red,
+    Colors.pink,
+    Colors.orange,
+    Colors.green,
+    Colors.blue,
+    Colors.purple,
+    Colors.yellow,
+  ];
+
+  final List<String> sizes = [
+    'XXXS',
+    'XXS',
+    'XS',
+    'S',
+    'M',
+    'L',
+    'XL',
+    'XXL',
+    'XXXL'
+  ];
 
   final List<String> categories = [
     'Tops',
@@ -333,6 +353,7 @@ class _NewPostPageState extends State<NewPostPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: TopNavBar(),
       body: Stack(
         children: [
@@ -483,22 +504,34 @@ class _NewPostPageState extends State<NewPostPage> {
                 Text("Tags (select up to 5):", style: TextStyle(fontSize: 16)),
                 Wrap(
                   spacing: 8.0,
-                  children: tags
-                      .map((tag) => ChoiceChip(
-                            label: Text(tag),
-                            selected: selectedTags.contains(tag),
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected && selectedTags.length < 5) {
-                                  selectedTags.add(tag);
-                                } else {
-                                  selectedTags.remove(tag);
-                                }
-                              });
-                            },
-                            selectedColor: Colors.deepOrange,
-                          ))
-                      .toList(),
+                  children: tags.asMap().entries.map((entry) {
+                    int index = entry.key;
+                    String tag = entry.value;
+                    Color tagColor = tagColors[index % tagColors.length];
+
+                    return ChoiceChip(
+                      label: Text(
+                        tag,
+                        style: TextStyle(
+                          color: selectedTags.contains(tag)
+                              ? Colors.white
+                              : Colors.white,
+                        ),
+                      ),
+                      selected: selectedTags.contains(tag),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected && selectedTags.length < 5) {
+                            selectedTags.add(tag);
+                          } else {
+                            selectedTags.remove(tag);
+                          }
+                        });
+                      },
+                      backgroundColor: tagColor.withOpacity(0.7),
+                      selectedColor: tagColor,
+                    );
+                  }).toList(),
                 ),
                 SizedBox(height: 24.0),
                 ElevatedButton(
@@ -519,7 +552,9 @@ class _NewPostPageState extends State<NewPostPage> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 2,
+      ),
     );
   }
 }

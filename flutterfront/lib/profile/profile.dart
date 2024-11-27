@@ -463,6 +463,7 @@ class _ProfilePageState extends State<ProfilePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: TopNavBar(),
       body: Column(
         children: [
@@ -496,7 +497,7 @@ class _ProfilePageState extends State<ProfilePage>
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 5,),
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToEditProfile,
         child: Icon(Icons.edit),
@@ -741,24 +742,6 @@ class _ProfilePageState extends State<ProfilePage>
                   ),
                 ),
               ),
-            // Positioned(
-            //   bottom: 8,
-            //   left: 8,
-            //   right: 8,
-            //   child: Container(
-            //     padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            //     color: Colors.white.withOpacity(0.8),
-            //     child: Text(
-            //       '\$${post['price']}',
-            //       style: TextStyle(
-            //         fontSize: 18,
-            //         fontWeight: FontWeight.bold,
-            //         color: Colors.black,
-            //       ),
-            //       textAlign: TextAlign.center,
-            //     ),
-            //   ),
-            // ),
           ],
         );
       }

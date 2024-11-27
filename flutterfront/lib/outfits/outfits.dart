@@ -152,7 +152,7 @@ class _OutfitsPageState extends State<OutfitsPage>
         tooltip: 'Create a new outfit',
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(currentIndex: 5,),
     );
   }
 }

@@ -32,7 +32,7 @@ class _SearchPageState extends State<SearchPage> {
     'Jackets',
     'Pink',
     'Skirts',
-    'H&M',
+    'Like New',
     'Shoes',
     'Zara',
     'Denim'
@@ -435,6 +435,7 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: TopNavBar(),
       body: Column(
         children: [
@@ -572,7 +573,9 @@ class _SearchPageState extends State<SearchPage> {
             ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 1,
+      ),
     );
   }
 }
