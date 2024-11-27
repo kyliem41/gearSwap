@@ -184,46 +184,49 @@ class _StylistPageState extends State<StylistPage> {
   }
 
   Future<void> _sendMessage(String text) async {
-  if (text.trim().isEmpty) return;
-  if (_channel == null || !_isConnected) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Not connected to chat service. Attempting to reconnect...')),
-    );
-    await _reconnectWebSocket();
-    if (!_isConnected) return;
-  }
-
-  setState(() {
-    _messages.add(Message(
-      text: text,
-      isAI: false,
-      timestamp: DateTime.now(),
-    ));
-    _isLoading = true;
-  });
-
-  try {
-    final message = {
-      'action': 'sendMessage',
-      'message': text,
-      'type': _determineMessageType(text),
-      'context': _getLastMessages(3),
-    };
-    print('Preparing to send WebSocket message with action: ${message['action']}');
-    print('Full message payload: ${json.encode(message)}');
-    
-    _channel?.sink.add(json.encode(message));
-    print('Message sent successfully through WebSocket');
-  } catch (e) {
-    print('Error sending message: $e');
-    setState(() => _isLoading = false);
-    if (mounted) {
+    if (text.trim().isEmpty) return;
+    if (_channel == null || !_isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message: $e')),
+        const SnackBar(
+            content: Text(
+                'Not connected to chat service. Attempting to reconnect...')),
       );
+      await _reconnectWebSocket();
+      if (!_isConnected) return;
+    }
+
+    setState(() {
+      _messages.add(Message(
+        text: text,
+        isAI: false,
+        timestamp: DateTime.now(),
+      ));
+      _isLoading = true;
+    });
+
+    try {
+      final message = {
+        'action': 'sendMessage',
+        'message': text,
+        'type': _determineMessageType(text),
+        'context': _getLastMessages(3),
+      };
+      print(
+          'Preparing to send WebSocket message with action: ${message['action']}');
+      print('Full message payload: ${json.encode(message)}');
+
+      _channel?.sink.add(json.encode(message));
+      print('Message sent successfully through WebSocket');
+    } catch (e) {
+      print('Error sending message: $e');
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send message: $e')),
+        );
+      }
     }
   }
-}
 
   Future<void> _loadChatHistory() async {
     if (_userId == null || _idToken == null) return;
@@ -304,7 +307,9 @@ class _StylistPageState extends State<StylistPage> {
         body: const Center(
           child: Text('Please log in to access the stylist'),
         ),
-        bottomNavigationBar: BottomNavBar(currentIndex: 3,),
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: 3,
+        ),
       );
     }
 
@@ -312,7 +317,9 @@ class _StylistPageState extends State<StylistPage> {
       return Scaffold(
         appBar: TopNavBar(),
         body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(currentIndex: 3,),
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: 3,
+        ),
       );
     }
 
@@ -348,11 +355,11 @@ class _StylistPageState extends State<StylistPage> {
               itemCount: _messages.length + (_isLoading ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == _messages.length && _isLoading) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: CircularProgressIndicator(),
-                    ),
+                  return MessageBubble(
+                    text: '',
+                    isAI: true,
+                    model: 'Assistant',
+                    isTyping: true,
                   );
                 }
                 final message = _messages[index];
@@ -379,7 +386,9 @@ class _StylistPageState extends State<StylistPage> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(currentIndex: 3,),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 3,
+      ),
     );
   }
 }
@@ -404,11 +413,13 @@ class MessageBubble extends StatelessWidget {
   final String text;
   final bool isAI;
   final String? model;
+  final bool isTyping;
 
   const MessageBubble({
     required this.text,
     required this.isAI,
     this.model,
+    this.isTyping = false,
     super.key,
   });
 
@@ -450,16 +461,44 @@ class MessageBubble extends StatelessWidget {
                 ),
               ],
             ),
-            child: Text(
-              text,
-              style: TextStyle(
-                color: isAI ? Colors.black87 : Colors.white,
-                fontSize: 16,
-              ),
-            ),
+            child: isTyping
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildDot(0),
+                      _buildDot(1),
+                      _buildDot(2),
+                    ],
+                  )
+                : Text(
+                    text,
+                    style: TextStyle(
+                      color: isAI ? Colors.black87 : Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDot(int index) {
+    return TweenAnimationBuilder(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 600),
+      builder: (context, double value, child) {
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: 2),
+          child: Opacity(
+            opacity: (value + (index * 0.2)) % 1.0,
+            child: const Text(
+              '•',
+              style: TextStyle(fontSize: 24, color: Colors.black54),
+            ),
+          ),
+        );
+      },
     );
   }
 }
