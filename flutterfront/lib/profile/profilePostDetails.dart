@@ -595,7 +595,10 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
     try {
       return Container(
         width: double.infinity,
-        child: _buildImageFromData(imageData['data']),
+        alignment: Alignment.center,
+        child: Center(
+          child: _buildImageFromData(imageData['data']),
+        ),
       );
     } catch (e) {
       print('Error building post image: $e');
@@ -611,28 +614,30 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
 
     return Column(
       children: [
-        ConstrainedBox(
-          // Add this constraint
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height *
-                0.4, // 40% of screen height
-          ),
-          child: AspectRatio(
-            aspectRatio: 16 / 9, // Wider ratio to make image more compact
-            child: PageView.builder(
-              controller: _pageController,
-              onPageChanged: (index) {
-                if (_mounted) {
-                  setState(() => _currentImageIndex = index);
-                }
-              },
-              itemCount: processedImages.length,
-              itemBuilder: (context, index) {
-                return Container(
-                  width: double.infinity,
-                  child: _buildPostImage(processedImages[index]),
-                );
-              },
+        Center(
+          // Add this wrapper
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.4,
+            ),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  if (_mounted) {
+                    setState(() => _currentImageIndex = index);
+                  }
+                },
+                itemCount: processedImages.length,
+                itemBuilder: (context, index) {
+                  return Container(
+                    width: double.infinity,
+                    alignment: Alignment.center, // Add this
+                    child: _buildPostImage(processedImages[index]),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -882,12 +887,14 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           ),
         ),
         body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(currentIndex: 5,),
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: 5,
+        ),
       );
     }
 
     return Scaffold(
-      
+      backgroundColor: Color(0xFFFFFBF5),
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(60.0),
         child: AppBar(
@@ -1093,7 +1100,9 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
             ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(currentIndex: 5,),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 5,
+      ),
     );
   }
 }

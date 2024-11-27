@@ -509,7 +509,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
     try {
       return Container(
         width: double.infinity,
-        child: _buildImageFromData(imageData['data']),
+        alignment: Alignment.center,
+        child: Center(
+          child: _buildImageFromData(imageData['data']),
+        ),
       );
     } catch (e) {
       print('Error building post image: $e');
@@ -525,28 +528,30 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
     return Column(
       children: [
-        ConstrainedBox(
-          // Add this constraint
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height *
-                0.4, // 40% of screen height
-          ),
-          child: AspectRatio(
-            aspectRatio: 16 / 9, // Wider ratio to make image more compact
-            child: PageView.builder(
-              controller: _pageController,
-              onPageChanged: (index) {
-                if (_mounted) {
-                  setState(() => _currentImageIndex = index);
-                }
-              },
-              itemCount: processedImages.length,
-              itemBuilder: (context, index) {
-                return Container(
-                  width: double.infinity,
-                  child: _buildPostImage(processedImages[index]),
-                );
-              },
+        Center(
+          // Add this wrapper
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.4,
+            ),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  if (_mounted) {
+                    setState(() => _currentImageIndex = index);
+                  }
+                },
+                itemCount: processedImages.length,
+                itemBuilder: (context, index) {
+                  return Container(
+                    width: double.infinity,
+                    alignment: Alignment.center, // Add this
+                    child: _buildPostImage(processedImages[index]),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -624,7 +629,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
       return Scaffold(
         appBar: TopNavBar2(),
         body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(currentIndex: 0,),
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: 0,
+        ),
       );
     }
 
@@ -647,7 +654,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
             ],
           ),
         ),
-        bottomNavigationBar: BottomNavBar(currentIndex: 0,),
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: 0,
+        ),
       );
     }
 
@@ -670,47 +679,48 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   final userStr = prefs.getString('user');
                   final idToken = prefs.getString('idToken');
 
+                  print('Current User Data: $userStr'); // Debug log
+                  print('Post User ID: ${post!['userid']}'); // Debug log
+
                   if (userStr != null && idToken != null) {
                     final userData = jsonDecode(userStr);
                     final currentUserId = userData['id'].toString();
                     final postUserId = post!['userid'].toString();
 
+                    print('Current User ID: $currentUserId'); // Debug log
+                    print('Post User ID (converted): $postUserId'); // Debug log
+                    print(
+                        'Are they equal? ${currentUserId == postUserId}'); // Debug log
+
                     if (currentUserId == postUserId) {
-                      Navigator.push(
+                      print('Navigating to own profile'); // Debug log
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => ProfilePage()),
                       );
                     } else {
-                      final url = Uri.parse('$baseUrl/users/$postUserId');
-
-                      final response = await http.get(
-                        url,
-                        headers: {
-                          'Authorization': 'Bearer $idToken',
-                        },
-                      );
-
-                      if (response.statusCode == 200) {
-                        final data = jsonDecode(response.body);
-                        final sellerUserData = data['user'];
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SellerProfilePage(
-                              sellerId: postUserId,
-                            ),
+                      print(
+                          'Navigating to seller profile with ID: $postUserId'); // Debug log
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SellerProfilePage(
+                            sellerId: postUserId,
                           ),
-                        );
-                      } else {
-                        throw Exception('Failed to fetch seller data');
-                      }
+                        ),
+                      );
                     }
+                  } else {
+                    print('No user data or token found'); // Debug log
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Please log in to view profiles')),
+                    );
                   }
                 } catch (e) {
-                  print('Error navigating to profile: $e');
+                  print('Error navigating to profile: $e'); // Debug log
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to load profile')),
+                    SnackBar(content: Text('Failed to load profile: $e')),
                   );
                 }
               },
@@ -810,7 +820,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavBar(currentIndex: 0,),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 0,
+      ),
     );
   }
 }

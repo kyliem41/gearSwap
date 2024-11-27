@@ -196,9 +196,12 @@ def validate_file_upload(content_type: str, file_data: bytes) -> bool:
 
 def store_image(cursor, post_id: int, file_data: bytes, content_type: str) -> int:
     """Store image in the database"""
+    # Convert post_id to int if it's a string
+    post_id = int(post_id) if isinstance(post_id, str) else post_id
+
     cursor.execute(
         "INSERT INTO post_images (post_id, image_data, content_type) VALUES (%s, %s, %s) RETURNING id",
-        (post_id, file_data, content_type)  # file_data is already binary
+        (post_id, base64.b64decode(file_data) if isinstance(file_data, str) else file_data, content_type)  
     )
     return cursor.fetchone()['id']
 
@@ -644,7 +647,7 @@ def putPost(event, context):
                 if not post or str(post['userid']) != user_id:
                     return cors_response(404, {'error': "Post not found or access denied"})
 
-                update_fields = ['price', 'description', 'size', 'category', 'condition', 'tags', 'isSold']
+                update_fields = ['price', 'description', 'size', 'category', 'condition', 'tags', 'issold']
                 update_values = []
                 update_sql = []
 
@@ -656,7 +659,7 @@ def putPost(event, context):
                             value = Decimal(str(value))
                         elif field == 'tags':
                             value = json.dumps(value)
-                        elif field == 'isSold':
+                        elif field == 'issold':
                             value = bool(value)
                         update_values.append(value)
 

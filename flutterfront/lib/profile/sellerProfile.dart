@@ -6,6 +6,55 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:sample/profile/profile.dart';
 import 'package:sample/profile/profilePostDetails.dart';
+import 'dart:typed_data';
+import 'dart:math';
+
+class UserData {
+  final String id;
+  final String firstName;
+  final String lastName;
+  final String username;
+  final String email;
+  String? bio;
+  String? location;
+  String? profilePicture;
+  List<dynamic> posts;
+  int likeCount;
+  int? followersCount;
+  int? followingCount;
+
+  UserData({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.username,
+    required this.email,
+    this.bio,
+    this.location,
+    this.profilePicture,
+    this.posts = const [],
+    this.likeCount = 0,
+    this.followersCount = 0,
+    this.followingCount = 0,
+  });
+
+  factory UserData.fromJson(Map<String, dynamic> json) {
+    return UserData(
+      id: json['id'].toString(),
+      firstName: json['firstname'] ?? '',
+      lastName: json['lastname'] ?? '',
+      username: json['username'] ?? '',
+      email: json['email'] ?? '',
+      bio: json['bio'],
+      location: json['location'],
+      profilePicture: json['profilepicture'],
+      posts: json['posts'] ?? [],
+      likeCount: json['likecount']?.toInt() ?? 0,
+      followersCount: (json['followers'] as List?)?.length ?? 0,
+      followingCount: (json['following'] as List?)?.length ?? 0,
+    );
+  }
+}
 
 class SellerProfilePage extends StatefulWidget {
   final String sellerId;
@@ -30,6 +79,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
   @override
   void initState() {
     super.initState();
+    print('SellerProfilePage initialized with sellerId: ${widget.sellerId}');
     _initialize();
   }
 
@@ -68,6 +118,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
     if (baseUrl == null) return;
 
     try {
+      setState(() => isLoading = true);
       // Get user data
       final userResponse = await http.get(
         Uri.parse('$baseUrl/users/${widget.sellerId}'),
@@ -98,10 +149,12 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
 
         setState(() {
           sellerData = UserData.fromJson(userJson);
+          isLoading = false;
         });
       }
     } catch (e) {
       print('Error loading seller data: $e');
+      setState(() => isLoading = false);
     }
   }
 
@@ -267,6 +320,111 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
     );
   }
 
+  // In the _SellerProfilePageState class, add these methods:
+
+  Widget _buildPostImage(Map<String, dynamic> post) {
+    // First try to get images array
+    if (post['images'] != null &&
+        post['images'] is List &&
+        post['images'].isNotEmpty) {
+      final firstImage = post['images'][0];
+      if (firstImage != null && firstImage['data'] != null) {
+        try {
+          return _buildImageFromData(firstImage['data']);
+        } catch (e) {
+          print('Error building image from images array: $e');
+          return _buildPlaceholder();
+        }
+      }
+    }
+
+    // Fallback to first_image if images array is empty
+    if (post['first_image'] != null && post['first_image']['data'] != null) {
+      try {
+        return _buildImageFromData(post['first_image']['data']);
+      } catch (e) {
+        print('Error building image from first_image: $e');
+        return _buildPlaceholder();
+      }
+    }
+
+    return _buildPlaceholder();
+  }
+
+  Widget _buildImageFromData(String imageData) {
+    try {
+      final Uint8List bytes = _base64ToImage(imageData);
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        child: ClipRRect(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(4.0)),
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              print('Error loading image: $error');
+              return _buildPlaceholder();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error processing image data: $e');
+      return _buildPlaceholder();
+    }
+  }
+
+  Uint8List _base64ToImage(String base64String) {
+    try {
+      // Handle both formats: with and without data URI scheme
+      String pureBase64;
+      if (base64String.contains(';base64,')) {
+        pureBase64 = base64String.split(';base64,')[1].trim();
+      } else if (base64String.contains(',')) {
+        pureBase64 = base64String.split(',')[1].trim();
+      } else {
+        pureBase64 = base64String.trim();
+      }
+
+      // Remove any whitespace
+      pureBase64 = pureBase64.replaceAll(RegExp(r'\s+'), '');
+
+      // Add padding if needed
+      while (pureBase64.length % 4 != 0) {
+        pureBase64 += '=';
+      }
+
+      final bytes = base64Decode(pureBase64);
+      if (bytes.isEmpty) {
+        throw Exception('Decoded base64 is empty');
+      }
+
+      print('Successfully decoded image, byte length: ${bytes.length}');
+      return bytes;
+    } catch (e) {
+      print('Error decoding base64: $e');
+      print(
+          'Base64 string preview: ${base64String.substring(0, min<int>(100, base64String.length))}');
+      rethrow;
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.grey[200],
+      child: Center(
+        child: Icon(
+          Icons.image,
+          size: 40,
+          color: Colors.grey[400],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -276,7 +434,9 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
           title: Text('${sellerData?.username ?? "Seller"}\'s Profile'),
         ),
         body: Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: BottomNavBar(currentIndex: 0,),
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: 0,
+        ),
       );
     }
 
@@ -287,7 +447,9 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
           title: Text('Seller Profile'),
         ),
         body: Center(child: Text('No seller data available')),
-        bottomNavigationBar: BottomNavBar(currentIndex: 0,),
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: 0,
+        ),
       );
     }
 
@@ -430,47 +592,18 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
                           },
                           child: Card(
                             elevation: 4.0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                            clipBehavior: Clip.antiAlias,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Expanded(
                                   child: Container(
+                                    width: double.infinity,
                                     color: Colors.grey[200],
-                                    child: Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          if (post['photos'] != null &&
-                                              post['photos'].isNotEmpty)
-                                            Image.network(
-                                              post['photos'][0],
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error,
-                                                      stackTrace) =>
-                                                  Icon(
-                                                Icons.image,
-                                                size: 40,
-                                                color: Colors.grey[400],
-                                              ),
-                                            )
-                                          else
-                                            Icon(
-                                              Icons.image,
-                                              size: 40,
-                                              color: Colors.grey[400],
-                                            ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            '\$${post['price']}',
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                    child: _buildPostImage(post),
                                   ),
                                 ),
                                 Padding(
@@ -479,6 +612,13 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
+                                      Text(
+                                        '\$${post['price']}',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                       Text(
                                         post['description'] ?? 'No description',
                                         style: TextStyle(fontSize: 14),
@@ -506,7 +646,9 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavBar(currentIndex: 0,),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 0,
+      ),
     );
   }
 }

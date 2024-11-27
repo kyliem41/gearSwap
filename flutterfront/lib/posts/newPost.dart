@@ -178,9 +178,19 @@ class _NewPostPageState extends State<NewPostPage> {
   }
 
   Future<void> _uploadImages(String postId, String idToken) async {
+    print('Starting image upload process for post ID: $postId');
+    print('Number of photos to upload: ${photos.length}');
+
     for (var photo in photos) {
       try {
-        print('Uploading image for post: $postId');
+        print('Processing photo data:');
+        print('Content type: ${photo['content_type']}');
+        print('Data length: ${photo['data']?.length ?? 'null'}');
+
+        if (photo['data'] == null || photo['content_type'] == null) {
+          print('Invalid photo data: missing required fields');
+          continue;
+        }
 
         final imageResponse = await http.post(
           Uri.parse('$baseUrl/posts/$postId/images'),
@@ -192,16 +202,19 @@ class _NewPostPageState extends State<NewPostPage> {
               {'data': photo['data'], 'content_type': photo['content_type']}),
         );
 
-        print(
-            'Image upload response: ${imageResponse.statusCode} - ${imageResponse.body}');
+        print('Image upload response status: ${imageResponse.statusCode}');
+        print('Image upload response body: ${imageResponse.body}');
 
         if (imageResponse.statusCode != 201 &&
             imageResponse.statusCode != 200) {
+          print(
+              'Failed to upload image with status: ${imageResponse.statusCode}');
           throw Exception('Failed to upload image: ${imageResponse.body}');
         }
       } catch (e) {
         print('Error uploading image: $e');
-        throw e;
+        // Continue with other images even if one fails
+        continue;
       }
     }
   }
@@ -221,7 +234,7 @@ class _NewPostPageState extends State<NewPostPage> {
       }
 
       final userData = json.decode(userStr);
-      final userId = userData['id'];
+      final userId = userData['id'].toString();
 
       // Create post first
       final createPostResponse = await http.post(
@@ -237,7 +250,7 @@ class _NewPostPageState extends State<NewPostPage> {
           'category': selectedCategory,
           'condition': selectedCondition,
           'tags': selectedTags,
-          'photos': [] // Initialize with empty JSONB array
+          'photos': []
         }),
       );
 
@@ -250,7 +263,7 @@ class _NewPostPageState extends State<NewPostPage> {
       }
 
       final postData = json.decode(createPostResponse.body);
-      final postId = postData['post']['id'];
+      final postId = postData['post']['id'].toString();
 
       // Upload images
       await _uploadImages(postId, idToken);
