@@ -226,11 +226,23 @@ def createPost(event, context):
 
         user_id = event['pathParameters']['userId']
         
+        VALID_CONDITIONS = {
+            'Brand New',
+            'Like New',
+            'Gently Used',
+            'Well Used'
+        }
+        
         # Validate required fields
-        required_fields = ['price', 'description', 'size', 'category', 'clothingType']
+        required_fields = ['price', 'description', 'size', 'category', 'condition']
         for field in required_fields:
             if field not in body:
                 return cors_response(400, {'error': f"Missing required field: {field}"})
+            
+        if body['condition'] not in VALID_CONDITIONS:
+            return cors_response(400, {
+                'error': f"Invalid condition. Must be one of: {', '.join(VALID_CONDITIONS)}"
+            })
 
         # Extract photos array from body
         photos = body.get('photos', [])
@@ -246,7 +258,7 @@ def createPost(event, context):
 
                 # Create post
                 insert_query = """
-                INSERT INTO posts (userId, price, description, size, category, clothingType, tags, photos) 
+                INSERT INTO posts (userId, price, description, size, category, condition, tags, photos) 
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id;
                 """
@@ -257,7 +269,7 @@ def createPost(event, context):
                     body['description'],
                     body['size'],
                     body['category'],
-                    body['clothingType'],
+                    body['condition'],
                     json.dumps(body.get('tags', [])),
                     '[]'
                 ))
@@ -498,7 +510,7 @@ def getPostsByFilter(event, context):
         user_id = event['pathParameters']['userId']
 
         # Define allowed filters
-        allowed_filters = ['colors', 'clothingType', 'size', 'category', 'minPrice', 'maxPrice']
+        allowed_filters = ['colors', 'condition', 'size', 'category', 'minPrice', 'maxPrice']
 
         # Build the WHERE clause dynamically
         where_clauses = ["p.userId = %s"]
@@ -506,7 +518,7 @@ def getPostsByFilter(event, context):
 
         for filter_name in allowed_filters:
             if filter_name in query_params:
-                if filter_name in ['colors', 'clothingType', 'size', 'category']:
+                if filter_name in ['colors', 'condition', 'size', 'category']:
                     where_clauses.append(f"p.{filter_name} = %s")
                     params.append(query_params[filter_name])
                 elif filter_name == 'minPrice':
@@ -580,7 +592,19 @@ def putPost(event, context):
         user_id = event['pathParameters']['userId']
         post_id = event['pathParameters']['postId']
         
+        VALID_CONDITIONS = {
+            'Brand New',
+            'Like New',
+            'Gently Used',
+            'Well Used'
+        }
+        
         print(f"Updating post {post_id} with body: {json.dumps(body)}") 
+        
+        if 'condition' in body and body['condition'] not in VALID_CONDITIONS:
+            return cors_response(400, {
+                'error': f"Invalid condition. Must be one of: {', '.join(VALID_CONDITIONS)}"
+            })
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -590,7 +614,7 @@ def putPost(event, context):
                 if not post or str(post['userid']) != user_id:
                     return cors_response(404, {'error': "Post not found or access denied"})
 
-                update_fields = ['price', 'description', 'size', 'category', 'clothingType', 'tags', 'isSold']
+                update_fields = ['price', 'description', 'size', 'category', 'condition', 'tags', 'isSold']
                 update_values = []
                 update_sql = []
 

@@ -18,20 +18,27 @@ class NewPostPage extends StatefulWidget {
 }
 
 class _NewPostPageState extends State<NewPostPage> {
-  final List<String> sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+  final List<String> sizes = ['XXXS', 'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+
   final List<String> categories = [
-    'Clothing',
-    'Electronics',
-    'Furniture',
-    'Accessories'
+    'Tops',
+    'Bottoms',
+    'Dresses',
+    'Outerwear',
+    'Shoes',
+    'Sleepwear',
+    'Swimwear',
+    'Accessories',
+    'Costume',
   ];
-  final List<String> clothingTypes = [
-    'Shirt',
-    'Pants',
-    'Dress',
-    'Jacket',
-    'Shoes'
+
+  final List<String> condition = [
+    'Brand New',
+    'Like New',
+    'Gently Used',
+    'Well Used'
   ];
+
   final List<String> tags = [
     'Casual',
     'Formal',
@@ -44,7 +51,7 @@ class _NewPostPageState extends State<NewPostPage> {
   List<String> selectedTags = [];
   String? selectedSize;
   String? selectedCategory;
-  String? selectedClothingType;
+  String? selectedCondition;
   List<Map<String, dynamic>> photos = [];
   bool _isLoading = false;
   bool _isProcessingImage = false;
@@ -208,7 +215,7 @@ class _NewPostPageState extends State<NewPostPage> {
           'description': descriptionController.text.trim(),
           'size': selectedSize,
           'category': selectedCategory,
-          'clothingType': selectedClothingType,
+          'condition': selectedCondition,
           'tags': selectedTags,
           'photos': [] // Initialize with empty JSONB array
         }),
@@ -271,8 +278,8 @@ class _NewPostPageState extends State<NewPostPage> {
       _showErrorDialog('Please select a category');
       return false;
     }
-    if (selectedClothingType == null) {
-      _showErrorDialog('Please select a clothing type');
+    if (selectedCondition == null) {
+      _showErrorDialog('Please select a condition');
       return false;
     }
     if (photos.isEmpty) {
@@ -458,19 +465,19 @@ class _NewPostPageState extends State<NewPostPage> {
                 ),
                 SizedBox(height: 16.0),
                 DropdownButtonFormField<String>(
-                  value: selectedClothingType,
+                  value: selectedCondition,
                   decoration: InputDecoration(
-                    labelText: "Clothing Type",
+                    labelText: "Condition",
                     border: OutlineInputBorder(),
                   ),
-                  items: clothingTypes
+                  items: condition
                       .map((type) => DropdownMenuItem(
                             value: type,
                             child: Text(type),
                           ))
                       .toList(),
                   onChanged: (value) =>
-                      setState(() => selectedClothingType = value),
+                      setState(() => selectedCondition = value),
                 ),
                 SizedBox(height: 16.0),
                 Text("Tags (select up to 5):", style: TextStyle(fontSize: 16)),

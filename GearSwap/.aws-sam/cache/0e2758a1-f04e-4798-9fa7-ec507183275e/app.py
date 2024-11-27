@@ -163,7 +163,7 @@ def postSearch(event, context):
                     search_conditions.extend([
                         "LOWER(description) LIKE %s",
                         "LOWER(category) LIKE %s",
-                        "LOWER(clothingtype) LIKE %s",
+                        "LOWER(condition) LIKE %s",
                         "EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) tag WHERE LOWER(tag) LIKE %s)"
                     ])
                     search_params.extend([pattern] * 4)

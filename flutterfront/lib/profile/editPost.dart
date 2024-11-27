@@ -20,6 +20,8 @@ class EditPostPage extends StatefulWidget {
 
 class _EditPostPageState extends State<EditPostPage> {
   final List<Map<String, String>> sizes = [
+    {'value': 'XXXS', 'label': 'XXXS'},
+    {'value': 'XXS', 'label': 'XXS'},
     {'value': 'XS', 'label': 'XS'},
     {'value': 'S', 'label': 'S'},
     {'value': 'M', 'label': 'M'},
@@ -30,18 +32,22 @@ class _EditPostPageState extends State<EditPostPage> {
   ];
 
   final List<Map<String, String>> categories = [
-    {'value': 'Clothing', 'label': 'Clothing'},
-    {'value': 'Electronics', 'label': 'Electronics'},
-    {'value': 'Furniture', 'label': 'Furniture'},
+    {'value': 'Tops', 'label': 'Tops'},
+    {'value': 'Bottoms', 'label': 'Bottoms'},
+    {'value': 'Dresses', 'label': 'Dresses'},
+    {'value': 'Outerwear', 'label': 'Outerwear'},
+    {'value': 'Shoes', 'label': 'Shoes'},
+    {'value': 'Sleepwear', 'label': 'Sleepwear'},
+    {'value': 'Swimwear', 'label': 'Swimwear'},
     {'value': 'Accessories', 'label': 'Accessories'},
+    {'value': 'Costume', 'label': 'Costume'},
   ];
 
-  final List<Map<String, String>> clothingTypes = [
-    {'value': 'Shirt', 'label': 'Shirt'},
-    {'value': 'Pants', 'label': 'Pants'},
-    {'value': 'Dress', 'label': 'Dress'},
-    {'value': 'Jacket', 'label': 'Jacket'},
-    {'value': 'Shoes', 'label': 'Shoes'},
+  final List<Map<String, String>> condition = [
+    {'value': 'Brand New', 'label': 'Brand New'},
+    {'value': 'Like New', 'label': 'Like New'},
+    {'value': 'Gently Used', 'label': 'Gently Used'},
+    {'value': 'Well Used', 'label': 'Well Used'},
   ];
 
   final List<String> tags = [
@@ -56,7 +62,7 @@ class _EditPostPageState extends State<EditPostPage> {
   List<String> selectedTags = [];
   String? selectedSize;
   String? selectedCategory;
-  String? selectedClothingType;
+  String? selectedCondition;
   List<Map<String, dynamic>> existingImages = [];
   List<Map<String, dynamic>> newImages = [];
   bool _isLoading = false;
@@ -90,7 +96,7 @@ class _EditPostPageState extends State<EditPostPage> {
     setState(() {
       selectedSize = widget.postDetails['size']?.toString();
       selectedCategory = widget.postDetails['category']?.toString();
-      selectedClothingType = widget.postDetails['clothingType']?.toString();
+      selectedCondition = widget.postDetails['condition']?.toString();
 
       // Initialize tags
       selectedTags = [];
@@ -222,7 +228,7 @@ class _EditPostPageState extends State<EditPostPage> {
         'description': descriptionController.text.trim(),
         'size': selectedSize,
         'category': selectedCategory,
-        'clothingType': selectedClothingType,
+        'condition': selectedCondition,
         'tags': selectedTags,
         'images': allImages,
       };
@@ -274,8 +280,8 @@ class _EditPostPageState extends State<EditPostPage> {
       _showErrorDialog('Please select a category');
       return false;
     }
-    if (selectedClothingType == null) {
-      _showErrorDialog('Please select a clothing type');
+    if (selectedCondition == null) {
+      _showErrorDialog('Please select a condition');
       return false;
     }
     if (existingImages.isEmpty && newImages.isEmpty) {
@@ -527,12 +533,12 @@ class _EditPostPageState extends State<EditPostPage> {
                   ),
                   SizedBox(height: 16.0),
                   DropdownButtonFormField<String>(
-                    value: selectedClothingType,
+                    value: selectedCondition,
                     decoration: InputDecoration(
-                      labelText: "Clothing Type",
+                      labelText: "Condition",
                       border: OutlineInputBorder(),
                     ),
-                    items: clothingTypes.map((type) {
+                    items: condition.map((type) {
                       return DropdownMenuItem(
                         value: type['value'],
                         child: Text(type['label']!),
@@ -540,7 +546,7 @@ class _EditPostPageState extends State<EditPostPage> {
                     }).toList(),
                     onChanged: (String? value) {
                       setState(() {
-                        selectedClothingType = value;
+                        selectedCondition = value;
                       });
                     },
                   ),

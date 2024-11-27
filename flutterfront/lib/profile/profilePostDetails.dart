@@ -397,9 +397,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           ),
         );
 
-        // Refresh the posts in the profile page
         if (!mounted) return;
-        Navigator.pop(context, true); // Return true to trigger refresh
+        Navigator.pop(context, true);
       } else {
         throw Exception('Failed to update post: ${response.statusCode}');
       }
