@@ -770,10 +770,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
-                  if (post!['clothingtype'] != null) ...[
+                  if (post!['condition'] != null) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'Type: ${post!['clothingtype']}',
+                      'Type: ${post!['condition']}',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
