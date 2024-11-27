@@ -361,11 +361,11 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
       final url = Uri.parse('$baseUrl/posts/update/$userId/${widget.postId}');
 
       // Toggle the sold status
-      final newSoldStatus = !(post?['isSold'] ?? false);
-      print('Current isSold status: ${post?['isSold']}'); // Debug log
+      final newSoldStatus = !(post?['issold'] ?? false);
+      print('Current isSold status: ${post?['issold']}'); // Debug log
       print('Setting new status to: $newSoldStatus'); // Debug log
 
-      final requestBody = json.encode({'isSold': newSoldStatus});
+      final requestBody = json.encode({'issold': newSoldStatus});
       print('Sending request to $url with body: $requestBody'); // Debug log
 
       final response = await http.put(
@@ -384,8 +384,8 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         final responseData = json.decode(response.body);
         setState(() {
           if (post != null) {
-            post!['isSold'] = newSoldStatus;
-            print('Updated post isSold to: ${post!['isSold']}'); // Debug log
+            post!['issold'] = newSoldStatus;
+            print('Updated post isSold to: ${post!['issold']}'); // Debug log
           }
         });
 
@@ -726,7 +726,7 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
           child: ListTile(
             leading: Icon(Icons.check_circle_outline),
             title: Text(
-                post?['isSold'] == true ? 'Mark as Available' : 'Mark as Sold'),
+                post?['issold'] == true ? 'Mark as Available' : 'Mark as Sold'),
           ),
         ),
         const PopupMenuItem<String>(
@@ -1014,11 +1014,11 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     ElevatedButton.icon(
-                      onPressed: post?['isSold'] == true ? null : _addToCart,
+                      onPressed: post?['issold'] == true ? null : _addToCart,
                       icon: Icon(Icons.shopping_cart,
                           color: theme.colorScheme.onPrimary),
                       label: Text(
-                        post?['isSold'] == true ? 'Sold' : 'Add to Cart',
+                        post?['issold'] == true ? 'Sold' : 'Add to Cart',
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: theme.colorScheme.onPrimary,
                         ),
@@ -1070,9 +1070,9 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
               ],
             ),
           ),
-          if (post?['isSold'] == true)
+          if (post?['issold'] == true)
             Positioned(
-              top: 0,
+              bottom: 0,
               left: 0,
               right: 0,
               child: Container(

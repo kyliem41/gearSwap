@@ -193,7 +193,8 @@ def postSearch(event, context):
                         ) as images
                     FROM posts p
                     JOIN users u ON p.userId = u.id
-                    WHERE {' OR '.join(search_conditions)}
+                    WHERE COALESCE(p.isSold, false) = false  -- Add this condition
+                    AND ({' OR '.join(search_conditions)})   -- Changed to AND to combine with isSold check
                     ORDER BY p.dateposted DESC
                 """
                 

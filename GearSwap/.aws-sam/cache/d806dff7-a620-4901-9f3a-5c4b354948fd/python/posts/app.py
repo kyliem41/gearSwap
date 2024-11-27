@@ -340,18 +340,36 @@ def getPosts(event, context):
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # First, let's check the structure of the posts table
+                cursor.execute("""
+                    SELECT column_name, data_type, is_nullable 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'posts' AND column_name = 'isSold'
+                """)
+                column_info = cursor.fetchone()
+                print(f"isSold column info: {column_info}")
                 
                 if not include_sold:
-                    cursor.execute("SELECT COUNT(*) FROM posts WHERE isSold = FALSE")
+                    cursor.execute("SELECT COUNT(*) FROM posts WHERE COALESCE(isSold, false) = FALSE")
                 else:
                     cursor.execute("SELECT COUNT(*) FROM posts")
                 total_posts = cursor.fetchone()['count']
                 
-                where_clause = "" if include_sold else "WHERE p.isSold = FALSE"
+                where_clause = "" if include_sold else "WHERE COALESCE(p.isSold, false) = FALSE"
 
-                cursor.execute(f"""
+                query = f"""
                     SELECT 
-                        p.*,
+                        p.id,
+                        p.userId,
+                        p.price,
+                        p.description,
+                        p.size,
+                        p.category,
+                        p.condition,
+                        p.tags,
+                        COALESCE(p.isSold, false) as "isSold",
+                        p.datePosted,
+                        p.likeCount,
                         u.username,
                         pi.id as first_image_id,
                         pi.content_type as first_image_content_type,
@@ -379,12 +397,17 @@ def getPosts(event, context):
                     {where_clause}
                     ORDER BY p.datePosted DESC
                     LIMIT %s OFFSET %s
-                """, (page_size, offset))
+                """
                 
+                print(f"Executing query: {query}")
+                cursor.execute(query, (page_size, offset))
                 posts = cursor.fetchall()
 
-                # Process posts
+                # Debug each post's isSold status
                 for post in posts:
+                    raw_is_sold = post.get('issold')  # Note: psycopg2 returns column names in lowercase
+                    print(f"Post {post['id']} raw isSold value: {raw_is_sold}, type: {type(raw_is_sold)}")
+                    
                     # Convert Decimal to float
                     if 'price' in post:
                         post['price'] = float(post['price'])
@@ -412,9 +435,16 @@ def getPosts(event, context):
                     if post['photos'] is None:
                         post['photos'] = []
 
+                formatted_posts = []
+                for post in posts:
+                    post_copy = dict(post)
+                    # Convert isSold to boolean and ensure consistent case
+                    post_copy['isSold'] = bool(post_copy.pop('issold', False))
+                    formatted_posts.append(post_copy)
+
                 return cors_response(200, {
                     "message": "Posts retrieved successfully",
-                    "posts": posts,
+                    "posts": formatted_posts,
                     "page": page,
                     "page_size": page_size,
                     "total_posts": total_posts,

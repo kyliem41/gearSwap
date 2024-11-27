@@ -174,7 +174,7 @@ class _ProfilePageState extends State<ProfilePage>
 
     try {
       final url = Uri.parse('$baseUrl/posts?include_sold=true');
-      print('Fetching posts for user ID: ${userData!.id}');
+      print('Fetching posts from URL: $url');
 
       final response = await http.get(
         url,
@@ -184,20 +184,64 @@ class _ProfilePageState extends State<ProfilePage>
         },
       );
 
-      print('Posts response status: ${response.statusCode}');
-
       if (response.statusCode == 200) {
+        // Log the raw response
+        print('Raw API response: ${response.body}');
+
         var data = json.decode(response.body);
         var allPosts = data['posts'] as List;
-        // Remove the filter that was excluding sold posts
-        var userPosts =
-            allPosts.where((post) => post['userid'] == userData!.id).toList();
 
-        print('Found ${userPosts.length} posts for user ${userData!.id}');
+        // Process and log each post before filtering
+        print('All posts before processing:');
+        for (var post in allPosts) {
+          print(
+              'Post ${post['id']}: isSold = ${post['issold']}, type = ${post['issold'].runtimeType}');
+        }
 
-        setState(() {
-          userData!.posts = userPosts;
-        });
+        var userPosts = allPosts
+            .where((post) => post['userid'] == userData!.id)
+            .map((post) {
+          // Create a new map to avoid reference issues
+          var processedPost = Map<String, dynamic>.from(post);
+
+          // Explicit boolean conversion with logging
+          var rawIsSold = post['issold'];
+          print('Processing post ${post['id']}:');
+          print('  Raw issold value: $rawIsSold');
+          print('  Raw issold type: ${rawIsSold.runtimeType}');
+
+          bool isSold;
+          if (rawIsSold is bool) {
+            isSold = rawIsSold;
+          } else if (rawIsSold is String) {
+            isSold = rawIsSold.toLowerCase() == 'true';
+          } else {
+            isSold = false;
+          }
+
+          processedPost['issold'] = isSold;
+          print('  Final isSold value: ${processedPost['issold']}');
+          return processedPost;
+        }).toList();
+
+        print('Processed user posts:');
+        for (var post in userPosts) {
+          print(
+              'Post ${post['id']}: isSold = ${post['issold']}, type = ${post['issold'].runtimeType}');
+        }
+
+        if (mounted) {
+          setState(() {
+            userData!.posts = userPosts;
+          });
+
+          // Verify the state after setting
+          print('Posts in state after update:');
+          for (var post in userData!.posts) {
+            print(
+                'Post ${post['id']}: isSold = ${post['issold']}, type = ${post['issold'].runtimeType}');
+          }
+        }
       } else {
         print('Error response: ${response.body}');
         throw Exception('Failed to load posts: ${response.statusCode}');
@@ -645,50 +689,78 @@ class _ProfilePageState extends State<ProfilePage>
           post['first_image']['data'] != null &&
           post['first_image']['content_type'] != null) {
         String imageData = post['first_image']['data'];
-        try {
-          return Stack(
-            children: [
-              Container(
-                width: double.infinity,
-                height: double.infinity,
-                child: ClipRRect(
-                  borderRadius:
-                      BorderRadius.vertical(top: Radius.circular(4.0)),
-                  child: Image.memory(
-                    _base64ToImage(imageData),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      print('Error loading image: $error');
-                      return _buildPlaceholder();
-                    },
-                  ),
+
+        print('Raw isSold value for post ${post['id']}: ${post['issold']}');
+        print('isSold value type: ${post['issold'].runtimeType}');
+
+        bool isSold = false;
+        var rawSoldStatus = post['issold'];
+        if (rawSoldStatus is bool) {
+          isSold = rawSoldStatus;
+        } else if (rawSoldStatus is String) {
+          isSold = rawSoldStatus.toLowerCase() == 'true';
+        } else if (rawSoldStatus != null) {
+          isSold = rawSoldStatus == true;
+        }
+
+        print('Final isSold status for post ${post['id']}: $isSold');
+
+        return Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              child: ClipRRect(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(4.0)),
+                child: Image.memory(
+                  _base64ToImage(imageData),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Error loading image: $error');
+                    return _buildPlaceholder();
+                  },
                 ),
               ),
-              if (post['isSold'] == true)
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  left: 0,
-                  child: Container(
-                    color: Colors.red,
-                    padding: EdgeInsets.symmetric(vertical: 4),
-                    child: Text(
-                      'SOLD',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+            ),
+            if (isSold)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: Colors.red,
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'SOLD',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
                 ),
-            ],
-          );
-        } catch (e) {
-          print('Error processing image: $e');
-          return _buildPlaceholder();
-        }
+              ),
+            // Positioned(
+            //   bottom: 8,
+            //   left: 8,
+            //   right: 8,
+            //   child: Container(
+            //     padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            //     color: Colors.white.withOpacity(0.8),
+            //     child: Text(
+            //       '\$${post['price']}',
+            //       style: TextStyle(
+            //         fontSize: 18,
+            //         fontWeight: FontWeight.bold,
+            //         color: Colors.black,
+            //       ),
+            //       textAlign: TextAlign.center,
+            //     ),
+            //   ),
+            // ),
+          ],
+        );
       }
       return _buildPlaceholder();
     } catch (e) {
